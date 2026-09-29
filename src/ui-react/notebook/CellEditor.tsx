@@ -8,6 +8,7 @@ import { EditorState, Annotation } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, insertNewline } from '@codemirror/commands';
 import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete';
 import { setDiagnostics } from '@codemirror/lint';
+import { bracketMatching } from '@codemirror/language';
 import { useWs } from '../hooks';
 import { mll, mllHighlight, mllCompletions } from './mll-language';
 
@@ -45,6 +46,7 @@ export function CellEditor({ cellId, autoFocus, onCommit, onFocus, onBlur, onDel
           history(),
           drawSelection(),
           closeBrackets(),
+          bracketMatching(),
           mll,
           mllHighlight,
           EditorView.lineWrapping,
@@ -75,7 +77,7 @@ export function CellEditor({ cellId, autoFocus, onCommit, onFocus, onBlur, onDel
       }),
     });
     viewRef.current = view;
-    if (autoFocus) view.focus();
+    if (autoFocus) focusAtEnd(view);
 
     const syncText = () => {
       const src = ws.doc.cell(cellId)?.source;
@@ -119,7 +121,7 @@ export function CellEditor({ cellId, autoFocus, onCommit, onFocus, onBlur, onDel
   }, [ws, cellId]);
 
   useEffect(() => {
-    if (autoFocus) viewRef.current?.focus();
+    if (autoFocus && viewRef.current) focusAtEnd(viewRef.current);
   }, [autoFocus]);
 
   return (
@@ -131,4 +133,9 @@ export function CellEditor({ cellId, autoFocus, onCommit, onFocus, onBlur, onDel
       }}
     />
   );
+}
+/** Open a row for editing with the caret at the end of the line (where new input usually goes). */
+function focusAtEnd(view: EditorView) {
+  view.focus();
+  view.dispatch({ selection: { anchor: view.state.doc.length }, scrollIntoView: true });
 }

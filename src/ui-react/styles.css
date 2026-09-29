@@ -301,3 +301,12 @@ select { max-width: 360px; }
 .notebook .cell-output { padding: 2px 2px 2px 4px; }
 .notebook .out-row { min-height: 26px; }
 .notebook { gap: 2px; }
+/* editor caret, selection and brackets — clearly visible in both themes */
+.cell-editor .cm-cursor, .cell-editor .cm-dropCursor { border-left: 2px solid var(--accent) !important; }
+.cell-editor .cm-editor.cm-focused .cm-selectionBackground, .cell-editor .cm-selectionBackground { background: rgba(122, 162, 255, 0.35) !important; }
+:root[data-theme='light'] .cell-editor .cm-selectionBackground { background: rgba(59, 108, 246, 0.25) !important; }
+.cell-editor .cm-matchingBracket { background: var(--accent-soft); outline: 1px solid var(--accent); border-radius: 2px; }
+.cell-editor .cm-nonmatchingBracket { outline: 1px solid var(--error); border-radius: 2px; }
+.cell-editor .cm-editor.cm-focused { box-shadow: 0 0 0 3px var(--accent-soft); }
+/* while a row is being edited its action buttons must not cover the text */
+.notebook .cell:focus-within .cell-actions { display: none; }
