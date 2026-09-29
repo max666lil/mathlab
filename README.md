@@ -142,13 +142,11 @@ registerDrawer2D('my-visual', { layer: 3, draw: (a) => { /* canvas drawing */ } 
 
 ## Status and next steps
 
-Phase 1 (done): workbench shell, object recognition, lazy analysis of f(x) and f(x, y), CAS commands
-(derivative, integrate, limit, solve, taylor, critical/zeros/extrema/inflections, domain, monotonicity,
-concavity, asymptotes, tangent, directional), typed results with certainty, `show`/`hide`/`compare`.
+**Phase 1 is done**: workbench shell, object recognition, lazy analysis of f(x) and f(x, y), CAS commands,
+typed results with certainty, `show` / `hide` / `compare`, analyzer-declared layouts.
 
-Next phases, each adding analyzers and value kinds to the same registries:
-2. Constrained optimisation (`maximize f subject to g = c`, Lagrange geometry) and f(x, y, z)
-   (level surfaces).
-3. Probability & statistics (`X ~ Normal(0, 1)`, `Y = X^2`, pdf/cdf/samples, sampling distributions).
-4. Vector fields, div/curl, line and surface integrals, flux.
-5. Sequences and series.
+The full plan — seven phases from 3-D scalar fields and constrained optimisation to multiple integrals,
+linear algebra, probability & statistics, vector calculus and series — is in
+**[docs/ROADMAP.md](docs/ROADMAP.md)**. The next phase is specified in
+**[docs/phases/phase-2.md](docs/phases/phase-2.md)** (flagships: the Earth 3-D temperature field and the
+Lagrange constraint scene).
