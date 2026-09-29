@@ -39,7 +39,7 @@ function cached(key: string, make: () => FunctionValue): FunctionValue {
 export function gradOf(ctx: EvalContext, f: FunctionValue): FunctionValue {
   asScalarField(f);
   return cached(`grad|${f.key}`, () => {
-    const label = `\nabla ${f.label ?? 'f'}`;
+    const label = `\\nabla ${f.label ?? 'f'}`;
     if (f.expr) {
       try {
         return ctx.makeFunction(gradient(f.expr, f.params), f.params, { label, role: 'gradient', base: f, env: f.env });
@@ -145,7 +145,7 @@ const calculus: Builtin[] = [
       const v = raw[1];
       if (v.type !== 'sym' || !f.params.includes(v.name)) throw new EvalError(`Second argument must be one of ${f.params.join(', ')}`);
       if (!f.expr) throw new EvalError('No symbolic form to differentiate');
-      return ctx.makeFunction(diff(f.expr, v.name), f.params, { label: `\partial_{${symbolLatex(v.name)}} ${f.label ?? 'f'}`, base: f, env: f.env });
+      return ctx.makeFunction(diff(f.expr, v.name), f.params, { label: `\\partial_{${symbolLatex(v.name)}} ${f.label ?? 'f'}`, base: f, env: f.env });
     },
   },
   {
@@ -154,7 +154,7 @@ const calculus: Builtin[] = [
     apply: ([fv, P, u], ctx) => {
       const f = asScalarField(expectFunction(fv));
       const d = localData(ctx, f, pointArg(P, f));
-      return scalar(dot(d.g, normalize(expectVector(u))), { derivation: `D_{\hat u} ${f.label ?? 'f'}` });
+      return scalar(dot(d.g, normalize(expectVector(u))), { derivation: `D_{\\hat u} ${f.label ?? 'f'}` });
     },
   },
   {
@@ -283,9 +283,13 @@ function makeSlice(f: FunctionValue, spec: Expr, third: MathValue | undefined, c
     const a = expectNumber(ctx.evaluate(spec.right));
     // slice(f, x = P.x) marks P on the section
     let markerCoord: number | undefined;
+    let markerId: string | undefined;
     if (spec.right.type === 'member' && spec.right.object.type === 'sym') {
       const P = ctx.lookup(spec.right.object.name);
-      if (P?.kind === 'point') markerCoord = (P as { coords: number[] }).coords[free];
+      if (P?.kind === 'point') {
+        markerCoord = (P as { coords: number[] }).coords[free];
+        markerId = spec.right.object.name;
+      }
     }
     const origin = [0, 0];
     origin[fixed] = a;
@@ -294,7 +298,7 @@ function makeSlice(f: FunctionValue, spec: Expr, third: MathValue | undefined, c
     dir[free] = 1;
     const args = f.params.map((p, i) => (i === fixed ? L(a) : symbolLatex(p)));
     return {
-      kind: 'slice', fn: f, origin, dir, axis: free, marker: markerCoord !== undefined ? 0 : undefined,
+      kind: 'slice', fn: f, origin, dir, axis: free, marker: markerCoord !== undefined ? 0 : undefined, markerId,
       label: `z = ${name}(${args.join(', ')})`, role: fixed === 0 ? 'slice-x' : 'slice-y',
     };
   }
@@ -304,8 +308,8 @@ function makeSlice(f: FunctionValue, spec: Expr, third: MathValue | undefined, c
   const u = expectVector(third);
   if (norm(u) === 0) throw new EvalError('Direction must be non-zero');
   return {
-    kind: 'slice', fn: f, origin: p, dir: normalize(u), marker: 0,
-    label: `z = ${name}(${pointNameLatex(spec)} + t\,\hat{u})`, role: 'slice-dir',
+    kind: 'slice', fn: f, origin: p, dir: normalize(u), marker: 0, markerId: spec.type === 'sym' ? spec.name : undefined,
+    label: `z = ${name}(${pointNameLatex(spec)} + t\\,\\hat{u})`, role: 'slice-dir',
   };
 }
 
@@ -317,9 +321,9 @@ export const coreCalculusMath = definePlugin({
   name: 'core-calculus',
   install(api) {
     [...calculus, ...visuals].forEach((b) => api.registerBuiltin(b));
-    api.registerLatexFunctionName('grad', '\nabla');
+    api.registerLatexFunctionName('grad', '\\nabla');
     api.registerLatexFunctionName('hessian', 'H');
-    api.registerLatexFunctionName('tangent_plane', '\operatorname{T}');
+    api.registerLatexFunctionName('tangent_plane', '\\operatorname{T}');
     api.registerDefaultVisual('vector', (v, ctx) => {
       const vec = v as { comps: number[]; anchor?: number[] };
       const anchor = vec.anchor ?? vec.comps.map(() => 0);

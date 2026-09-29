@@ -67,7 +67,8 @@ describe('differentiation', () => {
   }
   it('latex', () => {
     expect(toLatex(simplify(P('x^2 + 2y^2')))).toBe('x^{2} + 2 y^{2}');
-    expect(toLatex(simplify(P('x/2')))).toBe(String.raw`rac{x}{2}`);
+    expect(toLatex(simplify(P('x/2')))).toBe('\\frac{x}{2}');
+    expect(toLatex(simplify(P('sin(x)^2 + sqrt(y)')))).toBe('\\sin^{2}\\left(x\\right) + \\sqrt{y}');
   });
 });
 

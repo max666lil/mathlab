@@ -12,7 +12,7 @@ import { toLatex, formatNumber, numberLatex, symbolLatex } from './symbolic/prin
 interface Base {
   /** Semantic role used for styling / explanations, e.g. 'gradient', 'direction'. */
   role?: string;
-  /** Optional LaTeX describing how the value was obtained, e.g. '\nabla f(P)'. */
+  /** Optional LaTeX describing how the value was obtained, e.g. '\\nabla f(P)'. */
   derivation?: string;
 }
 
@@ -44,7 +44,7 @@ export interface FunctionValue extends Base {
   env: NumericEnv;
   eval: (...args: number[]) => number | number[] | number[][];
   out: 'scalar' | 'vector' | 'matrix';
-  /** LaTeX name used when printing, e.g. 'f' or '\nabla f'. */
+  /** LaTeX name used when printing, e.g. 'f' or '\\nabla f'. */
   label?: string;
   /** Canonical identity (expression + environment) for caches in renderers. */
   key: string;
@@ -68,6 +68,8 @@ export interface SliceValue extends Base {
   axis?: number;
   /** Parameter t of a marked point on the slice (e.g. P), if any */
   marker?: number;
+  /** Name of the marked point node (dragging along the slice moves it) */
+  markerId?: string;
   label: string;
 }
 export interface ListValue extends Base {
@@ -159,19 +161,19 @@ registerValueKind({
 });
 registerValueKind({
   kind: 'point',
-  latex: (v) => `\left(${nums((v as PointValue).coords)}\right)`,
+  latex: (v) => `\\left(${nums((v as PointValue).coords)}\\right)`,
   typeLabel: (v) => `point in ℝ${sup((v as PointValue).coords.length)}`,
   member: (v, prop) => memberOf((v as PointValue).coords, prop),
 });
 registerValueKind({
   kind: 'vector',
-  latex: (v) => `\left\langle ${nums((v as VectorValue).comps)}\right\rangle`,
+  latex: (v) => `\\left\\langle ${nums((v as VectorValue).comps)}\\right\\rangle`,
   typeLabel: (v) => `vector in ℝ${sup((v as VectorValue).comps.length)}${(v as VectorValue).anchor ? ' (bound)' : ''}`,
   member: (v, prop) => memberOf((v as VectorValue).comps, prop),
 });
 registerValueKind({
   kind: 'matrix',
-  latex: (v) => `\begin{pmatrix}${(v as MatrixValue).rows.map((r) => r.map((x) => numberLatex(x)).join(' & ')).join(' \\ ')}\end{pmatrix}`,
+  latex: (v) => `\\begin{pmatrix}${(v as MatrixValue).rows.map((r) => r.map((x) => numberLatex(x)).join(' & ')).join(' \\\\ ')}\\end{pmatrix}`,
   typeLabel: (v) => `${(v as MatrixValue).rows.length}×${(v as MatrixValue).rows[0]?.length ?? 0} matrix`,
 });
 registerValueKind({
@@ -188,31 +190,31 @@ registerValueKind({
 });
 registerValueKind({
   kind: 'plane',
-  latex: (v) => (v as PlaneValue).latex ?? `\text{plane through } (${nums((v as PlaneValue).point)})`,
+  latex: (v) => (v as PlaneValue).latex ?? `\\text{plane through } (${nums((v as PlaneValue).point)})`,
   typeLabel: () => 'plane in ℝ³',
 });
 registerValueKind({ kind: 'slice', latex: (v) => (v as SliceValue).label, typeLabel: () => 'cross-section curve' });
 registerValueKind({
   kind: 'list',
-  latex: (v) => `\left[${(v as ListValue).items.map(valueLatex).join(', ')}\right]`,
+  latex: (v) => `\\left[${(v as ListValue).items.map(valueLatex).join(', ')}\\right]`,
   typeLabel: (v) => `list of ${(v as ListValue).items.length}`,
 });
-registerValueKind({ kind: 'bool', latex: (v) => ((v as BoolValue).value ? '\text{true}' : '\text{false}'), typeLabel: () => 'boolean' });
+registerValueKind({ kind: 'bool', latex: (v) => ((v as BoolValue).value ? '\\text{true}' : '\\text{false}'), typeLabel: () => 'boolean' });
 registerValueKind({
   kind: 'visual',
-  latex: (v) => `\text{${(v as VisualValue).label ?? (v as VisualValue).vtype}}`,
+  latex: (v) => `\\text{${(v as VisualValue).label ?? (v as VisualValue).vtype}}`,
   typeLabel: (v) => `visual: ${(v as VisualValue).vtype}`,
 });
 registerValueKind({
   kind: 'show',
-  latex: (v) => (v as ShowValue).items.map((it) => (it.kind === 'visual' ? valueLatex(it) : `\text{${typeLabel(it)}}`)).join(',\;'),
+  latex: (v) => (v as ShowValue).items.map((it) => (it.kind === 'visual' ? valueLatex(it) : `\\text{${typeLabel(it)}}`)).join(',\\;'),
   typeLabel: () => 'shown in views',
 });
 registerValueKind({
   kind: 'animation',
   latex: (v) => {
     const a = v as AnimationValue;
-    return `${symbolLatex(a.target)}: ${numberLatex(a.from)} \to ${numberLatex(a.to)}`;
+    return `${symbolLatex(a.target)}: ${numberLatex(a.from)} \\to ${numberLatex(a.to)}`;
   },
   typeLabel: () => 'animation',
 });
@@ -236,7 +238,7 @@ export function valueMember(v: MathValue, prop: string): MathValue | undefined {
 
 export function valueLatex(v: MathValue): string {
   const spec = kinds.get(v.kind);
-  return spec ? spec.latex(v) : `\text{${v.kind}}`;
+  return spec ? spec.latex(v) : `\\text{${v.kind}}`;
 }
 
 export function typeLabel(v: MathValue): string {

@@ -218,20 +218,20 @@ export function symbolLatex(name: string): string {
     }
   }
   let b: string;
-  if (base in GREEK) b = `\${GREEK[base]}`;
-  else if (GREEK_WORDS.has(base)) b = `\${base}`;
+  if (base in GREEK) b = `\\${GREEK[base]}`;
+  else if (GREEK_WORDS.has(base)) b = `\\${base}`;
   else if (base.length === 1) b = base;
-  else b = `\mathrm{${base}}`;
+  else b = `\\mathrm{${base}}`;
   return b + primes + (sub ? `_{${sub.length === 1 ? sub : symbolLatex(sub)}}` : '');
 }
 
 export function numberLatex(x: number, digits = 4): string {
   const f = asFraction(x);
-  if (f && Math.abs(f[1]) <= 12) return `${f[0] < 0 ? '-' : ''}\frac{${Math.abs(f[0])}}{${f[1]}}`;
+  if (f && Math.abs(f[1]) <= 12) return `${f[0] < 0 ? '-' : ''}\\frac{${Math.abs(f[0])}}{${f[1]}}`;
   const s = formatNumber(x, digits);
   const m = /^(-?[\d.]+)e([+-]?\d+)$/.exec(s);
-  if (m) return `${m[1]}\times 10^{${Number(m[2])}}`;
-  return s.replace('∞', '\infty');
+  if (m) return `${m[1]}\\times 10^{${Number(m[2])}}`;
+  return s.replace('∞', '\\infty');
 }
 
 export function functionNameLatex(name: string): string {
@@ -240,14 +240,14 @@ export function functionNameLatex(name: string): string {
   const sf = getScalarFunction(name);
   if (sf?.latex) return sf.latex;
   if (name.length === 1 || name in GREEK || /^.[\d_']/.test(name)) return symbolLatex(name);
-  return `\operatorname{${name.replace(/_/g, '\_')}}`;
+  return `\\operatorname{${name.replace(/_/g, '\\_')}}`;
 }
 
 export function toLatex(e: Expr, digits = 4): string {
   const L = (x: Expr) => toLatex(x, digits);
   const p = (x: Expr, min: number) => {
     const s = L(x);
-    return precOf(x) < min ? `\left(${s}\right)` : s;
+    return precOf(x) < min ? `\\left(${s}\\right)` : s;
   };
   const list = (xs: Expr[]) => xs.map(L).join(', ');
   switch (e.type) {
@@ -263,22 +263,22 @@ export function toLatex(e: Expr, digits = 4): string {
       return `${L(e.left)} = ${L(e.right)}`;
     case 'call': {
       const name = e.callee.type === 'sym' ? e.callee.name : undefined;
-      if (name === 'sqrt' && e.args.length === 1) return `\sqrt{${L(e.args[0])}}`;
-      if (name === 'abs' && e.args.length === 1) return `\left|${L(e.args[0])}\right|`;
+      if (name === 'sqrt' && e.args.length === 1) return `\\sqrt{${L(e.args[0])}}`;
+      if (name === 'abs' && e.args.length === 1) return `\\left|${L(e.args[0])}\\right|`;
       if (name === 'exp' && e.args.length === 1) return `e^{${L(e.args[0])}}`;
-      if (name === 'norm' && e.args.length === 1) return `\left\lVert ${L(e.args[0])}\right\rVert`;
+      if (name === 'norm' && e.args.length === 1) return `\\left\\lVert ${L(e.args[0])}\\right\\rVert`;
       const head = name ? functionNameLatex(name) : p(e.callee, PREC.atom);
       if (name === 'grad' && e.args.length === 1 && e.args[0].type === 'sym') return `${head} ${L(e.args[0])}`;
-      return `${head}\left(${list(e.args)}\right)`;
+      return `${head}\\left(${list(e.args)}\\right)`;
     }
     case 'tuple':
-      return `\left(${list(e.items)}\right)`;
+      return `\\left(${list(e.items)}\\right)`;
     case 'vec':
-      return `\left\langle ${list(e.items)}\right\rangle`;
+      return `\\left\\langle ${list(e.items)}\\right\\rangle`;
     case 'list':
-      return `\left[${list(e.items)}\right]`;
+      return `\\left[${list(e.items)}\\right]`;
     case 'matrix':
-      return `\begin{pmatrix}${e.rows.map((r) => r.map(L).join(' & ')).join(' \\ ')}\end{pmatrix}`;
+      return `\\begin{pmatrix}${e.rows.map((r) => r.map(L).join(' & ')).join(' \\\\ ')}\\end{pmatrix}`;
     case 'bin':
       switch (e.op) {
         case '+':
@@ -305,26 +305,26 @@ export function toLatex(e: Expr, digits = 4): string {
             let bottom = join(den.map((d) => d));
             if (botC !== 1) bottom = bottom ? `${botC} ${bottom}` : String(botC);
             if (!bottom) return top;
-            return `\frac{${top}}{${bottom}}`;
+            return `\\frac{${top}}{${bottom}}`;
           }
           const body = join(num);
           return coef === 1 ? body : `${numberLatex(coef, digits)} ${body}`;
         }
         case '/':
-          return `\frac{${L(e.left)}}{${L(e.right)}}`;
+          return `\\frac{${L(e.left)}}{${L(e.right)}}`;
         case '^': {
           const base = e.left.type === 'call' && e.left.callee.type === 'sym' && getScalarFunction(e.left.callee.name)?.latex && e.right.type === 'num' && e.right.value > 0
-            ? `${functionNameLatex(e.left.callee.name)}^{${L(e.right)}}\left(${list(e.left.args)}\right)`
+            ? `${functionNameLatex(e.left.callee.name)}^{${L(e.right)}}\\left(${list(e.left.args)}\\right)`
             : null;
           if (base) return base;
           return `${p(e.left, PREC.pow + 1)}^{${L(e.right)}}`;
         }
         case '·':
-          return `${p(e.left, PREC.prod)} \cdot ${p(e.right, PREC.prod + 1)}`;
+          return `${p(e.left, PREC.prod)} \\cdot ${p(e.right, PREC.prod + 1)}`;
         case '×':
-          return `${p(e.left, PREC.prod)} \times ${p(e.right, PREC.prod + 1)}`;
+          return `${p(e.left, PREC.prod)} \\times ${p(e.right, PREC.prod + 1)}`;
         case 'at':
-          return `${p(e.left, PREC.atom)}\left(${L(e.right)}\right)`;
+          return `${p(e.left, PREC.atom)}\\left(${L(e.right)}\\right)`;
       }
   }
 }

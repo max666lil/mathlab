@@ -298,7 +298,7 @@ export class Evaluator implements EvalContext {
     if (coords.length !== f.params.length)
       throw spanErr(`${f.label ?? 'function'} takes ${f.params.length} input(s), got ${coords.length}`, e);
     const out = f.eval(...coords);
-    const derivation = `${f.label ?? 'f'}\left(${coords.map((c) => +c.toFixed(4)).join(', ')}\right)`;
+    const derivation = `${f.label ?? 'f'}\\left(${coords.map((c) => +c.toFixed(4)).join(', ')}\\right)`;
     if (typeof out === 'number') return scalar(out, { derivation, role: f.role });
     if (Array.isArray(out[0])) return matrixV(out as number[][], { derivation, role: f.role });
     const comps = out as number[];
