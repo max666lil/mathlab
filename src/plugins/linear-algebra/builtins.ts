@@ -14,6 +14,7 @@ import { Field, Q, QF, numericField, toQMatrix, tolFor, primitive, toFrac } from
 import * as alg from './algorithms';
 import { eigenOf, isSymmetric } from './eigen';
 import { orthonormalize, qrOf, svdOf } from './decomp';
+import { visual } from '../../visualization/scene-model';
 import {
   SubspaceValue, EigenValue, FactorizationValue, subspace, affine, eigenvaluesList, eigenvectorsList,
 } from './values';
@@ -165,7 +166,14 @@ const fn = (name: string, min: number, max: number, signature: string, doc: stri
   name, minArgs: min, maxArgs: max, category: 'linear algebra', signature, doc, apply: (args, _ctx, raw, kw) => apply(args, kw, raw), ...extra,
 });
 const bool = (value: boolean, reason: string, certainty: Certainty): BoolValue => ({ kind: 'bool', value, reason, certainty });
-const nameOf = (raw: Expr[] | undefined, fallback = 'A') => (raw?.[0]?.type === 'sym' ? raw[0].name : fallback);
+/** The object a result belongs to: A in `eigen A`, T in `eigen(standardmatrix T)` (keys its timeline). */
+export function ownerOf(e: Expr | undefined): string | undefined {
+  if (!e) return undefined;
+  if (e.type === 'sym') return e.name;
+  if (e.type === 'call' && e.callee.type === 'sym' && e.callee.name === 'standardmatrix' && e.args[0]?.type === 'sym') return e.args[0].name;
+  return undefined;
+}
+const nameOf = (raw: Expr[] | undefined, fallback = 'A') => ownerOf(raw?.[0]) ?? fallback;
 
 // ------------------------------------------------------------------ builtins
 
@@ -204,7 +212,7 @@ export const linearAlgebraBuiltins: Builtin[] = [
     const ok = m.q ? d !== 0 : Math.abs(d) > tolFor(m.rows);
     return bool(ok, ok ? `\\det = ${L(d, m.certainty)} \\neq 0` : `\\det = 0,\\ \\operatorname{rank} = ${rankOf(m)} < ${m.rows.length}`, m.certainty);
   }),
-  unary('eigen', 'Eigenvalues with their eigenspaces and multiplicities.', (m, raw) => ({ ...eigenValueOf(m), of: raw[0]?.type === 'sym' ? raw[0].name : undefined })),
+  unary('eigen', 'Eigenvalues with their eigenspaces and multiplicities.', (m, raw) => ({ ...eigenValueOf(m), of: ownerOf(raw[0]) })),
   unary('eigenvalues', 'Eigenvalues (with multiplicity; complex ones as a ± bi).', (m) => eigenvaluesList(eigenValueOf(m))),
   unary('eigenvectors', 'A basis of each real eigenspace.', (m) => eigenvectorsList(eigenValueOf(m))),
   fn('eigenspace', 2, 2, 'eigenspace(A, λ)', 'The eigenspace null(A − λI).', ([a, l]) => {
@@ -251,9 +259,9 @@ export const linearAlgebraBuiltins: Builtin[] = [
     const D = lambdas.map((l, i) => lambdas.map((_, j) => (i === j ? l : 0)));
     return { kind: 'factorization', what: 'orthogonal diagonalization', factors: [['Q', Qm], ['D', D]], product: 'Q D Q^{T}', certainty: e.certainty, key: JSON.stringify(['odiag', m.rows]) } as FactorizationValue;
   }),
-  unary('nullspace', 'Null space {x : A x = 0} with a basis.', (m, raw) => ({ ...nullspaceOf(m), of: raw[0]?.type === 'sym' ? raw[0].name : undefined })),
+  unary('nullspace', 'Null space {x : A x = 0} with a basis.', (m, raw) => ({ ...nullspaceOf(m), of: ownerOf(raw[0]) })),
   unary('kernel', 'Kernel = null space.', (m) => nullspaceOf(m)),
-  unary('columnspace', 'Column space: spanned by the pivot columns of A.', (m, raw) => ({ ...columnspaceOf(m), of: raw[0]?.type === 'sym' ? raw[0].name : undefined })),
+  unary('columnspace', 'Column space: spanned by the pivot columns of A.', (m, raw) => ({ ...columnspaceOf(m), of: ownerOf(raw[0]) })),
   unary('rowspace', 'Row space: spanned by the non-zero rows of rref(A).', (m) => rowspaceOf(m)),
   fn('span', 1, 8, 'span(u, v, …)', 'The subspace spanned by vectors (basis = an independent subset).', (args) => {
     const { vs, certainty } = vectorsOf(args);
@@ -298,7 +306,8 @@ export const linearAlgebraBuiltins: Builtin[] = [
       return alg.mulVec(F, P, BA.map((r) => r[k])).map((t) => clean(F.num(t)));
     });
     const residual = x.vs[0].map((t, i) => t - p[i]);
-    return vector(p, undefined, { certainty: all.certainty, role: 'projection', residual, source: x.vs[0] } as Partial<VectorValue>);
+    const geometry = visual('projection', { v: x.vs[0], p, basis: pivots.map((j) => vs[j]) }, 'projection', 'projection');
+    return vector(p, undefined, { certainty: all.certainty, role: 'projection', residual, source: x.vs[0], visuals: [geometry] } as Partial<VectorValue>);
   }, { command: true, keywords: { onto: V } }),
   fn('leastsquares', 2, 2, 'leastsquares(A, b)', 'Least-squares solution of A x ≈ b (normal equations AᵀA x = Aᵀb).', ([a, b]) => {
     const m = expectMx(a);
@@ -339,7 +348,8 @@ export const linearAlgebraBuiltins: Builtin[] = [
     const sol = solveOf(mxOf(columnsMatrix(vs), certainty), x.vs[0], x.certainty);
     if (!sol.consistent) throw new EvalError('v is not in the span of B');
     if (sol.directions.length) throw new EvalError('B is not a basis (its vectors are dependent)');
-    return vector(sol.particular!, undefined, { certainty: sol.certainty, role: 'coords', basis: vs } as Partial<VectorValue>);
+    const geometry = visual('coords', { v: x.vs[0], c: sol.particular!, basis: vs }, 'coordinates', 'coords');
+    return vector(sol.particular!, undefined, { certainty: sol.certainty, role: 'coords', basis: vs, visuals: [geometry] } as Partial<VectorValue>);
   }, { command: true, keywords: { in: V } }),
   fn('matrix', 1, 8, 'matrix(u, v, …)', 'The matrix whose columns are the given vectors.', (args) => {
     const { vs, certainty } = vectorsOf(args);

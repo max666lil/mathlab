@@ -6,7 +6,8 @@ import { usePres, useAnalysis, useTopics, useWs } from '../hooks';
 import { LiveFormula, part } from './LiveFormula';
 import { Tex } from '../Tex';
 import { symbolLatex, numberLatex } from '../../math-core/symbolic/print';
-import { MathValue, MatrixValue, entryLatex, vectorLatex } from '../../math-core/values';
+import { MathValue, MatrixValue, FunctionValue, entryLatex, vectorLatex } from '../../math-core/values';
+import { linearMatrixOf } from '../../plugins/linear-algebra/builtins';
 import type { EigenValue, SubspaceValue } from '../../plugins/linear-algebra/values';
 
 export const LINEAR_TOPICS = new Set(['det', 'eigen', 'rank', 'inverse', 'columns']);
@@ -28,8 +29,11 @@ export function LinearExplain({ topic }: { topic: string }) {
   };
   const A = plan.object;
   const AL = symbolLatex(A);
-  const M = ws.value(A) as MatrixValue | undefined;
-  if (!M || M.kind !== 'matrix') return null;
+  const obj = ws.value(A);
+  // a matrix, or a linear map T(x, y) = (…) through its standard matrix
+  const M: MatrixValue | undefined =
+    obj?.kind === 'matrix' ? (obj as MatrixValue) : obj?.kind === 'function' && linearMatrixOf(obj as FunctionValue) ? { kind: 'matrix', rows: linearMatrixOf(obj as FunctionValue)!, certainty: 'exact' } : undefined;
+  if (!M) return null;
   const rows = M.rows;
   const n = rows[0].length;
   const replay = (to = 1) => pres.playTimeline(`lin:${A}`, { from: 0, to });

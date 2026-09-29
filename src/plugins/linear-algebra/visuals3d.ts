@@ -189,7 +189,7 @@ class Subspace3D implements Visual3D {
       return;
     }
     this.object.visible = true;
-    const R = ctx.map.size * 0.5;
+    const R = ctx.map.size * 0.36;
     const color = item.color;
     const carried = s.role === 'nullspace' && s.matrix && timeline;
     const M = carried ? matrixAt({ stages: [s.matrix!], n: 3 } as unknown as LinTransProps, ctx.timeline(timeline!, 1)) : null;
@@ -223,8 +223,8 @@ class Subspace3D implements Visual3D {
     } else if (this.line) this.line.line.visible = false;
     if (u && w) {
       if (!this.plane) {
-        const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false });
-        setOpacity(mat, 0.18);
+        const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.13, side: THREE.DoubleSide, depthWrite: false });
+        setOpacity(mat, 0.13);
         this.plane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
         this.plane.matrixAutoUpdate = false;
         this.object.add(this.plane);
@@ -249,3 +249,117 @@ class Subspace3D implements Visual3D {
   }
 }
 registerVisual3D('subspace', () => new Subspace3D());
+
+// ---------------------------------------------------------------- projections, coordinates, solution sets
+
+class Projection3D implements Visual3D {
+  object = new THREE.Group();
+  private v = new Arrow3D(LA_COLORS.axis);
+  private residual: FatLine | null = null;
+  private label = new Label3D(0.026);
+  constructor() {
+    this.object.add(this.v.group, this.label.sprite);
+  }
+  update(item: SceneItem, ctx: Ctx3D) {
+    const { v, p } = item.visual.props as { v: number[]; p: number[] };
+    this.object.visible = v.length === 3;
+    if (v.length !== 3) return;
+    this.v.set(O, V3(v), ctx.map.size * 0.007);
+    if (!this.residual) {
+      this.residual = new FatLine(ctx.lineMaterial(LA_COLORS.nullspace, 1.8, { dashed: true }));
+      this.object.add(this.residual.line);
+    }
+    this.residual.set([...p, ...v]);
+    this.label.set('v', LA_COLORS.axis);
+    this.label.sprite.position.copy(V3(v).multiplyScalar(1.08));
+  }
+  dispose() {
+    this.v.dispose();
+    this.label.dispose();
+    disposeObject(this.object);
+  }
+}
+registerVisual3D('projection', () => new Projection3D());
+
+class Coords3D implements Visual3D {
+  object = new THREE.Group();
+  private legs = [new Arrow3D(LA_COLORS.i), new Arrow3D(LA_COLORS.j), new Arrow3D(LA_COLORS.k)];
+  constructor() {
+    this.object.add(...this.legs.map((l) => l.group));
+  }
+  update(item: SceneItem, ctx: Ctx3D) {
+    const { c, basis } = item.visual.props as { c: number[]; basis: number[][] };
+    this.object.visible = basis[0]?.length === 3;
+    if (!this.object.visible) return;
+    let at = new THREE.Vector3();
+    this.legs.forEach((leg, i) => {
+      leg.group.visible = i < basis.length;
+      if (i >= basis.length) return;
+      const next = at.clone().add(V3(basis[i]).multiplyScalar(c[i]));
+      leg.set(at, next, ctx.map.size * 0.004);
+      at = next;
+    });
+  }
+  dispose() {
+    this.legs.forEach((l) => l.dispose());
+    disposeObject(this.object);
+  }
+}
+registerVisual3D('coords', () => new Coords3D());
+
+/** Row picture of a 3-variable system: one translucent plane per equation, the solution set highlighted. */
+class Affine3D implements Visual3D {
+  object = new THREE.Group();
+  private planes: THREE.Mesh[] = [];
+  private dot: THREE.Mesh;
+  private line: FatLine | null = null;
+  constructor() {
+    this.dot = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: '#ff8fab' }));
+    this.object.add(this.dot);
+  }
+  update(item: SceneItem, ctx: Ctx3D, selected: boolean) {
+    const s = item.visual.props.a as import('./values').AffineValue;
+    this.object.visible = s.ambient === 3;
+    if (!this.object.visible) return;
+    const R = ctx.map.size * 0.5;
+    const COLORS = ['#4cc9f0', '#f4a261', '#52d69b', '#c77dff'];
+    const rows = s.system?.A ?? [];
+    rows.forEach((row, i) => {
+      if (!this.planes[i]) {
+        const mat = new THREE.MeshBasicMaterial({ color: COLORS[i % 4], transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false });
+        setOpacity(mat, 0.16);
+        this.planes[i] = new THREE.Mesh(new THREE.PlaneGeometry(2 * R, 2 * R), mat);
+        this.object.add(this.planes[i]);
+      }
+      const n = V3(row);
+      const len = n.length();
+      const pl = this.planes[i];
+      pl.visible = len > 1e-9;
+      if (!pl.visible) return;
+      n.divideScalar(len);
+      pl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+      pl.position.copy(n.clone().multiplyScalar(s.system!.b[i] / len));
+    });
+    this.planes.forEach((p, i) => (p.visible = p.visible && i < rows.length));
+    const ok = s.consistent && s.particular;
+    this.dot.visible = !!ok && s.directions.length === 0;
+    if (ok && s.directions.length === 0) {
+      this.dot.position.copy(V3(s.particular!));
+      this.dot.scale.setScalar(ctx.map.size * (selected ? 0.014 : 0.011));
+    }
+    if (ok && s.directions.length === 1) {
+      if (!this.line) {
+        this.line = new FatLine(ctx.lineMaterial(item.color, 3));
+        this.object.add(this.line.line);
+      }
+      const d = V3(s.directions[0]).normalize().multiplyScalar(R * 2);
+      const p = V3(s.particular!);
+      this.line.set([p.x - d.x, p.y - d.y, p.z - d.z, p.x + d.x, p.y + d.y, p.z + d.z]);
+      this.line.line.visible = true;
+    } else if (this.line) this.line.line.visible = false;
+  }
+  dispose() {
+    disposeObject(this.object);
+  }
+}
+registerVisual3D('affine', () => new Affine3D());

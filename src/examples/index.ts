@@ -105,10 +105,22 @@ export const examples: Example[] = [
     cells: ['B = [[1,2,3],[4,5,6],[7,8,9]]'],
   },
   {
-    id: 'la-systems',
-    title: 'Linear systems, projections, least squares',
+    id: 'la-system',
+    title: 'Linear system — the row picture',
     course: 'Linear Algebra',
-    cells: ['A = [[1,1],[1,-1]]', 'solve(A, <3, 1>)', 'W = span(<1,0,1>, <0,1,1>)', 'project <1, 2, 3> onto W', 'leastsquares([[1,0],[1,1],[1,2]], <6, 0, 0>)'],
+    cells: ['X = solve([[1,1,1],[1,-1,0],[0,1,-1]], <3, 0, 0>)', 'analyze X'],
+  },
+  {
+    id: 'la-projection',
+    title: 'Projection onto a plane, least squares',
+    course: 'Linear Algebra',
+    cells: ['W = span(<1,0,1>, <0,1,1>)', 'v = <1, 2, 0>', 'project v onto W'],
+  },
+  {
+    id: 'linear-map',
+    title: 'Linear map T(x, y) — its matrix',
+    course: 'Linear Algebra',
+    cells: ['T(x,y) = (x + y, 2y)'],
   },
   {
     id: 'parameter',

@@ -101,3 +101,43 @@ describe('timelines', () => {
   });
 });
 
+describe('subspaces, vector lists, systems, linear maps', () => {
+  it('subspace analyzer', () => {
+    const { an, ws } = setup('W = span(<1,0,1>, <0,1,1>, <1,1,2>)');
+    const plan = an.plan()!;
+    expect(plan.typeLabel).toBe('subspace of ℝ³ · dim 2');
+    expect(plan.layout.views[0].renderer).toBe('scene');
+    expect(ws.sceneItems().filter((i) => i.visible).map((i) => i.visual.vtype)).toEqual(['subspace']);
+  });
+  it('vector list analyzer', () => {
+    const { an } = setup('S = [<1,2>, <2,4>]');
+    const plan = an.plan()!;
+    expect(plan.typeLabel).toBe('2 vectors in ℝ²');
+    const ind = plan.facts.find((f) => f.id === 'independent')!;
+    expect((an.fact(plan, ind).value as any).value).toBe(false);
+  });
+  it('row picture of a system', () => {
+    const { an, ws } = setup('X = solve([[1,1],[1,-1]], <3, 1>)', 'analyze X');
+    expect(an.plan()!.typeLabel).toBe('solution set in ℝ²');
+    const item = ws.sceneItems().find((i) => i.visual.vtype === 'affine')!;
+    expect((item.visual.props.a as any).particular).toEqual([2, 1]);
+  });
+  it('projection carries its geometry', () => {
+    const { ws } = setup('W = span(<1,0,1>, <0,1,1>)', 'project <1, 2, 3> onto W');
+    expect(ws.sceneItems().some((i) => i.visual.vtype === 'projection')).toBe(true);
+  });
+  it('linear map is analysed through its matrix', () => {
+    const { an } = setup('T(x,y) = (x + y, 2y)');
+    const plan = an.plan()!;
+    expect(plan.typeLabel).toBe('linear map ℝ² → ℝ²');
+    expect(plan.layout.timeline!.key).toBe('lin:T');
+    const m = plan.facts.find((f) => f.id === 'matrix')!;
+    expect((an.fact(plan, m).value as any).rows).toEqual([[1, 1], [0, 2]]);
+    const t = plan.facts.find((f) => f.id === 'transformation')!;
+    expect((an.fact(plan, t).value as any).props.timeline).toBe('lin:T');
+  });
+  it('nonlinear vector functions are not linear maps', () => {
+    const { an } = setup('F(x,y) = (x^2, y)');
+    expect(an.plan()).toBeFalsy();
+  });
+});

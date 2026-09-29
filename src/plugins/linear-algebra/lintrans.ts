@@ -75,3 +75,26 @@ registerFrameHint('lintrans', (props) => {
   const r = Math.max(p.n === 3 ? 2.5 : 3, Math.ceil(extent(p) * (p.n === 3 ? 1.2 : 1.1)));
   return { r, dim: p.n };
 });
+
+// frames for the other linear-algebra visuals: fit their vectors (3 units at least)
+const fit = (vs: (number[] | undefined)[], dim: number) => {
+  let m = 1;
+  for (const v of vs) if (v) m = Math.max(m, ...v.map(Math.abs));
+  return { r: Math.max(dim === 3 ? 2.5 : 3, Math.ceil(m * 1.3)), dim };
+};
+registerFrameHint('subspace', (props) => {
+  const s = props.s as { ambient: number; basis: number[][] };
+  return s.ambient <= 3 ? fit(s.basis, s.ambient) : undefined;
+});
+registerFrameHint('projection', (props) => {
+  const v = props.v as number[];
+  return v.length <= 3 ? fit([v, props.p as number[]], v.length) : undefined;
+});
+registerFrameHint('coords', (props) => {
+  const v = props.v as number[];
+  return v.length <= 3 ? fit([v, ...(props.basis as number[][])], v.length) : undefined;
+});
+registerFrameHint('affine', (props) => {
+  const a = props.a as { ambient: number; particular?: number[] };
+  return a.ambient <= 3 ? fit([a.particular], a.ambient) : undefined;
+});

@@ -5,7 +5,9 @@
  */
 import { registerAnalyzer, AnalysisPlan, FactSpec, SectionSpec, WorkspaceLayout } from '../../runtime/analysis';
 import type { Workspace } from '../../runtime/workspace';
-import type { MatrixValue, VectorValue } from '../../math-core/values';
+import type { MathValue, MatrixValue, VectorValue, ListValue, FunctionValue } from '../../math-core/values';
+import type { SubspaceValue, AffineValue } from './values';
+import { linearMatrixOf } from './builtins';
 import { valueLatex } from '../../math-core/values';
 import { symbolLatex } from '../../math-core/symbolic/print';
 import { registerRelation } from '../../visualization/presentation';
@@ -109,3 +111,134 @@ registerAnalyzer({
 const SUP = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
 const sup = (n: number) => (n === 1 ? '' : (SUP[n] ?? `^${n}`));
 
+// ------------------------------------------------------------------ subspaces, vector lists, solution sets, linear maps
+
+const spaceLayout = (title: string, dim: number): WorkspaceLayout =>
+  dim === 3
+    ? { canvasTitle: title, views: [{ id: 'space', label: '3D', renderer: 'scene' }], defaultView: 'space' }
+    : { canvasTitle: title, views: [{ id: 'plane', label: '2D', renderer: 'plane' }], defaultView: 'plane' };
+
+registerAnalyzer({
+  id: 'subspace',
+  focusOnEdit: true,
+  recognizes: (v) => v.kind === 'subspace',
+  plan(W, value): AnalysisPlan {
+    const s = value as unknown as SubspaceValue;
+    const facts: FactSpec[] = [
+      { id: 'dim', title: 'Dimension', expr: `dim(${W})`, tier: 0, section: 'overview', pinName: 'k' },
+      { id: 'basis', title: 'Basis', expr: `basis(${W})`, tier: 0, section: 'overview', pinName: 'B' },
+      { id: 'orthogonal', title: 'Orthogonal basis', expr: `gramschmidt(${W})`, tier: 1, section: 'ortho', pinName: 'U' },
+      { id: 'orthonormal', title: 'Orthonormal basis', expr: `orthonormal(${W})`, tier: 1, section: 'ortho', pinName: 'Q' },
+    ];
+    return {
+      object: W,
+      typeLabel: `subspace of ℝ${sup(s.ambient)} · dim ${s.basis.length}`,
+      layout: spaceLayout(`Subspace ${W}`, s.ambient),
+      title: `${symbolLatex(W)} = ${valueLatex(value)}`,
+      sections: [
+        { id: 'overview', title: 'Summary', summary: true },
+        { id: 'ortho', title: 'Orthogonal bases (Gram–Schmidt)' },
+      ],
+      facts,
+      relations: [],
+      diagnostics: [],
+    };
+  },
+});
+
+const isVectorList = (v: MathValue) => {
+  if (v.kind !== 'list') return false;
+  const items = (v as ListValue).items;
+  return items.length > 0 && items.every((it) => it.kind === 'vector' && (it as VectorValue).comps.length === (items[0] as VectorValue).comps.length);
+};
+
+registerAnalyzer({
+  id: 'vector-list',
+  focusOnEdit: true,
+  recognizes: isVectorList,
+  plan(S, value): AnalysisPlan {
+    const items = (value as ListValue).items as VectorValue[];
+    const n = items[0].comps.length;
+    const facts: FactSpec[] = [
+      { id: 'self', title: S, expr: S, tier: 0, section: 'overview', visual: 'always', hidden: true },
+      { id: 'independent', title: 'Independent', expr: `independent(${S})`, tier: 0, section: 'overview' },
+      { id: 'dim', title: 'dim span', expr: `dim(${S})`, tier: 0, section: 'overview' },
+      { id: 'span', title: 'Span', expr: `span(${S})`, tier: 1, section: 'span', pinName: 'W', visual: 'auto' },
+      { id: 'basis', title: 'Basis of the span', expr: `basis(${S})`, tier: 1, section: 'span', pinName: 'B' },
+      { id: 'matrix', title: 'As columns', expr: `matrix(${S})`, tier: 1, section: 'span', pinName: 'M' },
+      { id: 'orthogonal', title: 'Gram–Schmidt', expr: `gramschmidt(${S})`, tier: 1, section: 'ortho', pinName: 'U' },
+      { id: 'orthonormal', title: 'Orthonormal', expr: `orthonormal(${S})`, tier: 1, section: 'ortho', pinName: 'Q' },
+    ];
+    return {
+      object: S,
+      typeLabel: `${items.length} vector${items.length === 1 ? '' : 's'} in ℝ${sup(n)}`,
+      layout: spaceLayout('Vectors', n),
+      title: `${symbolLatex(S)} = ${valueLatex(value)}`,
+      sections: [
+        { id: 'overview', title: 'Summary', summary: true },
+        { id: 'span', title: 'Span & basis' },
+        { id: 'ortho', title: 'Orthogonalize' },
+      ],
+      facts,
+      relations: [],
+      diagnostics: [],
+    };
+  },
+});
+
+registerAnalyzer({
+  id: 'affine',
+  recognizes: (v) => v.kind === 'affine',
+  plan(X, value): AnalysisPlan {
+    const a = value as unknown as AffineValue;
+    return {
+      object: X,
+      typeLabel: `solution set in ℝ${sup(a.ambient)}`,
+      layout: spaceLayout('Row picture', a.ambient),
+      title: `${symbolLatex(X)}:\\ ${valueLatex(value)}`,
+      sections: [{ id: 'overview', title: 'Summary', summary: true }],
+      facts: [
+        { id: 'self', title: 'Solutions', expr: X, tier: 0, section: 'overview' }, // drawn by the worksheet object itself
+        ...(a.consistent ? [{ id: 'dim', title: 'Free parameters', expr: `${X}.dim`, tier: 0 as const, section: 'overview' }] : []),
+      ],
+      relations: [],
+      diagnostics: [],
+    };
+  },
+});
+
+registerAnalyzer({
+  id: 'linear-map',
+  focusOnEdit: true,
+  recognizes: (v) => {
+    const f = v as FunctionValue;
+    return v.kind === 'function' && f.out === 'vector' && f.params.length >= 2 && f.params.length <= 3 && !!linearMatrixOf(f);
+  },
+  plan(T, value): AnalysisPlan {
+    const rows = linearMatrixOf(value as FunctionValue)!;
+    const M = `standardmatrix(${T})`;
+    const sq = rows.length === rows[0].length;
+    const facts: FactSpec[] = [
+      { id: 'transformation', title: 'Transformation', expr: `transformation(${T})`, tier: 0, section: 'overview', visual: 'always', hidden: true },
+      { id: 'matrix', title: 'Standard matrix', expr: M, tier: 0, section: 'overview', pinName: 'A' },
+      ...(sq ? [{ id: 'det', title: 'det', expr: `det(${M})`, tier: 0 as const, section: 'overview' }] : []),
+      ...(sq ? [{ id: 'eigen', title: 'Eigen', expr: `eigen(${M})`, tier: 1 as const, section: 'eigen', pinName: 'E', visual: 'auto' as const }] : []),
+      { id: 'nullspace', title: 'Kernel', expr: `nullspace(${M})`, tier: 1, section: 'subspaces', pinName: 'N', visual: 'auto' },
+      { id: 'columnspace', title: 'Range', expr: `columnspace(${M})`, tier: 1, section: 'subspaces', pinName: 'Col', visual: 'auto' },
+    ];
+    return {
+      object: T,
+      typeLabel: `linear map ℝ${sup(rows[0].length)} → ℝ${sup(rows.length)}`,
+      layout: { ...matrixLayout(T, rows), canvasTitle: `Linear map ${T}` },
+      title: valueLatex(value),
+      sections: [
+        { id: 'overview', title: 'Summary', summary: true, why: 'columns' },
+        ...(sq ? [{ id: 'eigen', title: 'Eigenvalues & eigenvectors' }] : []),
+        { id: 'subspaces', title: 'Kernel & range' },
+      ],
+      facts,
+      relations: [],
+      diagnostics: [],
+    };
+  },
+});

@@ -224,3 +224,134 @@ registerDrawer2D('subspace', {
     drawLabel(ctx, 'null space', view.sx(tip[0]) + 8, view.sy(tip[1]) - 8, color, a.theme, 13);
   },
 });
+
+// ---------------------------------------------------------------- projections, coordinates, solution sets
+
+const px = (a: Draw2DArgs, v: number[]) => [a.view.sx(v[0]), a.view.sy(v[1])];
+
+registerDrawer2D('projection', {
+  layer: 5,
+  draw(a) {
+    const { v, p } = a.item.visual.props as { v: number[]; p: number[] };
+    if (v.length !== 2) return;
+    const { ctx, theme } = a;
+    const [ox, oy] = px(a, [0, 0]);
+    const [vx, vy] = px(a, v);
+    const [qx, qy] = px(a, p);
+    drawArrow(ctx, ox, oy, vx, vy, LA_COLORS.axis, 2.2, 10);
+    drawLabel(ctx, 'v', vx + 8, vy - 6, LA_COLORS.axis, theme, 15);
+    ctx.setLineDash([6, 5]);
+    ctx.strokeStyle = withAlpha(LA_COLORS.nullspace, 0.9);
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(qx, qy);
+    ctx.lineTo(vx, vy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // right-angle mark at the foot of the perpendicular
+    const r = [v[0] - p[0], v[1] - p[1]];
+    const lr = Math.hypot(r[0], r[1]);
+    const lp = Math.hypot(p[0], p[1]);
+    if (lr > 1e-6 && lp > 1e-6) {
+      const s = 0.18 * Math.min(1, lp);
+      const e1 = [(-p[0] / lp) * s, (-p[1] / lp) * s];
+      const e2 = [(r[0] / lr) * s, (r[1] / lr) * s];
+      const c1 = px(a, [p[0] + e1[0], p[1] + e1[1]]);
+      const c2 = px(a, [p[0] + e1[0] + e2[0], p[1] + e1[1] + e2[1]]);
+      const c3 = px(a, [p[0] + e2[0], p[1] + e2[1]]);
+      ctx.strokeStyle = withAlpha(LA_COLORS.axis, 0.8);
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(c1[0], c1[1]);
+      ctx.lineTo(c2[0], c2[1]);
+      ctx.lineTo(c3[0], c3[1]);
+      ctx.stroke();
+    }
+    drawLabel(ctx, 'v − proj', (qx + vx) / 2 + 8, (qy + vy) / 2, LA_COLORS.nullspace, theme, 12);
+  },
+});
+
+registerDrawer2D('coords', {
+  layer: 3,
+  draw(a) {
+    const { v, c, basis } = a.item.visual.props as { v: number[]; c: number[]; basis: number[][] };
+    if (v.length !== 2 || basis.length !== 2) return;
+    const { ctx, theme, view } = a;
+    // the grid of the basis B: lines through integer combinations
+    ctx.strokeStyle = withAlpha(LA_COLORS.eigen, 0.35);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    const [b1, b2] = basis;
+    for (let k = -8; k <= 8; k++) {
+      const p = (s: number, t: number) => px(a, [s * b1[0] + t * b2[0], s * b1[1] + t * b2[1]]);
+      let q = p(k, -8);
+      ctx.moveTo(q[0], q[1]);
+      q = p(k, 8);
+      ctx.lineTo(q[0], q[1]);
+      q = p(-8, k);
+      ctx.moveTo(q[0], q[1]);
+      q = p(8, k);
+      ctx.lineTo(q[0], q[1]);
+    }
+    ctx.stroke();
+    const o = px(a, [0, 0]);
+    const m1 = [c[0] * b1[0], c[0] * b1[1]];
+    const s1 = px(a, m1);
+    const s2 = px(a, v);
+    drawArrow(ctx, o[0], o[1], s1[0], s1[1], LA_COLORS.i, 2.4, 10);
+    drawArrow(ctx, s1[0], s1[1], s2[0], s2[1], LA_COLORS.j, 2.4, 10);
+    drawArrow(ctx, o[0], o[1], s2[0], s2[1], LA_COLORS.vector, 2.8, 11);
+    drawLabel(ctx, `${formatNumber(c[0], 3)}·b₁`, (o[0] + s1[0]) / 2, (o[1] + s1[1]) / 2 + 16, LA_COLORS.i, theme, 13, 'center');
+    drawLabel(ctx, `${formatNumber(c[1], 3)}·b₂`, (s1[0] + s2[0]) / 2 + 8, (s1[1] + s2[1]) / 2, LA_COLORS.j, theme, 13);
+    void view;
+  },
+});
+
+registerDrawer2D('affine', {
+  layer: 3,
+  draw(a) {
+    const s = a.item.visual.props.a as import('./values').AffineValue;
+    if (s.ambient !== 2) return;
+    const { ctx, view, theme } = a;
+    const R = 4 * Math.max(...view.xRange.map(Math.abs), ...view.yRange.map(Math.abs));
+    // row picture: each equation a₁x + a₂y = b is a line
+    s.system?.A.forEach((row, i) => {
+      const [p, q] = row;
+      const b = s.system!.b[i];
+      const n2 = p * p + q * q;
+      if (n2 < 1e-12) return;
+      const base = [(p * b) / n2, (q * b) / n2];
+      const dir = [-q / Math.sqrt(n2), p / Math.sqrt(n2)];
+      const A = px(a, [base[0] - dir[0] * R, base[1] - dir[1] * R]);
+      const B = px(a, [base[0] + dir[0] * R, base[1] + dir[1] * R]);
+      ctx.strokeStyle = withAlpha(['#4cc9f0', '#f4a261', '#52d69b', '#c77dff'][i % 4], 0.85);
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(A[0], A[1]);
+      ctx.lineTo(B[0], B[1]);
+      ctx.stroke();
+      drawLabel(ctx, `eq ${i + 1}`, B[0] - 30, B[1] + 14, ctx.strokeStyle as string, theme, 12);
+    });
+    if (!s.consistent || !s.particular) return;
+    const color = a.item.color;
+    if (s.directions.length === 0) {
+      const [x, y] = px(a, s.particular);
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.fill();
+      drawLabel(ctx, `(${s.particular.map((c) => formatNumber(c, 3)).join(', ')})`, x + 10, y - 10, color, theme, 13);
+    } else if (s.directions.length === 1) {
+      const d = s.directions[0];
+      const l = Math.hypot(d[0], d[1]) || 1;
+      const A = px(a, [s.particular[0] - (d[0] / l) * R, s.particular[1] - (d[1] / l) * R]);
+      const B = px(a, [s.particular[0] + (d[0] / l) * R, s.particular[1] + (d[1] / l) * R]);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = a.selected ? 4 : 3;
+      ctx.beginPath();
+      ctx.moveTo(A[0], A[1]);
+      ctx.lineTo(B[0], B[1]);
+      ctx.stroke();
+    }
+  },
+});

@@ -1,6 +1,7 @@
 /** Visual objects of linear algebra: the animated transformation, and default visuals of the result kinds. */
 import { Builtin, EvalError } from '../../math-core/builtins';
-import { MathValue, MatrixValue, VectorValue, VisualValue } from '../../math-core/values';
+import { MathValue, MatrixValue, VectorValue, VisualValue, FunctionValue } from '../../math-core/values';
+import { linearMatrixOf } from './builtins';
 import { det } from '../../math-core/linalg';
 import { visual, ROLE_COLORS } from '../../visualization/scene-model';
 import { LinTransProps, TrackedVector, embed } from './lintrans';
@@ -32,6 +33,11 @@ export const transformationBuiltin: Builtin = {
     args.forEach((a, i) => {
       const name = raw[i]?.type === 'sym' ? raw[i].name : undefined;
       if (a?.kind === 'matrix') mats.push({ rows: (a as MatrixValue).rows, name: name ?? (mats.length ? 'B' : 'A'), id: name });
+      else if (a?.kind === 'function') {
+        const rows = linearMatrixOf(a as FunctionValue);
+        if (!rows) throw new EvalError(`${name ?? 'the function'} is not linear`);
+        mats.push({ rows, name: name ?? 'T' });
+      }
       else if (a?.kind === 'vector') vectors.push({ comps: (a as VectorValue).comps, label: name ?? 'v', sourceId: name });
       else throw new EvalError(`transformation: expected matrices and vectors, got ${a?.kind}`);
     });
@@ -67,6 +73,10 @@ export const transformationBuiltin: Builtin = {
 export function eigenVisual(v: MathValue, name?: string): VisualValue[] {
   const e = v as unknown as EigenValue;
   return [visual('eigenlines', { e, timeline: e.of ? `lin:${e.of}` : undefined }, name ?? 'eigen-lines', 'eigen')];
+}
+
+export function affineVisual(v: MathValue, name?: string): VisualValue[] {
+  return [visual('affine', { a: v }, name ?? 'solutions', 'solution')];
 }
 
 export function subspaceVisual(v: MathValue, name?: string): VisualValue[] {

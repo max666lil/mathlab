@@ -3,7 +3,8 @@ import { definePlugin } from '../plugin-api';
 import { getBuiltin, Builtin, EvalError } from '../../math-core/builtins';
 import { linearAlgebraBuiltins, expectMx, solveOf, vectorsOf } from './builtins';
 import './values';
-import { transformationBuiltin, eigenVisual, subspaceVisual } from './visual-builtins';
+import { registerCommandLatex, toLatex } from '../../math-core/symbolic/print';
+import { transformationBuiltin, eigenVisual, subspaceVisual, affineVisual } from './visual-builtins';
 
 export const linearAlgebraMath = definePlugin({
   name: 'linear-algebra',
@@ -12,6 +13,7 @@ export const linearAlgebraMath = definePlugin({
     api.registerBuiltin(transformationBuiltin);
     api.registerDefaultVisual('eigen', (v, ctx) => eigenVisual(v, ctx.name));
     api.registerDefaultVisual('subspace', (v, ctx) => subspaceVisual(v, ctx.name));
+    api.registerDefaultVisual('affine', (v, ctx) => affineVisual(v, ctx.name));
     // solve(A, b): linear systems; every other form goes to the equation solver
     const eqSolve = getBuiltin('solve');
     if (eqSolve) {
@@ -38,6 +40,8 @@ export const linearAlgebraMath = definePlugin({
       };
       api.registerBuiltin(solve);
     }
+    registerCommandLatex('project', (a, kw, raw) => `\\operatorname{proj}_{${kw.onto ?? (raw.args[1] ? toLatex(raw.args[1]) : 'W')}}\\,${a}`);
+    registerCommandLatex('coords', (a, kw, raw) => `\\left[${a}\\right]_{${kw.in ?? (raw.args[1] ? toLatex(raw.args[1]) : 'B')}}`);
     api.registerLatexFunctionName('det', '\\det');
     api.registerLatexFunctionName('rank', '\\operatorname{rank}');
     api.registerLatexFunctionName('trace', '\\operatorname{tr}');
