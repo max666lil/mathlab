@@ -62,8 +62,9 @@ function extent(p: LinTransProps): number {
   const chain = [identity(p.n), ...p.stages];
   for (const M of chain) {
     for (let j = 0; j < p.n; j++) m = Math.max(m, ...M.map((r) => Math.abs(r[j])));
-    const corner = apply(M, Array(p.n).fill(1));
-    m = Math.max(m, ...corner.map(Math.abs));
+    if (p.n === 2) m = Math.max(m, ...apply(M, [1, 1]).map(Math.abs));
+    // 3-D: the drawn lattice spans [−1, 1]³; keep most of its image in view
+    else m = Math.max(m, 0.7 * Math.max(...M.map((r) => r.reduce((s, x) => s + Math.abs(x), 0))));
     for (const v of p.vectors) m = Math.max(m, ...apply(M, v.comps).map(Math.abs));
   }
   return m;
@@ -71,6 +72,6 @@ function extent(p: LinTransProps): number {
 
 registerFrameHint('lintrans', (props) => {
   const p = props as unknown as LinTransProps;
-  const r = Math.max(p.n === 3 ? 2.5 : 3, Math.ceil(extent(p) * 1.1));
+  const r = Math.max(p.n === 3 ? 2.5 : 3, Math.ceil(extent(p) * (p.n === 3 ? 1.2 : 1.1)));
   return { r, dim: p.n };
 });

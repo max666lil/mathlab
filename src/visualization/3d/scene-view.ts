@@ -44,6 +44,7 @@ export class SceneView {
   private angle: { arc: FatLine; fill: THREE.Mesh; label: Label3D } | null = null;
   private downPos: { x: number; y: number } | null = null;
   private initialShot = false;
+  private lastEuclid = false;
   private width = 1;
   private height = 1;
   readonly id = '3d';
@@ -187,8 +188,9 @@ export class SceneView {
     this.frame = frameFromItems(items, this.ws.focus ? this.ws.value(this.ws.focus) : undefined);
     this.map.update(this.frame);
     const pad = 1e-3;
-    this.clip[0].constant = this.map.topZ + pad + (this.map.flatten < 1 ? 0 : this.map.boxH * 0.02);
-    this.clip[1].constant = -(this.map.floorZ - pad);
+    // Euclidean scenes (linear maps) are not clipped to a graph box
+    this.clip[0].constant = this.map.euclid ? 1e6 : this.map.topZ + pad + (this.map.flatten < 1 ? 0 : this.map.boxH * 0.02);
+    this.clip[1].constant = this.map.euclid ? 1e6 : -(this.map.floorZ - pad);
     const theme = getTheme();
     this.scene.background = new THREE.Color(theme.bg);
     const sk = `${this.map.key()}|${theme.name}`;
@@ -232,8 +234,9 @@ export class SceneView {
         this.visuals.delete(id);
       }
     }
-    if (!this.initialShot) {
+    if (!this.initialShot || this.map.euclid !== this.lastEuclid) {
       this.initialShot = true;
+      this.lastEuclid = this.map.euclid;
       this.rig.jump(this.pose('orbit'));
     }
     this.needsRender = true;
@@ -243,6 +246,7 @@ export class SceneView {
   private buildStatic() {
     disposeObject(this.staticGroup);
     this.staticGroup.clear();
+    if (this.map.euclid) return this.buildEuclid();
     const theme = getTheme();
     const m = this.map;
     const [x0, x1] = m.xr;
@@ -292,6 +296,35 @@ export class SceneView {
     label(formatNumber(m.zLo, 3), new THREE.Vector3(x0 - off, y1, m.floorZ), 0.2, false);
     for (let x = Math.ceil(x0 / (step * 2)) * step * 2; x <= x1 + 1e-9; x += step * 2) label(formatNumber(x, 3), new THREE.Vector3(x, y0 - off, fz), 0.18, false);
     for (let y = Math.ceil(y0 / (step * 2)) * step * 2; y <= y1 + 1e-9; y += step * 2) label(formatNumber(y, 3), new THREE.Vector3(x1 + off, y, fz), 0.18, false);
+  }
+
+  /** True-geometry scenery: three axes through the origin and a faint grid in the z = 0 plane. */
+  private buildEuclid() {
+    const theme = getTheme();
+    const r = this.map.xr[1];
+    const dark = theme.name === 'dark';
+    const grid: number[] = [];
+    const step = niceStep(r / 5);
+    for (let k = -Math.floor(r / step) * step; k <= r + 1e-9; k += step) {
+      if (Math.abs(k) < 1e-9) continue;
+      grid.push(k, -r, 0, k, r, 0, -r, k, 0, r, k, 0);
+    }
+    const gridGeom = new THREE.BufferGeometry();
+    gridGeom.setAttribute('position', new THREE.Float32BufferAttribute(grid, 3));
+    this.staticGroup.add(new THREE.LineSegments(gridGeom, new THREE.LineBasicMaterial({ color: dark ? 0x232a3a : 0xdde1ea, transparent: true, opacity: 0.7, depthWrite: false })));
+    const axes = [-r, 0, 0, r, 0, 0, 0, -r, 0, 0, r, 0, 0, 0, -r, 0, 0, r];
+    const axGeom = new THREE.BufferGeometry();
+    axGeom.setAttribute('position', new THREE.Float32BufferAttribute(axes, 3));
+    this.staticGroup.add(new THREE.LineSegments(axGeom, new THREE.LineBasicMaterial({ color: dark ? 0x6b7390 : 0x8a90a6 })));
+    const label = (text: string, pos: THREE.Vector3) => {
+      const l = new Label3D(0.026);
+      l.set(text, dark ? '#c9cede' : '#3a3f52', true);
+      l.sprite.position.copy(pos);
+      this.staticGroup.add(l.sprite);
+    };
+    label('x', new THREE.Vector3(r * 1.06, 0, 0));
+    label('y', new THREE.Vector3(0, r * 1.06, 0));
+    label('z', new THREE.Vector3(0, 0, r * 1.06));
   }
 
   private loop = () => {

@@ -21,15 +21,17 @@ export class WorldMap {
   zHi = 1;
   /** 1 = true heights (rescaled), 0 = everything pressed onto the floor */
   flatten = 1;
+  /** true geometry: z is not rescaled (linear maps, subspaces, fields in ℝ³) */
+  euclid = false;
 
   get size() {
     return Math.max(this.xr[1] - this.xr[0], this.yr[1] - this.yr[0]);
   }
   get boxH() {
-    return this.size * 0.62;
+    return this.euclid ? this.zHi - this.zLo : this.size * 0.62;
   }
   get floorZ() {
-    return -this.boxH / 2;
+    return this.euclid ? this.zLo : -this.boxH / 2;
   }
   get topZ() {
     return this.floorZ + this.boxH * Math.max(this.flatten, 0.001);
@@ -39,11 +41,11 @@ export class WorldMap {
   }
   /** empty space between the floor (projections) and the lowest point of the surface */
   get gap() {
-    return this.boxH * 0.14;
+    return this.euclid ? 0 : this.boxH * 0.14;
   }
   /** world units per math unit of height */
   get zScale() {
-    return ((this.boxH - this.gap) / (this.zHi - this.zLo || 1)) * this.flatten;
+    return this.euclid ? this.flatten : ((this.boxH - this.gap) / (this.zHi - this.zLo || 1)) * this.flatten;
   }
   z(zm: number) {
     return this.floorZ + this.gap * this.flatten + (zm - this.zLo) * this.zScale;
@@ -62,9 +64,10 @@ export class WorldMap {
     this.yr = frame.yr;
     this.zLo = frame.zLo;
     this.zHi = frame.zHi;
+    this.euclid = !!frame.euclid;
   }
   key() {
-    return `${this.xr}|${this.yr}|${this.zLo}|${this.zHi}|${this.flatten}`;
+    return `${this.xr}|${this.yr}|${this.zLo}|${this.zHi}|${this.flatten}|${this.euclid}`;
   }
 }
 
