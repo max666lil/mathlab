@@ -35,6 +35,14 @@ export class PlaneView {
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(host);
     for (const t of ['values', 'view', 'selection', 'hover'] as const) this.unsubs.push(ws.on(t, () => this.invalidate()));
+    let doc = ws.doc;
+    this.unsubs.push(ws.on('doc', () => {
+      if (ws.doc !== doc) {
+        doc = ws.doc;
+        this.fitted = false;
+        this.invalidate();
+      }
+    }));
     this.unsubs.push(onThemeChange(() => this.invalidate()));
     this.canvas.addEventListener('pointerdown', this.onDown);
     this.canvas.addEventListener('pointermove', this.onMove);

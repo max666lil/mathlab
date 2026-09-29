@@ -72,6 +72,16 @@ export class SceneView {
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(host);
     for (const t of ['values', 'view', 'selection'] as const) this.unsubs.push(ws.on(t, () => (this.needsSync = true)));
+    let doc = ws.doc;
+    this.unsubs.push(ws.on('doc', () => {
+      // a newly loaded document starts from the default shot
+      if (ws.doc !== doc) {
+        doc = ws.doc;
+        this.initialShot = false;
+        this.map.flatten = 1;
+        this.needsSync = true;
+      }
+    }));
     this.unsubs.push(ws.on('hover', () => (this.needsRender = true)));
     this.unsubs.push(onThemeChange(() => {
       this.staticKey = '';
@@ -308,11 +318,11 @@ export class SceneView {
         const t = gn > 1e-9 ? new THREE.Vector3(-fz.g[1] / gn, fz.g[0] / gn, 0) : new THREE.Vector3(1, 0, 0);
         // choose the side facing the current camera
         if (t.dot(this.camera.position.clone().sub(P)) < 0) t.negate();
-        return { target: P, position: P.clone().addScaledVector(t, m.size * 1.1).add(new THREE.Vector3(0, 0, m.size * 0.04)), fov: 30 };
+        return { target: P, position: P.clone().addScaledVector(t, m.size * 1.9).add(new THREE.Vector3(0, 0, m.size * 0.12)), fov: 26 };
       }
       case 'zoom': {
         const dir = this.camera.position.clone().sub(this.controls.target).normalize();
-        return { target: P, position: P.clone().addScaledVector(dir, m.size * 0.3), fov: 34 };
+        return { target: P, position: P.clone().addScaledVector(dir, m.size * 0.45), fov: 30 };
       }
       default:
         return { target: mid, position: orbitPosition(mid, R, 57, -118), fov: 38 };

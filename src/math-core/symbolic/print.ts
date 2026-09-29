@@ -225,9 +225,10 @@ export function symbolLatex(name: string): string {
   return b + primes + (sub ? `_{${sub.length === 1 ? sub : symbolLatex(sub)}}` : '');
 }
 
-export function numberLatex(x: number, digits = 4): string {
-  const f = asFraction(x);
-  if (f && Math.abs(f[1]) <= 12) return `${f[0] < 0 ? '-' : ''}\\frac{${Math.abs(f[0])}}{${f[1]}}`;
+/** LaTeX for a number. `fractions` renders simple rationals as \frac (used for symbolic coefficients). */
+export function numberLatex(x: number, digits = 4, fractions = false): string {
+  const f = fractions ? asFraction(x) : null;
+  if (f) return `${f[0] < 0 ? '-' : ''}\\frac{${Math.abs(f[0])}}{${f[1]}}`;
   const s = formatNumber(x, digits);
   const m = /^(-?[\d.]+)e([+-]?\d+)$/.exec(s);
   if (m) return `${m[1]}\\times 10^{${Number(m[2])}}`;
@@ -252,7 +253,7 @@ export function toLatex(e: Expr, digits = 4): string {
   const list = (xs: Expr[]) => xs.map(L).join(', ');
   switch (e.type) {
     case 'num':
-      return numberLatex(e.value, digits);
+      return numberLatex(e.value, digits, true);
     case 'sym':
       return symbolLatex(e.name);
     case 'member':

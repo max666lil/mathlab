@@ -303,13 +303,18 @@ registerVisual3D('arrow', () => new ArrowVisual());
 class PlaneVisual implements Visual3D {
   object = new THREE.Group();
   private mesh: THREE.Mesh;
+  /** faint pass without depth test: the part hidden under the surface stays readable */
+  private ghost: THREE.Mesh;
   private edge: FatLine | null = null;
+  private ghostEdge: FatLine | null = null;
   private normal = new Arrow3D('#5b8cff');
   constructor() {
     const mat = new THREE.MeshStandardMaterial({ color: 0x5b8cff, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false, roughness: 0.4 });
     this.mesh = new THREE.Mesh(new THREE.BufferGeometry(), mat);
     this.mesh.renderOrder = 2;
-    this.object.add(this.mesh, this.normal.group);
+    this.ghost = new THREE.Mesh(this.mesh.geometry, new THREE.MeshBasicMaterial({ color: 0x5b8cff, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false, depthTest: false }));
+    this.ghost.renderOrder = 6;
+    this.object.add(this.mesh, this.ghost, this.normal.group);
   }
   update(item: SceneItem, ctx: Ctx3D, selected: boolean) {
     const p = item.visual.props.plane as PlaneValue;
@@ -322,22 +327,31 @@ class PlaneVisual implements Visual3D {
     }
     this.object.visible = m.flatten > 0.02;
     const zAt = (x: number, y: number) => z0 - (a * (x - x0) + b * (y - y0)) / c;
-    const R = m.size * 0.19;
+    const R = m.size * 0.16;
     const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => m.v(x0 + u * R, y0 + v * R, zAt(x0 + u * R, y0 + v * R)));
     const geom = new THREE.BufferGeometry().setFromPoints([corners[0], corners[1], corners[2], corners[0], corners[2], corners[3]]);
     geom.computeVertexNormals();
     this.mesh.geometry.dispose();
     this.mesh.geometry = geom;
+    this.ghost.geometry = geom;
     const mat = this.mesh.material as THREE.MeshStandardMaterial;
     mat.color.set(item.color);
-    mat.opacity = selected ? 0.45 : 0.32;
+    mat.opacity = selected ? 0.5 : 0.36;
     mat.clippingPlanes = ctx.clip;
+    const gm = this.ghost.material as THREE.MeshBasicMaterial;
+    gm.color.set(item.color);
+    gm.clippingPlanes = ctx.clip;
     if (!this.edge) {
-      this.edge = new FatLine(ctx.lineMaterial(item.color, 2));
-      this.object.add(this.edge.line);
+      this.edge = new FatLine(ctx.lineMaterial(item.color, 2.2));
+      this.ghostEdge = new FatLine(ctx.lineMaterial(item.color, 1.2, { dashed: true, opacity: 0.45, depthTest: false }));
+      this.ghostEdge.line.renderOrder = 6;
+      this.object.add(this.edge.line, this.ghostEdge.line);
     }
+    const loop = corners.concat([corners[0]]).flatMap((v) => [v.x, v.y, v.z]);
     this.edge.material.color.set(item.color);
-    this.edge.set(corners.concat([corners[0]]).flatMap((v) => [v.x, v.y, v.z]));
+    this.edge.set(loop);
+    this.ghostEdge!.material.color.set(item.color);
+    this.ghostEdge!.set(loop);
     // normal of the displayed plane (world space, respects the z-scaling)
     const s = m.zScale;
     const nw = new THREE.Vector3(-(-a / c) * s, -(-b / c) * s, 1).normalize();

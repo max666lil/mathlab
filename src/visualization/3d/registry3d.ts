@@ -37,15 +37,19 @@ export class WorldMap {
   get center(): [number, number] {
     return [(this.xr[0] + this.xr[1]) / 2, (this.yr[0] + this.yr[1]) / 2];
   }
+  /** empty space between the floor (projections) and the lowest point of the surface */
+  get gap() {
+    return this.boxH * 0.14;
+  }
   /** world units per math unit of height */
   get zScale() {
-    return (this.boxH / (this.zHi - this.zLo || 1)) * this.flatten;
+    return ((this.boxH - this.gap) / (this.zHi - this.zLo || 1)) * this.flatten;
   }
   z(zm: number) {
-    return this.floorZ + (zm - this.zLo) * this.zScale;
+    return this.floorZ + this.gap * this.flatten + (zm - this.zLo) * this.zScale;
   }
   mathZ(zw: number) {
-    return this.zLo + (zw - this.floorZ) / (this.zScale || 1e-9);
+    return this.zLo + (zw - this.floorZ - this.gap * this.flatten) / (this.zScale || 1e-9);
   }
   v(x: number, y: number, zm: number, out = new THREE.Vector3()) {
     return out.set(x, y, this.z(zm));
@@ -219,8 +223,17 @@ export class Label3D {
     const ctx = this.canvas.getContext('2d')!;
     ctx.font = font;
     const w = Math.ceil(ctx.measureText(text).width) + 24;
-    this.canvas.width = w;
-    this.canvas.height = px + 24;
+    if (w !== this.canvas.width || px + 24 !== this.canvas.height) {
+      // a resized canvas needs a fresh GPU texture
+      this.canvas.width = w;
+      this.canvas.height = px + 24;
+      this.tex.dispose();
+      this.tex = new THREE.CanvasTexture(this.canvas);
+      this.tex.colorSpace = THREE.SRGBColorSpace;
+      (this.sprite.material as THREE.SpriteMaterial).map = this.tex;
+      (this.sprite.material as THREE.SpriteMaterial).needsUpdate = true;
+    }
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.font = font;
     ctx.textBaseline = 'middle';
     ctx.lineWidth = 10;
