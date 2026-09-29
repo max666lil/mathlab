@@ -107,8 +107,21 @@ registered visuals. None of this changes the core runtime.
 | `tangent_plane`, `level`, `hessian_axes`, `gradient_path`, `quadratic`, `arrow` | visual objects |
 | `animate θ from 0 to 2π` | animation |
 
-In the editor, type `\theta`, `\pi` or `\nabla` for Unicode symbols. Shift+Enter runs a cell and
-moves to the next one.
+In the editor, type `\theta`, `\pi` or `\nabla` for Unicode symbols. Edits apply as you type;
+Shift+Enter moves to the next cell.
+
+## Concept modes and linked highlighting
+
+The same scene can be read through four concept modes — **Surface**, **Gradient**, **Directional
+derivative**, **Local geometry** (keys 1–4) — plus **All**. Modes never change the mathematics:
+they only decide which objects are in focus, which stay as faint context, the camera shot and the
+annotations (`visualization/presentation.ts`, modes registered in `plugins/core-calculus/modes.ts`).
+Transitions fade objects in and out, grow arrows from their base point and move the camera.
+
+Every scene item carries the keys of the objects it represents (`u`, `role:gradient`, …). Hovering
+or selecting an object anywhere — an arrow in 2D or 3D, a notebook row, a value, a term of an
+explanation formula — emphasises all its representations and dims the rest; hovering `‖∇f‖` or
+`cos φ` in the explanation isolates just those objects.
 
 ## Writing a plugin
 

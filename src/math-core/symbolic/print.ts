@@ -270,6 +270,7 @@ export function toLatex(e: Expr, digits = 4): string {
       if (name === 'norm' && e.args.length === 1) return `\\left\\lVert ${L(e.args[0])}\\right\\rVert`;
       const head = name ? functionNameLatex(name) : p(e.callee, PREC.atom);
       if (name === 'grad' && e.args.length === 1 && e.args[0].type === 'sym') return `${head} ${L(e.args[0])}`;
+      if (name === 'hessian' && e.args.length === 1 && e.args[0].type === 'sym') return `H_{${L(e.args[0])}}`;
       return `${head}\\left(${list(e.args)}\\right)`;
     }
     case 'tuple':

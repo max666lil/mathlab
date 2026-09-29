@@ -216,7 +216,7 @@ const visuals: Builtin[] = [
     apply: ([fv, n]) => {
       const f = asScalarField(expectFunction(fv));
       if (f.params.length !== 2) throw new EvalError('contours needs a function of two variables');
-      return visual('contours', { fn: f, count: n ? expectNumber(n) : undefined }, f.label);
+      return visual('contours', { fn: f, count: n ? expectNumber(n) : undefined }, f.label, 'contours');
     },
   },
   {

@@ -9,7 +9,9 @@ import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import type { Workspace } from '../../runtime/workspace';
 import { frameFromItems, SceneFrame } from '../sampling';
 import { getTheme, onThemeChange } from '../theme';
-import { WorldMap, Ctx3D, Visual3D, createVisual3D, disposeObject, Label3D, Handle3D } from './registry3d';
+import { WorldMap, Ctx3D, Visual3D, createVisual3D, disposeObject, Label3D, Handle3D, applyAlpha, FatLine } from './registry3d';
+import type { Presentation } from '../presentation';
+import type { SceneItem } from '../scene-model';
 import { CameraRig, orbitPosition, ShotName, Pose } from './camera';
 import { formatNumber } from '../../math-core/symbolic/print';
 
@@ -38,6 +40,9 @@ export class SceneView {
   private drag: Handle3D | null = null;
   private hoverMarker: THREE.Group;
   private flattenTween: { from: number; to: number; start: number } | null = null;
+  private itemsById = new Map<string, SceneItem>();
+  private angle: { arc: FatLine; fill: THREE.Mesh; label: Label3D } | null = null;
+  private downPos: { x: number; y: number } | null = null;
   private initialShot = false;
   private width = 1;
   private height = 1;
@@ -46,6 +51,7 @@ export class SceneView {
   constructor(
     private host: HTMLElement,
     private ws: Workspace,
+    private pres: Presentation,
   ) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -83,6 +89,20 @@ export class SceneView {
       }
     }));
     this.unsubs.push(ws.on('hover', () => (this.needsRender = true)));
+    this.unsubs.push(pres.on(() => (this.needsSync = true)));
+    this.unsubs.push(pres.onModeChange((m) => {
+      if (this.flattened) this.setFlatten(false);
+      if (m.shot) this.shot(m.shot as ShotName);
+    }));
+    this.unsubs.push(pres.onCommand((c) => {
+      if (c === 'flatten') {
+        this.setFlatten(true);
+        this.shot('top');
+      } else if (c === 'unflatten') {
+        this.setFlatten(false);
+        this.shot('orbit');
+      } else if (c.startsWith('shot:')) this.shot(c.slice(5) as ShotName);
+    }));
     this.unsubs.push(onThemeChange(() => {
       this.staticKey = '';
       this.needsSync = true;
@@ -91,7 +111,10 @@ export class SceneView {
     el.addEventListener('pointerdown', this.onDown, true);
     el.addEventListener('pointermove', this.onMove);
     el.addEventListener('pointerup', this.onUp);
-    el.addEventListener('pointerleave', () => !this.drag && this.ws.hover?.source === this.id && this.ws.setHover(null));
+    el.addEventListener('pointerleave', () => {
+      if (this.ws.emphasis?.source === this.id) this.ws.setEmphasis(null);
+      if (!this.drag && this.ws.hover?.source === this.id) this.ws.setHover(null);
+    });
     el.addEventListener('dblclick', () => this.shot('orbit'));
     this.resize();
     this.loop();
@@ -174,9 +197,11 @@ export class SceneView {
     }
     const ctx = this.ctx();
     const alive = new Set<string>();
+    this.itemsById = new Map(items.map((i) => [i.id, i]));
     for (const item of items) {
-      if (!item.visible) continue;
+      const style = this.pres.style(item.id);
       let entry = this.visuals.get(item.id);
+      if (!entry && style.alpha < 0.01) continue;
       if (entry && entry.vtype !== item.visual.vtype) {
         this.root.remove(entry.v.object);
         entry.v.dispose();
@@ -186,16 +211,19 @@ export class SceneView {
         const v = createVisual3D(item.visual.vtype);
         if (!v) continue;
         entry = { vtype: item.visual.vtype, v };
+        v.object.userData.itemId = item.id;
         this.visuals.set(item.id, entry);
         this.root.add(v.object);
       }
       alive.add(item.id);
       try {
-        entry.v.update(item, ctx, this.ws.selection === item.nodeId);
+        if (style.alpha >= 0.01) entry.v.update(item, ctx, style.highlight || this.ws.selection === item.primary, style.grow);
+        applyAlpha(entry.v.object, style.alpha);
       } catch (e) {
         console.warn(`3D visual ${item.visual.vtype} failed`, e);
       }
     }
+    this.updateAngle(items);
     for (const [id, { v }] of this.visuals) {
       if (!alive.has(id)) {
         this.root.remove(v.object);
@@ -250,7 +278,7 @@ export class SceneView {
     box.position.set((x0 + x1) / 2, (y0 + y1) / 2, (top + m.floorZ) / 2);
     this.staticGroup.add(box);
     const label = (text: string, pos: THREE.Vector3, size = 0.3, italic = true) => {
-      const l = new Label3D(size * (m.size / 6));
+      const l = new Label3D(size * 0.085);
       l.set(text, theme.name === 'dark' ? '#c9cede' : '#3a3f52', italic);
       l.sprite.position.copy(pos);
       this.staticGroup.add(l.sprite);
@@ -308,6 +336,8 @@ export class SceneView {
     switch (name) {
       case 'top':
         return { target: new THREE.Vector3(cx, cy, m.floorZ), position: new THREE.Vector3(cx, cy - 1e-3, m.floorZ + R * 1.25), fov: 34 };
+      case 'high':
+        return { target: mid, position: orbitPosition(mid, R * 1.02, 36, -112), fov: 38 };
       case 'front':
         return { target: mid, position: orbitPosition(mid, R, 88, -90), fov: 34 };
       case 'side':
@@ -322,7 +352,7 @@ export class SceneView {
       }
       case 'zoom': {
         const dir = this.camera.position.clone().sub(this.controls.target).normalize();
-        return { target: P, position: P.clone().addScaledVector(dir, m.size * 0.45), fov: 30 };
+        return { target: P, position: P.clone().addScaledVector(dir, m.size * 0.95), fov: 30 };
       }
       default:
         return { target: mid, position: orbitPosition(mid, R, 57, -118), fov: 38 };
@@ -367,9 +397,10 @@ export class SceneView {
 
   private onDown = (e: PointerEvent) => {
     if (e.button !== 0) return;
+    this.downPos = { x: e.clientX, y: e.clientY };
     this.raycaster.setFromCamera(this.ndc(e), this.camera);
     const handles: Handle3D[] = [];
-    for (const { v } of this.visuals.values()) if (v.handles) handles.push(...v.handles.filter((h) => h.object.visible));
+    for (const { v } of this.visuals.values()) if (v.handles && v.object.visible) handles.push(...v.handles.filter((h) => h.object.visible));
     const hits = this.raycaster.intersectObjects(handles.map((h) => h.object), true);
     if (!hits.length) return;
     const hitObj = hits[0].object;
@@ -392,6 +423,11 @@ export class SceneView {
       return;
     }
     if (e.buttons) return;
+    const picked = this.pickItem(e);
+    if (picked && picked.visual.vtype !== 'point') {
+      const role = picked.visual.role ? [`role:${picked.visual.role}`] : [];
+      this.ws.setEmphasis({ keys: [picked.primary, ...role], source: this.id });
+    } else if (this.ws.emphasis?.source === this.id) this.ws.setEmphasis(null);
     if (d) this.ws.setHover({ x: d[0], y: d[1], source: this.id });
     else if (this.ws.hover?.source === this.id) this.ws.setHover(null);
     // cursor feedback over handles
@@ -401,7 +437,13 @@ export class SceneView {
     this.renderer.domElement.style.cursor = this.raycaster.intersectObjects(objs, true).length ? 'move' : 'grab';
   };
 
-  private onUp = () => {
+  private onUp = (e: PointerEvent) => {
+    const click = this.downPos && Math.hypot(e.clientX - this.downPos.x, e.clientY - this.downPos.y) < 4;
+    this.downPos = null;
+    if (click && !this.drag) {
+      const picked = this.pickItem(e);
+      this.ws.select(picked ? picked.primary : null);
+    }
     if (this.drag) {
       this.ws.flushRewrites();
       this.drag = null;
@@ -409,6 +451,80 @@ export class SceneView {
     }
   };
 
+  /** The scene item under the cursor (curves, vectors, planes — not the surface itself). */
+  private pickItem(e: PointerEvent): SceneItem | null {
+    this.raycaster.setFromCamera(this.ndc(e), this.camera);
+    (this.raycaster.params as { Line2?: { threshold: number } }).Line2 = { threshold: 8 };
+    const objs: THREE.Object3D[] = [];
+    for (const [id, { vtype, v }] of this.visuals) {
+      if (vtype === 'surface' || vtype === 'contours' || !v.object.visible) continue;
+      if (this.pres.style(id).alpha < 0.2) continue;
+      objs.push(v.object);
+    }
+    for (const h of this.raycaster.intersectObjects(objs, true)) {
+      let o: THREE.Object3D | null = h.object;
+      if (!o.visible) continue;
+      while (o && o.userData.itemId === undefined) o = o.parent;
+      const item = o && this.itemsById.get(o.userData.itemId);
+      if (item) return item;
+    }
+    return null;
+  }
+
+  /** φ between ∇f and the direction vector, drawn on the floor under P. */
+  private updateAngle(items: SceneItem[]) {
+    const a = this.pres.annotation('angle');
+    const g = items.find((i) => i.visual.vtype === 'arrow' && i.visual.role === 'gradient');
+    const u = items.find((i) => i.visual.vtype === 'arrow' && i.visual.role === 'direction');
+    if (!this.angle) {
+      if (a < 0.01 || !g || !u) return;
+      const arc = new FatLine(this.lineMaterial('#ffd166', 2));
+      const fill = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false }));
+      const label = new Label3D(0.03);
+      label.set('φ', '#ffd166');
+      const group = new THREE.Group();
+      group.add(arc.line, fill, label.sprite);
+      this.scene.add(group);
+      this.angle = { arc, fill, label };
+    }
+    const group = this.angle.arc.line.parent!;
+    if (a < 0.01 || !g || !u) {
+      group.visible = false;
+      return;
+    }
+    const p = g.visual.props.anchor as number[];
+    const q = u.visual.props.anchor as number[];
+    if (Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-9) {
+      group.visible = false;
+      return;
+    }
+    const gv = g.visual.props.vec as number[];
+    const uv = u.visual.props.vec as number[];
+    const t1 = Math.atan2(gv[1], gv[0]);
+    let d = Math.atan2(uv[1], uv[0]) - t1;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    while (d < -Math.PI) d += 2 * Math.PI;
+    const R = this.map.size * 0.07;
+    const z = this.map.floorZ + 0.012;
+    const pts: number[] = [];
+    const fan: THREE.Vector3[] = [];
+    const n = 32;
+    for (let k = 0; k <= n; k++) {
+      const t = t1 + (d * k) / n;
+      pts.push(p[0] + R * Math.cos(t), p[1] + R * Math.sin(t), z);
+      if (k > 0) {
+        const t0 = t1 + (d * (k - 1)) / n;
+        fan.push(new THREE.Vector3(p[0], p[1], z), new THREE.Vector3(p[0] + R * Math.cos(t0), p[1] + R * Math.sin(t0), z), new THREE.Vector3(p[0] + R * Math.cos(t), p[1] + R * Math.sin(t), z));
+      }
+    }
+    this.angle.arc.set(pts);
+    this.angle.fill.geometry.dispose();
+    this.angle.fill.geometry = new THREE.BufferGeometry().setFromPoints(fan);
+    const mid = t1 + d / 2;
+    this.angle.label.sprite.position.set(p[0] + R * 1.5 * Math.cos(mid), p[1] + R * 1.5 * Math.sin(mid), z + 0.05);
+    group.visible = true;
+    applyAlpha(group, a);
+  }
   // ---------------------------------------------------------------- linked hover marker
 
   private makeHoverMarker() {

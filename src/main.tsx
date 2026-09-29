@@ -7,11 +7,13 @@ import { Workspace } from './runtime/workspace';
 import { flagship } from './examples';
 import { startClock } from './visualization/animation/clock';
 import { App } from './ui-react/App';
+import { Presentation } from './visualization/presentation';
 
 installMathLab();
 const ws = new Workspace(flagship.cells);
-startClock(ws);
+const pres = new Presentation(ws);
+startClock(ws, pres);
 // handy for debugging from the console
 (window as unknown as { mathlab: Workspace }).mathlab = ws;
 
-createRoot(document.getElementById('root')!).render(<App ws={ws} />);
+createRoot(document.getElementById('root')!).render(<App ws={ws} pres={pres} />);

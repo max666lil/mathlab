@@ -1,8 +1,36 @@
 /** React bindings to the framework-free workspace. React only observes; it never computes math. */
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { Workspace, Topic } from '../runtime/workspace';
+import type { Presentation } from '../visualization/presentation';
 
 export const WorkspaceContext = createContext<Workspace | null>(null);
+export const PresentationContext = createContext<Presentation | null>(null);
+
+export function usePres(): Presentation {
+  const p = useContext(PresentationContext);
+  if (!p) throw new Error('Presentation missing');
+  return p;
+}
+
+/** Emphasis helpers for UI elements that represent mathematical objects. */
+export function useEmphasis() {
+  const ws = useWs();
+  const pres = usePres();
+  const [, setKey] = useState('');
+  useEffect(
+    () =>
+      pres.on(() => {
+        const k = [...pres.activeKeys()].join('|');
+        setKey((prev) => (prev === k ? prev : k));
+      }),
+    [pres],
+  );
+  return {
+    active: (keys: string[]) => pres.isActive(keys),
+    enter: (keys: string[], isolate = false) => ws.setEmphasis({ keys, isolate, source: 'ui' }),
+    leave: () => ws.emphasis?.source === 'ui' && ws.setEmphasis(null),
+  };
+}
 
 export function useWs(): Workspace {
   const ws = useContext(WorkspaceContext);

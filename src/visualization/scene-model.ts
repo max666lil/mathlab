@@ -11,7 +11,12 @@ export interface SceneItem {
   nodeId: string;
   visual: VisualValue;
   color: string;
+  /** visible according to the notebook (show / hidden / chips) */
   visible: boolean;
+  /** identities of the mathematical objects this item represents (names, 'role:…') */
+  keys: string[];
+  /** the object selected when the item is clicked */
+  primary: string;
 }
 
 export interface VisualContext {
@@ -38,7 +43,7 @@ export function toVisuals(v: MathValue, ctx: VisualContext): VisualValue[] {
   return rules.get(v.kind)?.(v, ctx) ?? [];
 }
 
-registerDefaultVisual('point', (v, ctx) => [visual('point', { coords: (v as PointValue).coords, inputId: ctx.inputId }, ctx.name, v.role)]);
+registerDefaultVisual('point', (v, ctx) => [visual('point', { coords: (v as PointValue).coords, inputId: ctx.inputId }, ctx.name, v.role ?? 'point')]);
 registerDefaultVisual('vector', (v, ctx) => {
   const vec = v as VectorValue;
   const anchor = vec.anchor ?? vec.comps.map(() => 0);
@@ -47,7 +52,7 @@ registerDefaultVisual('vector', (v, ctx) => {
 registerDefaultVisual('function', (v, ctx) => {
   const f = v as FunctionValue;
   if (f.out === 'scalar' && f.params.length === 2)
-    return [visual('surface', { fn: f }, ctx.name, v.role), visual('contours', { fn: f }, ctx.name, v.role)];
+    return [visual('surface', { fn: f }, ctx.name, 'surface'), visual('contours', { fn: f }, ctx.name, 'contours')];
   if (f.out === 'scalar' && f.params.length === 1) return [visual('graph1d', { fn: f }, ctx.name, v.role)];
   if (f.out === 'vector' && f.params.length === 2) return [visual('field2', { fn: f }, ctx.name, v.role)];
   return undefined;

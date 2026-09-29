@@ -84,13 +84,11 @@ export function orbitPosition(target: THREE.Vector3, radius: number, polarDeg: n
   return target.clone().add(new THREE.Vector3(radius * Math.sin(p) * Math.cos(a), radius * Math.sin(p) * Math.sin(a), radius * Math.cos(p)));
 }
 
-export type ShotName = 'orbit' | 'top' | 'tangent' | 'zoom' | 'front' | 'side';
+export type ShotName = 'orbit' | 'high' | 'top' | 'tangent' | 'zoom' | 'front' | 'side';
 
 export const SHOTS: { name: ShotName; label: string; hint: string }[] = [
   { name: 'orbit', label: '3D', hint: 'Default 3D view of the surface' },
   { name: 'top', label: 'Top', hint: 'Look straight down: the surface becomes its contour map' },
   { name: 'tangent', label: 'Edge-on', hint: 'Look along the level curve at P: the tangent plane is seen edge-on' },
   { name: 'zoom', label: 'Zoom P', hint: 'Zoom into P: the surface looks flat — local linearity' },
-  { name: 'front', label: 'x–z', hint: 'Look along the y-axis (see x-slices)' },
-  { name: 'side', label: 'y–z', hint: 'Look along the x-axis (see y-slices)' },
 ];

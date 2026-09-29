@@ -5,12 +5,22 @@
  */
 import { Graph, NodeState, DependencyError } from './graph';
 import { MathDocument, StatementInfo, newCellId } from './document';
-import { MathValue, PointValue, ScalarValue, ShowValue, AnimationValue, point, scalar } from '../math-core/values';
+import { MathValue, PointValue, ScalarValue, ShowValue, AnimationValue, VisualValue, point, scalar } from '../math-core/values';
+import { freeSymbols } from '../math-core/ast';
 import { EvalError } from '../math-core/builtins';
 import { SceneItem, toVisuals, colorFor } from '../visualization/scene-model';
 import { installCoreBuiltins } from '../math-core/core-builtins';
 
-export type Topic = 'doc' | 'values' | 'selection' | 'hover' | 'view' | 'animation';
+export type Topic = 'doc' | 'values' | 'selection' | 'hover' | 'view' | 'animation' | 'emphasis';
+
+/** Transient focus on some objects (hovering a formula term, a notebook row, an arrow...). */
+export interface Emphasis {
+  /** object keys: node names ('u'), roles ('role:gradient'), annotations ('annot:angle') */
+  keys: string[];
+  /** hide everything unrelated instead of dimming it */
+  isolate?: boolean;
+  source: string;
+}
 
 export interface Diagnostic {
   from: number;
@@ -45,7 +55,10 @@ export class Workspace {
   /** Scene-item or `${nodeId}#auto` visibility overrides */
   visibility = new Map<string, boolean>();
   playing = new Map<string, Playing>();
-  versions: Record<Topic, number> = { doc: 0, values: 0, selection: 0, hover: 0, view: 0, animation: 0 };
+  versions: Record<Topic, number> = { doc: 0, values: 0, selection: 0, hover: 0, view: 0, animation: 0, emphasis: 0 };
+  emphasis: Emphasis | null = null;
+  /** active concept mode (interpreted by the presentation layer) */
+  mode = 'gradient';
 
   private listeners = new Map<Topic, Set<() => void>>();
   private rebuildTimer: ReturnType<typeof setTimeout> | null = null;
@@ -315,6 +328,17 @@ export class Workspace {
     if (c && c.version === this.versions.values && c.view === this.versions.view) return c.items;
     const items: SceneItem[] = [];
     const seen = new Set<string>();
+    const named = (n: string) => !!this.statement(n)?.name;
+    const keysFor = (visual: VisualValue, base: string[], primary: string) => {
+      const keys = new Set(base);
+      for (const p of ['sourceId', 'markerId'] as const) {
+        const v = (visual.props[p] ?? (visual.props.slice as { markerId?: string } | undefined)?.[p as 'markerId']) as string | undefined;
+        if (v) keys.add(v);
+      }
+      if (visual.role) keys.add(`role:${visual.role}`);
+      keys.add(primary);
+      return [...keys];
+    };
     const push = (nodeId: string, v: MathValue, defaultVisible: boolean, name?: string) => {
       const inputId = this.statement(nodeId)?.input ? nodeId : undefined;
       toVisuals(v, { nodeId, name, inputId }).forEach((visual, i) => {
@@ -322,7 +346,8 @@ export class Workspace {
         if (seen.has(id)) return;
         seen.add(id);
         const visible = this.visibility.get(id) ?? this.visibility.get(`${nodeId}#auto`) ?? defaultVisible;
-        items.push({ id, nodeId, visual, color: colorFor(visual, items.length), visible });
+        const primary = (visual.props.sourceId as string | undefined) ?? nodeId;
+        items.push({ id, nodeId, visual, color: colorFor(visual, items.length), visible, keys: keysFor(visual, [nodeId], primary), primary });
       });
     };
     for (const info of this.doc.statements) {
@@ -332,13 +357,17 @@ export class Workspace {
         const sv = v as ShowValue;
         sv.items.forEach((it, k) => {
           const src = sv.sources?.[k];
-          if (src && this.value(src)) push(src, it, !info.hidden, src);
-          else toVisuals(it, { nodeId: info.id }).forEach((visual, i) => {
+          if (src && this.value(src)) return push(src, it, !info.hidden, src);
+          // names referenced by the shown expression, in source order
+          const expr = info.stmt.kind === 'show' ? info.stmt.items[k] : undefined;
+          const refs = expr ? [...freeSymbols(expr)].filter(named) : [];
+          toVisuals(it, { nodeId: info.id }).forEach((visual, i) => {
             const id = `${info.id}#${k}.${i}`;
             if (seen.has(id)) return;
             seen.add(id);
             const visible = this.visibility.get(id) ?? !info.hidden;
-            items.push({ id, nodeId: info.id, visual, color: colorFor(visual, items.length), visible });
+            const primary = (visual.props.sourceId as string | undefined) ?? refs[refs.length - 1] ?? info.id;
+            items.push({ id, nodeId: info.id, visual, color: colorFor(visual, items.length), visible, keys: keysFor(visual, refs, primary), primary });
           });
         });
       } else if (info.name && v.kind === 'point') {
@@ -350,7 +379,6 @@ export class Workspace {
     this.sceneCache = { version: this.versions.values, view: this.versions.view, items };
     return items;
   }
-
   setVisible(key: string, visible: boolean) {
     this.visibility.set(key, visible);
     this.emit('view');
@@ -375,6 +403,29 @@ export class Workspace {
     this.emit('selection');
   }
 
+  setEmphasis(e: Emphasis | null) {
+    const same = e && this.emphasis && e.source === this.emphasis.source && e.isolate === this.emphasis.isolate && e.keys.join() === this.emphasis.keys.join();
+    if (same || (!e && !this.emphasis)) return;
+    this.emphasis = e;
+    this.emit('emphasis');
+  }
+
+  /** Keys that identify the selected object (its name and semantic role). */
+  selectionKeys(): string[] {
+    if (!this.selection) return [];
+    const v = this.value(this.selection);
+    // points are hubs (almost everything is anchored at P): selecting one must not dim the scene
+    if (v?.kind === 'point') return [];
+    const role = v?.role;
+    return role ? [this.selection, `role:${role}`] : [this.selection];
+  }
+
+  setMode(mode: string) {
+    if (this.mode === mode) return;
+    this.mode = mode;
+    this.visibility.clear();
+    this.emit('view');
+  }
   setHover(h: Hover | null) {
     this.hover = h;
     this.emit('hover');

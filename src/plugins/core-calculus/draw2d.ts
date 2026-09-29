@@ -131,7 +131,8 @@ registerDrawer2D('level', {
     ctx.lineTo(px + t[0] * s + gx * s, py - t[1] * s - gy * s);
     ctx.lineTo(px + gx * s, py - gy * s);
     ctx.stroke();
-    drawLabel(ctx, `f = ${formatNumber(value, 3)}`, px + t[0] * (L + 8), py - t[1] * (L + 8), a.item.color, a.theme, 13);
+    a.hits.push({ itemId: a.item.id, pts: [at[0] - (t[0] * L) / view.scale, at[1] - (t[1] * L) / view.scale, at[0] + (t[0] * L) / view.scale, at[1] + (t[1] * L) / view.scale] });
+    if (a.selected) drawLabel(ctx, `f = ${formatNumber(value, 3)}`, px + t[0] * (L + 8), py - t[1] * (L + 8), a.item.color, a.theme, 13);
   },
 });
 // ---------------------------------------------------------------- steepest paths
@@ -189,8 +190,9 @@ registerDrawer2D('slice', {
     ctx.stroke();
     ctx.setLineDash([]);
     const name = s.axis === 1 ? `x = ${formatNumber(s.origin[0], 3)}` : s.axis === 0 ? `y = ${formatNumber(s.origin[1], 3)}` : 'û-slice';
+    a.hits.push({ itemId: a.item.id, pts: [p0[0], p0[1], p1[0], p1[1]] });
     const lp = s.origin.map((o, i) => o + (iv[1] - 0.35) * s.dir[i]);
-    drawLabel(ctx, name, view.sx(lp[0]) + 6, view.sy(lp[1]) - 8, a.item.color, a.theme, 12);
+    if (a.selected) drawLabel(ctx, name, view.sx(lp[0]) + 6, view.sy(lp[1]) - 8, a.item.color, a.theme, 12);
   },
 });
 
@@ -214,7 +216,8 @@ registerDrawer2D('hessian_axes', {
       ctx.lineTo(px + vx * L, py - vy * L);
       ctx.stroke();
       ctx.setLineDash([]);
-      drawLabel(ctx, `λ${k === 0 ? '₁' : '₂'} = ${formatNumber(e.value, 3)}`, px + vx * (L + 6), py - vy * (L + 6), a.item.color, a.theme, 12);
+      a.hits.push({ itemId: a.item.id, pts: [at[0] - (vx * L) / view.scale, at[1] - (vy * L) / view.scale, at[0] + (vx * L) / view.scale, at[1] + (vy * L) / view.scale] });
+      if (a.selected) drawLabel(ctx, `λ${k === 0 ? '₁' : '₂'} = ${formatNumber(e.value, 3)}`, px + vx * (L + 6), py - vy * (L + 6), a.item.color, a.theme, 12);
     });
   },
 });
@@ -235,8 +238,10 @@ function anchorInputs(a: Draw2DArgs, anchor: number[]): string[] {
 registerDrawer2D('arrow', {
   layer: 4,
   draw(a) {
-    const { anchor, vec, sourceId } = a.item.visual.props as { anchor: number[]; vec: number[]; sourceId?: string };
-    if (anchor.length !== 2 || vec.length !== 2) return;
+    const { anchor, vec: fullVec, sourceId } = a.item.visual.props as { anchor: number[]; vec: number[]; sourceId?: string };
+    if (anchor.length !== 2 || fullVec.length !== 2) return;
+    const vec = fullVec.map((c) => c * a.style.grow);
+    a.hits.push({ itemId: a.item.id, pts: [anchor[0], anchor[1], anchor[0] + vec[0], anchor[1] + vec[1]] });
     const { ctx, view } = a;
     const x0 = view.sx(anchor[0]);
     const y0 = view.sy(anchor[1]);
@@ -259,8 +264,8 @@ registerDrawer2D('arrow', {
       const solvable = [...a.ws.graph.ancestors(sourceId), sourceId].some((id) => a.ws.statement(id)?.input && !exclude.includes(id));
       if (solvable) {
         a.handles.push({
-          x: anchor[0] + vec[0],
-          y: anchor[1] + vec[1],
+          x: anchor[0] + fullVec[0],
+          y: anchor[1] + fullVec[1],
           r: 12,
           itemId: a.item.id,
           nodeId: sourceId,

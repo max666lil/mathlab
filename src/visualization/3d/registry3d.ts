@@ -90,7 +90,8 @@ export interface Handle3D {
 
 export interface Visual3D {
   object: THREE.Object3D;
-  update(item: SceneItem, ctx: Ctx3D, selected: boolean): void;
+  /** selected = highlighted; grow ∈ [0,1] animates appearance (arrows grow from their base) */
+  update(item: SceneItem, ctx: Ctx3D, selected: boolean, grow: number): void;
   dispose(): void;
   handles?: Handle3D[];
   /** mesh to raycast when dragging points onto this surface */
@@ -106,6 +107,33 @@ export function createVisual3D(vtype: string): Visual3D | undefined {
 }
 
 // ------------------------------------------------------------------ helpers for visuals
+
+/** Set a material's intended opacity; the presentation layer multiplies it by the item's alpha. */
+export function setOpacity(m: THREE.Material, opacity: number) {
+  m.userData.baseOpacity = opacity;
+  m.opacity = opacity;
+}
+
+/** Fade a whole visual: multiplies every material's intended opacity by `alpha`. */
+export function applyAlpha(o: THREE.Object3D, alpha: number) {
+  o.visible = alpha > 0.01;
+  if (!o.visible) return;
+  o.traverse((c) => {
+    const mat = (c as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+    if (!mat) return;
+    for (const m of Array.isArray(mat) ? mat : [mat]) {
+      const u = m.userData;
+      if (u.baseOpacity === undefined) u.baseOpacity = m.opacity;
+      if (u.baseTransparent === undefined) u.baseTransparent = m.transparent;
+      const t = u.baseTransparent || alpha < 0.999;
+      if (t !== m.transparent) {
+        m.transparent = t;
+        m.needsUpdate = true;
+      }
+      m.opacity = u.baseOpacity * alpha;
+    }
+  });
+}
 
 export function disposeObject(o: THREE.Object3D) {
   o.traverse((c) => {
@@ -200,17 +228,18 @@ export class Arrow3D {
   }
 }
 
-/** Camera-facing text label rendered to a canvas texture. */
+/** Camera-facing text label with a constant on-screen size (never looms when zoomed in). */
 export class Label3D {
   readonly sprite: THREE.Sprite;
   private canvas = document.createElement('canvas');
   private tex: THREE.CanvasTexture;
   private text = '';
   private color = '';
-  constructor(private heightWorld = 0.28) {
+  /** height is a fraction of the viewport height */
+  constructor(private height = 0.028) {
     this.tex = new THREE.CanvasTexture(this.canvas);
     this.tex.colorSpace = THREE.SRGBColorSpace;
-    const mat = new THREE.SpriteMaterial({ map: this.tex, depthTest: false, transparent: true });
+    const mat = new THREE.SpriteMaterial({ map: this.tex, depthTest: false, transparent: true, sizeAttenuation: false });
     this.sprite = new THREE.Sprite(mat);
     this.sprite.renderOrder = 10;
   }
@@ -243,7 +272,7 @@ export class Label3D {
     ctx.fillStyle = color;
     ctx.fillText(text, 12, this.canvas.height / 2);
     this.tex.needsUpdate = true;
-    this.sprite.scale.set((this.heightWorld * w) / this.canvas.height, this.heightWorld, 1);
+    this.sprite.scale.set((this.height * w) / this.canvas.height, this.height, 1);
   }
   dispose() {
     this.tex.dispose();

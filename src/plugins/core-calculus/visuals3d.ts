@@ -4,7 +4,7 @@
  * during the flatten morph).
  */
 import * as THREE from 'three';
-import { registerVisual3D, Visual3D, Ctx3D, disposeObject, FatLine, FatSegments, Arrow3D, Label3D, Handle3D } from '../../visualization/3d/registry3d';
+import { registerVisual3D, Visual3D, Ctx3D, disposeObject, setOpacity, FatLine, FatSegments, Arrow3D, Label3D, Handle3D } from '../../visualization/3d/registry3d';
 import type { SceneItem } from '../../visualization/scene-model';
 import { sampleGrid, niceLevels, cachedLevelSet, steepestPath, lineBoxInterval, sliceSamples, Range } from '../../visualization/sampling';
 import { colormap, hexToRgb } from '../../visualization/colormap';
@@ -190,7 +190,7 @@ class PointVisual implements Visual3D {
   private sphere: THREE.Mesh;
   private floorDot: THREE.Mesh;
   private stem: THREE.Line;
-  private label = new Label3D(0.3);
+  private label = new Label3D(0.03);
   private halo: THREE.Mesh;
   handles: Handle3D[] = [];
   constructor() {
@@ -221,7 +221,7 @@ class PointVisual implements Visual3D {
     this.stem.computeLineDistances();
     this.stem.visible = top - m.floorZ > 1e-3;
     this.label.set(plainLabel(item.visual.label), ctx.theme.name === 'dark' ? '#ffffff' : '#1b1e28');
-    this.label.sprite.position.set(x, y, top + r * 3.2);
+    this.label.sprite.position.set(x, y, top + r * 2.6);
     this.handles = inputId ? [{ object: this.sphere, nodeId: inputId, drag: (px, py) => ctx.ws.setPoint(inputId, [px, py]) }] : [];
   }
   dispose() {
@@ -238,12 +238,14 @@ class ArrowVisual implements Visual3D {
   private floor = new Arrow3D('#ffffff');
   private lifted = new Arrow3D('#ffffff');
   private rise: FatLine | null = null;
-  private label = new Label3D(0.3);
+  private label = new Label3D(0.03);
   constructor() {
     this.object.add(this.floor.group, this.lifted.group, this.label.sprite);
   }
-  update(item: SceneItem, ctx: Ctx3D, selected: boolean) {
-    const { anchor, vec } = item.visual.props as { anchor: number[]; vec: number[] };
+  update(item: SceneItem, ctx: Ctx3D, selected: boolean, grow = 1) {
+    const props = item.visual.props as { anchor: number[]; vec: number[] };
+    const anchor = props.anchor;
+    const vec = props.vec.map((c) => c * grow);
     const m = ctx.map;
     const color = item.color;
     const r = m.size * (selected ? 0.0085 : 0.0065);
@@ -282,7 +284,7 @@ class ArrowVisual implements Visual3D {
       if (this.rise) this.rise.line.visible = false;
       tip = new THREE.Vector3(x0 + vec[0], y0 + vec[1], fz);
     }
-    const text = plainLabel(item.visual.label);
+    const text = selected ? plainLabel(item.visual.label) : '';
     this.label.sprite.visible = !!text;
     if (text) {
       this.label.set(text, color);
@@ -336,7 +338,7 @@ class PlaneVisual implements Visual3D {
     this.ghost.geometry = geom;
     const mat = this.mesh.material as THREE.MeshStandardMaterial;
     mat.color.set(item.color);
-    mat.opacity = selected ? 0.5 : 0.36;
+    setOpacity(mat, selected ? 0.5 : 0.36);
     mat.clippingPlanes = ctx.clip;
     const gm = this.ghost.material as THREE.MeshBasicMaterial;
     gm.color.set(item.color);
@@ -358,6 +360,7 @@ class PlaneVisual implements Visual3D {
     const base = m.v(x0, y0, z0);
     this.normal.setColor(item.color);
     this.normal.set(base, base.clone().addScaledVector(nw, m.size * 0.12), m.size * 0.004);
+    this.normal.group.visible = selected;
   }
   dispose() {
     this.normal.dispose();
@@ -443,7 +446,7 @@ class SliceVisual implements Visual3D {
     this.wall.geometry = new THREE.BufferGeometry().setFromPoints(quad);
     const wm = this.wall.material as THREE.MeshBasicMaterial;
     wm.color.set(item.color);
-    wm.opacity = selected ? 0.18 : 0.09;
+    setOpacity(wm, selected ? 0.18 : 0.09);
     if (!this.curve) {
       this.curve = new FatLine(ctx.lineMaterial(item.color, 3.2));
       this.tangent = new FatLine(ctx.lineMaterial(ctx.theme.name === 'dark' ? '#ffffff' : '#1b1e28', 2, { dashed: true }));
@@ -484,7 +487,7 @@ class HessianAxesVisual implements Visual3D {
   object = new THREE.Group();
   private curves: FatLine[] = [];
   private labels: Label3D[] = [];
-  update(item: SceneItem, ctx: Ctx3D) {
+  update(item: SceneItem, ctx: Ctx3D, selected: boolean) {
     const { fn, at, eig } = item.visual.props as { fn: FunctionValue; at: number[]; eig: EigenPair[] };
     const m = ctx.map;
     const f = fn.eval as F2;
@@ -492,7 +495,7 @@ class HessianAxesVisual implements Visual3D {
     eig.forEach((e, k) => {
       if (!this.curves[k]) {
         this.curves[k] = new FatLine(ctx.lineMaterial(item.color, 3, { dashed: k > 0 }));
-        this.labels[k] = new Label3D(0.26);
+        this.labels[k] = new Label3D(0.026);
         this.object.add(this.curves[k].line, this.labels[k].sprite);
       }
       const pts: number[] = [];
@@ -504,6 +507,7 @@ class HessianAxesVisual implements Visual3D {
       }
       this.curves[k].material.color.set(item.color);
       this.curves[k].set(pts);
+      this.labels[k].sprite.visible = selected;
       this.labels[k].set(`λ${k === 0 ? '₁' : '₂'} = ${formatNumber(e.value, 3)}`, item.color, false);
       const n = pts.length - 3;
       this.labels[k].sprite.position.set(pts[n], pts[n + 1], pts[n + 2] + m.size * 0.03);

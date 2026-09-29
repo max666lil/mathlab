@@ -4,7 +4,10 @@
  */
 import type { Workspace } from '../../runtime/workspace';
 import { View2D, niceStep } from './view2d';
-import { getDrawer2D, Handle2D } from './registry2d';
+import { getDrawer2D, Handle2D, Hit2D } from './registry2d';
+import type { Presentation } from '../presentation';
+import type { SceneItem } from '../scene-model';
+import { withAlpha } from '../colormap';
 import { frameFromItems, SceneFrame } from '../sampling';
 import { getTheme, onThemeChange, MATH_FONT, UI_FONT } from '../theme';
 import { formatNumber } from '../../math-core/symbolic/print';
@@ -16,6 +19,8 @@ export class PlaneView {
   private fitted = false;
   private raf = 0;
   private handles: Handle2D[] = [];
+  private hits: Hit2D[] = [];
+  private itemsById = new Map<string, SceneItem>();
   private cache = new Map<string, unknown>();
   private drag: Handle2D | null = null;
   private pan: { px: number; py: number; cx: number; cy: number } | null = null;
@@ -28,6 +33,7 @@ export class PlaneView {
   constructor(
     private host: HTMLElement,
     private ws: Workspace,
+    private pres: Presentation,
     readonly id = '2d',
   ) {
     this.canvas.className = 'mathlab-canvas';
@@ -44,6 +50,7 @@ export class PlaneView {
       }
     }));
     this.unsubs.push(onThemeChange(() => this.invalidate()));
+    this.unsubs.push(pres.on(() => this.invalidate()));
     this.canvas.addEventListener('pointerdown', this.onDown);
     this.canvas.addEventListener('pointermove', this.onMove);
     this.canvas.addEventListener('pointerup', this.onUp);
@@ -104,26 +111,106 @@ export class PlaneView {
     ctx.fillRect(0, 0, this.view.width, this.view.height);
     this.drawGrid();
     const handles: Handle2D[] = [];
+    const hits: Hit2D[] = [];
+    this.itemsById = new Map(items.map((i) => [i.id, i]));
     const ordered = items
-      .filter((i) => i.visible)
-      .map((item) => ({ item, d: getDrawer2D(item.visual.vtype) }))
+      .map((item) => ({ item, d: getDrawer2D(item.visual.vtype), style: this.pres.style(item.id) }))
+      .filter((x) => x.style.alpha > 0.01)
       .filter((x) => x.d)
       .sort((a, b) => a.d!.layer - b.d!.layer);
-    for (const { item, d } of ordered) {
+    for (const { item, d, style } of ordered) {
       ctx.save();
+      ctx.globalAlpha = style.alpha;
       try {
-        d!.draw({ ctx, view: this.view, item, frame: this.frame, theme, ws: this.ws, selected: this.ws.selection === item.nodeId, handles, cache: this.cache });
+        const selected = style.highlight || this.ws.selection === item.primary;
+        d!.draw({ ctx, view: this.view, item, frame: this.frame, theme, ws: this.ws, selected, style, handles, hits, cache: this.cache });
       } catch (e) {
         console.warn(`2D drawer ${item.visual.vtype} failed`, e);
       }
       ctx.restore();
     }
     this.handles = handles;
+    this.hits = hits;
+    this.drawAngle(items);
     this.drawAxesLabels();
     this.drawHover();
     if (this.cache.size > 64) this.cache.clear();
   }
 
+  /** φ between the gradient and a direction arrow sharing its base point. */
+  private drawAngle(items: SceneItem[]) {
+    const a = this.pres.annotation('angle');
+    if (a < 0.01) return;
+    const g = items.find((i) => i.visual.vtype === 'arrow' && i.visual.role === 'gradient');
+    const u = items.find((i) => i.visual.vtype === 'arrow' && i.visual.role === 'direction');
+    if (!g || !u) return;
+    const ga = g.visual.props.anchor as number[];
+    const ua = u.visual.props.anchor as number[];
+    if (Math.hypot(ga[0] - ua[0], ga[1] - ua[1]) > 1e-9) return;
+    const gv = g.visual.props.vec as number[];
+    const uv = u.visual.props.vec as number[];
+    const t1 = Math.atan2(gv[1], gv[0]);
+    let t2 = Math.atan2(uv[1], uv[0]);
+    let d = t2 - t1;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    while (d < -Math.PI) d += 2 * Math.PI;
+    t2 = t1 + d;
+    const { ctx, view } = this;
+    const px = view.sx(ga[0]);
+    const py = view.sy(ga[1]);
+    const R = 30;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = withAlpha('#ffd166', 0.16);
+    ctx.strokeStyle = '#ffd166';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    // canvas y is flipped: angles are negated
+    ctx.arc(px, py, R, -t1, -t2, d > 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(px, py, R, -t1, -t2, d > 0);
+    ctx.stroke();
+    const mid = t1 + d / 2;
+    ctx.font = `italic 15px ${MATH_FONT}`;
+    ctx.fillStyle = '#ffd166';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('φ', px + Math.cos(mid) * (R + 11), py - Math.sin(mid) * (R + 11));
+    ctx.restore();
+  }
+
+  /** Nearest hoverable shape within a few pixels. */
+  private hitItem(px: number, py: number): SceneItem | null {
+    let best: SceneItem | null = null;
+    let bd = 7;
+    for (const h of this.hits) {
+      for (let k = 0; k + 3 < h.pts.length; k += 2) {
+        const x1 = this.view.sx(h.pts[k]);
+        const y1 = this.view.sy(h.pts[k + 1]);
+        const x2 = this.view.sx(h.pts[k + 2]);
+        const y2 = this.view.sy(h.pts[k + 3]);
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy || 1)));
+        const d = Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+        if (d < bd) {
+          bd = d;
+          best = this.itemsById.get(h.itemId) ?? null;
+        }
+      }
+    }
+    return best;
+  }
+
+  private emphasize(item: SceneItem | null) {
+    if (item) {
+      const role = item.visual.role ? [`role:${item.visual.role}`] : [];
+      this.ws.setEmphasis({ keys: [item.primary, ...role], source: this.id });
+    } else if (this.ws.emphasis?.source === this.id) this.ws.setEmphasis(null);
+  }
   private drawGrid() {
     const { ctx, view } = this;
     const theme = getTheme();
@@ -265,10 +352,14 @@ export class PlaneView {
       return;
     }
     const h = this.hit(px, py);
-    if (h !== this.hoverHandle) {
+    const item = h ? null : this.hitItem(px, py);
+    const handleItem = h ? (this.itemsById.get(h.itemId) ?? null) : null;
+    // points are hubs: hovering P must not light up everything anchored at it
+    this.emphasize(handleItem ? (handleItem.visual.vtype === 'point' ? null : handleItem) : item);
+    if (h !== this.hoverHandle || item) {
       this.hoverHandle = h;
-      this.canvas.style.cursor = h ? (h.cursor ?? 'grab') : 'crosshair';
-    }
+      this.canvas.style.cursor = h ? (h.cursor ?? 'grab') : item ? 'pointer' : 'crosshair';
+    } else if (!h) this.canvas.style.cursor = 'crosshair';
     this.ws.setHover({ x: wx, y: wy, source: this.id });
   };
 
@@ -278,13 +369,17 @@ export class PlaneView {
       this.ws.flushRewrites();
     } else if (this.pan) {
       const [px, py] = this.local(e);
-      if (Math.hypot(px - this.pan.px, py - this.pan.py) < 3) this.ws.select(null);
+      if (Math.hypot(px - this.pan.px, py - this.pan.py) < 3) {
+        const item = this.hitItem(px, py);
+        this.ws.select(item ? item.primary : null);
+      }
     }
     this.drag = null;
     this.pan = null;
   };
 
   private onLeave = () => {
+    this.emphasize(null);
     if (!this.drag && this.ws.hover?.source === this.id) this.ws.setHover(null);
   };
 

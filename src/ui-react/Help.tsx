@@ -15,6 +15,7 @@ const SYNTAX: [string, string][] = [
   ['show quadratic(f, P) hidden', 'create hidden (toggle it from the chips)'],
   ['animate θ from 0 to 2π', 'animation (play button in the output)'],
   ['\\theta ⇥', 'type \\theta, \\pi, \\nabla ... for Greek letters'],
+  ['1 2 3 4', 'switch concept mode: Surface, Gradient, Directional derivative, Local geometry'],
 ];
 
 export function HelpDialog({ onClose }: { onClose(): void }) {

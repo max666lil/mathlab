@@ -4,6 +4,14 @@ import type { SceneFrame } from '../sampling';
 import type { Theme } from '../theme';
 import type { Workspace } from '../../runtime/workspace';
 import type { View2D } from './view2d';
+import type { ItemStyle } from '../presentation';
+
+/** A hoverable/clickable shape (world coordinates) registered while drawing. */
+export interface Hit2D {
+  itemId: string;
+  /** polyline points [x0, y0, x1, y1, ...] */
+  pts: number[];
+}
 
 /** A draggable handle registered while drawing. */
 export interface Handle2D {
@@ -25,8 +33,11 @@ export interface Draw2DArgs {
   frame: SceneFrame;
   theme: Theme;
   ws: Workspace;
+  /** highlighted by selection / emphasis */
   selected: boolean;
+  style: ItemStyle;
   handles: Handle2D[];
+  hits: Hit2D[];
   /** per-view cache for expensive layers */
   cache: Map<string, unknown>;
 }

@@ -18,9 +18,10 @@ interface Props {
   autoFocus?: boolean;
   onCommit(cellId: string): void;
   onFocus(cellId: string): void;
+  onBlur?(cellId: string): void;
 }
 
-export function CellEditor({ cellId, autoFocus, onCommit, onFocus }: Props) {
+export function CellEditor({ cellId, autoFocus, onCommit, onFocus, onBlur }: Props) {
   const ws = useWs();
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -44,7 +45,7 @@ export function CellEditor({ cellId, autoFocus, onCommit, onFocus }: Props) {
           mll,
           mllHighlight,
           EditorView.lineWrapping,
-          cmPlaceholder('f(x,y) = x^2 + y^2   ·   Shift+Enter to run'),
+          cmPlaceholder('f(x,y) = x^2 + y^2'),
           autocompletion({ override: [mllCompletions(() => ws.statements().filter((s) => s.name).map((s) => s.name!))], icons: false }),
           keymap.of([
             { key: 'Shift-Enter', run: commit },
@@ -109,5 +110,13 @@ export function CellEditor({ cellId, autoFocus, onCommit, onFocus }: Props) {
     if (autoFocus) viewRef.current?.focus();
   }, [autoFocus]);
 
-  return <div className="cell-editor" ref={host} />;
+  return (
+    <div
+      className="cell-editor"
+      ref={host}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onBlur?.(cellId);
+      }}
+    />
+  );
 }

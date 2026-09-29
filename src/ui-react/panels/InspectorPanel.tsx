@@ -35,18 +35,14 @@ function actions(ws: Workspace, id: string, v: MathValue): { label: string; code
   return out;
 }
 
-export function InspectorPanel() {
+export function InspectorView() {
   const ws = useWs();
   useTopics('selection', 'values', 'view', 'doc');
   const id = ws.selection;
   const node = id ? ws.node(id) : undefined;
   const info = id ? ws.statement(id) : undefined;
   return (
-    <div className="panel">
-      <div className="panel-header">
-        <span className="panel-title">Inspector</span>
-      </div>
-      <div className="panel-body scroll inspector">
+    <div className="inspector">
         {!id || !info ? (
           <div className="empty">Select an object — click a point, a vector or a notebook result.</div>
         ) : (
@@ -97,7 +93,6 @@ export function InspectorPanel() {
             )}
           </>
         )}
-      </div>
     </div>
   );
 }
