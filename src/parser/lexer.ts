@@ -33,7 +33,7 @@ const MULTI_OPS = ['<=', '>=', '**', '->'];
 const SINGLE_OPS = '+-*/^()[]{},=<>.:;|·×∇∈⟨⟩~';
 
 const isDigit = (c: string) => c >= '0' && c <= '9';
-const isIdentStart = (c: string) => /[\p{L}_]/u.test(c) && !(c in SUPERSCRIPTS) && c !== '∇' && c !== '∈';
+const isIdentStart = (c: string) => /[\p{L}_]/u.test(c) && !(c in SUPERSCRIPTS) && c !== '∇' && c !== '∈' && c !== 'ᵀ';
 const isIdentPart = (c: string) => isIdentStart(c) || isDigit(c) || c === "'";
 
 export function lex(src: string): Token[] {
@@ -75,6 +75,14 @@ export function lex(src: string): Token[] {
       }
       const text = src.slice(start, i);
       push('num', text, start, i, parseFloat(text));
+      continue;
+    }
+    if (c === 'ᵀ') {
+      // Aᵀ → A^T (transpose)
+      push('op', '^', i, i);
+      push('ident', 'T', i, i + 1);
+      spaced = false;
+      i++;
       continue;
     }
     if (c in SUPERSCRIPTS) {

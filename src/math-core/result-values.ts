@@ -169,8 +169,16 @@ registerValueKind({
 
 registerValueKind({ kind: 'focus', latex: (v) => `\\text{analyzing } ${(v as unknown as FocusValue).target}`, typeLabel: () => 'analysis request' });
 
+const itemRules = new Map<string, (v: MathValue, k: number) => MathValue | undefined>();
+/** Plugins make their kinds indexable: E[k] for eigen-decompositions, W[k] for subspace bases, … */
+export function registerItems(kind: string, fn: (v: MathValue, k: number) => MathValue | undefined) {
+  itemRules.set(kind, fn);
+}
+
 /** first(S), S[k]: one element of a point set / list. */
 export function itemOf(v: MathValue, k: number): MathValue | undefined {
+  const rule = itemRules.get(v.kind);
+  if (rule) return rule(v, k);
   if (v.kind === 'pointset') {
     const s = v as unknown as PointSetValue;
     const p = s.points[k];

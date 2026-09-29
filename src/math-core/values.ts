@@ -93,6 +93,8 @@ export interface ListValue extends Base {
 export interface BoolValue extends Base {
   kind: 'bool';
   value: boolean;
+  /** LaTeX justification, e.g. '\\det A = 3 \\neq 0' */
+  reason?: string;
 }
 /** A visual primitive (surface, contours, arrow...). Props are interpreted by renderers. */
 export interface VisualValue extends Base {
@@ -161,6 +163,21 @@ export function registerValueKind(spec: ValueKindSpec) {
 
 const nums = (xs: number[], d = 4) => xs.map((x) => numberLatex(x, d)).join(', ');
 
+/** An entry of an exact vector / matrix: its closed form (1/3, √2/2) when recognised. */
+export function entryLatex(x: number, exact: boolean | undefined): string {
+  if (Object.is(x, -0) || Math.abs(x) < 1e-13) return '0';
+  if (!exact || Number.isInteger(x)) return numberLatex(x);
+  return recognize(x)?.latex ?? numberLatex(x);
+}
+
+export function matrixLatex(rows: number[][], exact?: boolean): string {
+  return `\\begin{pmatrix}${rows.map((r) => r.map((x) => entryLatex(x, exact)).join(' & ')).join(' \\\\ ')}\\end{pmatrix}`;
+}
+
+export function vectorLatex(comps: number[], exact?: boolean): string {
+  return `\\left\\langle ${comps.map((x) => entryLatex(x, exact)).join(', ')}\\right\\rangle`;
+}
+
 export function functionSignatureLatex(f: FunctionValue): string {
   return `${f.label ?? 'f'}(${f.params.map(symbolLatex).join(', ')})`;
 }
@@ -186,13 +203,13 @@ registerValueKind({
 });
 registerValueKind({
   kind: 'vector',
-  latex: (v) => `\\left\\langle ${nums((v as VectorValue).comps)}\\right\\rangle`,
+  latex: (v) => vectorLatex((v as VectorValue).comps, v.certainty === 'exact'),
   typeLabel: (v) => `vector in ℝ${sup((v as VectorValue).comps.length)}${(v as VectorValue).anchor ? ' (bound)' : ''}`,
   member: (v, prop) => memberOf((v as VectorValue).comps, prop),
 });
 registerValueKind({
   kind: 'matrix',
-  latex: (v) => `\\begin{pmatrix}${(v as MatrixValue).rows.map((r) => r.map((x) => numberLatex(x)).join(' & ')).join(' \\\\ ')}\\end{pmatrix}`,
+  latex: (v) => matrixLatex((v as MatrixValue).rows, v.certainty === 'exact'),
   typeLabel: (v) => `${(v as MatrixValue).rows.length}×${(v as MatrixValue).rows[0]?.length ?? 0} matrix`,
 });
 registerValueKind({
@@ -218,7 +235,15 @@ registerValueKind({
   latex: (v) => `\\left[${(v as ListValue).items.map(valueLatex).join(', ')}\\right]`,
   typeLabel: (v) => `list of ${(v as ListValue).items.length}`,
 });
-registerValueKind({ kind: 'bool', latex: (v) => ((v as BoolValue).value ? '\\text{true}' : '\\text{false}'), typeLabel: () => 'boolean' });
+registerValueKind({
+  kind: 'bool',
+  latex: (v) => {
+    const b = v as BoolValue;
+    if (!b.reason) return b.value ? '\\text{true}' : '\\text{false}';
+    return `\\text{${b.value ? 'yes' : 'no'}}\\quad \\left(${b.reason}\\right)`;
+  },
+  typeLabel: () => 'boolean',
+});
 registerValueKind({
   kind: 'visual',
   latex: (v) => `\\text{${(v as VisualValue).label ?? (v as VisualValue).vtype}}`,

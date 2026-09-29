@@ -196,9 +196,9 @@ export class AnalysisService {
     }
     return names
       .map((n) => {
-        const v = this.ws.value(n) as (MathValue & { key?: string; coords?: number[]; value?: number; comps?: number[] }) | undefined;
+        const v = this.ws.value(n) as (MathValue & { key?: string; coords?: number[]; value?: number; comps?: number[]; rows?: number[][] }) | undefined;
         if (!v) return `${n}:-`;
-        return `${n}:${v.key ?? JSON.stringify(v.coords ?? v.comps ?? v.value ?? v.kind)}`;
+        return `${n}:${v.key ?? JSON.stringify(v.coords ?? v.comps ?? v.value ?? v.rows ?? v.kind)}:${v.certainty ?? ''}`;
       })
       .join('|');
   }

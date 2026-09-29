@@ -15,6 +15,8 @@ import {
   scalar, point, vector, matrixV, valueMember,
 } from '../math-core/values';
 import { dot, cross, matVec, matMul } from '../math-core/linalg';
+import { isRational } from '../math-core/rational';
+import type { Certainty } from '../math-core/values';
 
 export { EvalError };
 
@@ -92,16 +94,45 @@ export class Evaluator implements EvalContext {
         return point(items.map((it, i) => this.num(it, e.items[i])));
       }
       case 'vec': {
-        const items = e.items.map((it) => this.evaluate(it));
-        return vector(items.map((it, i) => this.num(it, e.items[i])));
+        const comps = e.items.map((it) => this.num(this.evaluate(it), it));
+        return vector(comps, undefined, this.rationalLiteral(e.items, comps));
       }
       case 'list':
         return { kind: 'list', items: e.items.map((it) => this.evaluate(it)) };
-      case 'matrix':
-        return matrixV(e.rows.map((r) => r.map((it) => this.num(this.evaluate(it), it))));
+      case 'matrix': {
+        const rows = e.rows.map((r) => r.map((it) => this.num(this.evaluate(it), it)));
+        if (rows.some((r) => r.length !== rows[0].length)) throw spanErr('All rows of a matrix must have the same length', e);
+        return matrixV(rows, this.rationalLiteral(e.rows.flat(), rows.flat()));
+      }
       case 'eq':
         throw spanErr(`'=' is only allowed in definitions and arguments such as slice(f, x = 1)`, e);
     }
+  }
+
+  /**
+   * A vector / matrix literal is exact when every entry is a rational number built only from
+   * rational literals and exact scalars — no transcendental functions or constants.
+   */
+  private rationalLiteral(items: Expr[], values: number[]): { certainty?: Certainty } {
+    const rationalExpr = (x: Expr): boolean => {
+      switch (x.type) {
+        case 'num':
+          return true;
+        case 'neg':
+          return rationalExpr(x.arg);
+        case 'bin':
+          if (x.op === '^') return rationalExpr(x.left) && x.right.type === 'num' && Number.isInteger(x.right.value);
+          return ['+', '-', '*', '/'].includes(x.op) && rationalExpr(x.left) && rationalExpr(x.right);
+        case 'sym': {
+          if (x.name in CONSTANTS) return false;
+          const v = this.scope.lookup(x.name);
+          return v?.kind === 'scalar' && (v.certainty === undefined || v.certainty === 'exact');
+        }
+        default:
+          return false;
+      }
+    };
+    return items.every(rationalExpr) && values.every(isRational) ? { certainty: 'exact' } : {};
   }
 
   num(v: MathValue, e: Expr): number {
@@ -135,6 +166,29 @@ export class Evaluator implements EvalContext {
   }
 
   private binary(e: Extract<Expr, { type: 'bin' }>): MathValue {
+    // A^T (transpose) and A^-1 (inverse) delegate to the linear-algebra builtins
+    if (e.op === '^' && e.right.type === 'sym' && e.right.name === 'T' && !this.lookup('T')) {
+      const a = this.evaluate(e.left);
+      if (a.kind === 'vector') return matrixV([(a as VectorValue).comps.slice()], { certainty: a.certainty }); // row vector
+      if (a.kind !== 'matrix') throw spanErr(`Only matrices and vectors can be transposed (got ${a.kind})`, e);
+      return this.callBuiltin('transpose', [a], e);
+    }
+    return this.binaryOp(e);
+  }
+
+  /** Apply a registered builtin to already evaluated arguments (used by operator syntax). */
+  private callBuiltin(name: string, args: MathValue[], e: Expr): MathValue {
+    const b = getBuiltin(name);
+    if (!b) throw spanErr(`'${name}' is not available`, e);
+    try {
+      return b.apply(args, this, [], { values: {}, raw: {} });
+    } catch (err) {
+      if (err instanceof EvalError && !err.span) err.span = e.span;
+      throw err;
+    }
+  }
+
+  private binaryOp(e: Extract<Expr, { type: 'bin' }>): MathValue {
     if (e.op === 'at') {
       const f = this.evaluate(e.left);
       const arg = this.evaluate(e.right);
@@ -146,6 +200,24 @@ export class Evaluator implements EvalContext {
     }
     const a = this.evaluate(e.left);
     const b = this.evaluate(e.right);
+    return this.inheritCertainty(this.arith(e, a, b), a, b);
+  }
+
+  /**
+   * Linear-algebra results (vectors, points, matrices) are exact when all operands are exact
+   * (plain rational scalars count as exact), otherwise they take the weakest operand certainty.
+   */
+  private inheritCertainty(r: MathValue, a: MathValue, b: MathValue): MathValue {
+    if (r.certainty || !['vector', 'point', 'matrix'].includes(r.kind)) return r;
+    if (a.kind === 'point' || b.kind === 'point') return r;
+    const of = (v: MathValue): Certainty | undefined => v.certainty ?? (v.kind === 'scalar' && isRational((v as ScalarValue).value) ? 'exact' : undefined);
+    const cs = [of(a), of(b)];
+    if (cs.some((c) => !c)) return r;
+    const order: Certainty[] = ['heuristic', 'numeric', 'exact'];
+    return { ...r, certainty: cs.reduce((w, c) => (order.indexOf(c!) < order.indexOf(w!) ? c : w)) };
+  }
+
+  private arith(e: Extract<Expr, { type: 'bin' }>, a: MathValue, b: MathValue): MathValue {
     const k = `${a.kind}${e.op}${b.kind}`;
     const S = (v: MathValue) => (v as ScalarValue).value;
     const V = (v: MathValue) => (v.kind === 'vector' ? (v as VectorValue).comps : (v as PointValue).coords);
@@ -202,6 +274,12 @@ export class Evaluator implements EvalContext {
       case 'vector×vector':
         if (V(a).length === 2 && V(b).length === 2) return scalar(V(a)[0] * V(b)[1] - V(a)[1] * V(b)[0]);
         return vector(cross(V(a), V(b)));
+      case 'matrix/scalar':
+        return matrixV(M(a).map((r) => r.map((x) => x / S(b))));
+      case 'vector*matrix':
+        if (V(a).length !== M(b).length) throw spanErr('Row vector / matrix dimension mismatch', e);
+        return vector(M(b)[0].map((_, j) => V(a).reduce((s, x, i) => s + x * M(b)[i][j], 0)));
+      case 'matrix·vector':
       case 'matrix*vector':
       case 'matrix*point':
         if (M(a)[0].length !== V(b).length) throw spanErr('Matrix/vector dimension mismatch', e);
@@ -216,15 +294,22 @@ export class Evaluator implements EvalContext {
       }
       case 'matrix+matrix':
       case 'matrix-matrix': {
+        if (M(a).length !== M(b).length || M(a)[0].length !== M(b)[0].length) throw spanErr('Matrices must have the same size', e);
         const s = e.op === '+' ? 1 : -1;
         return matrixV(M(a).map((r, i) => r.map((x, j) => x + s * M(b)[i][j])));
       }
       case 'matrix^scalar': {
         let n = S(b);
-        if (!Number.isInteger(n) || n < 0) throw spanErr('Matrix powers must be non-negative integers', e);
+        if (M(a).length !== M(a)[0].length) throw spanErr('Only square matrices have powers', e);
+        if (!Number.isInteger(n)) throw spanErr('Matrix powers must be integers', e);
+        let base = a as MatrixValue;
+        if (n < 0) {
+          base = this.callBuiltin('inverse', [a], e) as MatrixValue;
+          n = -n;
+        }
         let r: number[][] = M(a).map((row, i) => row.map((_, j) => (i === j ? 1 : 0)));
-        while (n-- > 0) r = matMul(r, M(a));
-        return matrixV(r);
+        while (n-- > 0) r = matMul(r, base.rows);
+        return matrixV(r, { certainty: base.certainty });
       }
       case 'vector*vector':
         throw spanErr(`Use '·' (dot) or '×' (cross) to multiply vectors`, e);
@@ -303,6 +388,14 @@ export class Evaluator implements EvalContext {
   apply(fv: MathValue, args: MathValue[], e: Expr): MathValue {
     if (fv.kind === 'scalar' && args.length === 1 && args[0].kind === 'scalar')
       return scalar((fv as ScalarValue).value * (args[0] as ScalarValue).value); // a(x+1): implicit product
+    if (fv.kind === 'matrix' && args.length === 1 && (args[0].kind === 'vector' || args[0].kind === 'point')) {
+      // A(v): a matrix is a linear map
+      const m = (fv as MatrixValue).rows;
+      const v = args[0].kind === 'vector' ? (args[0] as VectorValue).comps : (args[0] as PointValue).coords;
+      if (m[0].length !== v.length) throw spanErr('Matrix/vector dimension mismatch', e);
+      const c = fv.certainty && fv.certainty === args[0].certainty ? { certainty: fv.certainty } : {};
+      return args[0].kind === 'point' ? { ...point(matVec(m, v)), ...c } : vector(matVec(m, v), undefined, c);
+    }
     if (fv.kind !== 'function') throw spanErr(`${fv.kind} is not a function`, e);
     const f = fv as FunctionValue;
     let coords: number[];
