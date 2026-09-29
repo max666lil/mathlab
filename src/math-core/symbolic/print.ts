@@ -161,11 +161,16 @@ export function toText(e: Expr, precise = false): string {
           if (coef < 0) return `-${p(negate(e), PREC.prod)}`;
           const { num, den } = fractionParts(factors);
           const join = (fs: Expr[]) => fs.map((f) => p(f, PREC.prod + 0.5)).join('*');
+          // readable text keeps simple rational coefficients as fractions: x^3/3 rather than 0.333333x^3
+          const frac = precise ? null : asFraction(coef);
+          const topCoef = frac ? frac[0] : coef;
+          const botCoef = frac ? frac[1] : 1;
           let top = num.length ? join(num) : '';
-          if (coef !== 1) top = top ? (juxtaposable(num[0]) ? `${fmt(coef)}${top}` : `${fmt(coef)}*${top}`) : fmt(coef);
+          if (topCoef !== 1) top = top ? (juxtaposable(num[0]) ? `${fmt(topCoef)}${top}` : `${fmt(topCoef)}*${top}`) : fmt(topCoef);
           if (!top) top = '1';
-          if (!den.length) return top;
-          const bottom = den.length === 1 ? p(den[0], PREC.pow) : `(${join(den)})`;
+          if (!den.length && botCoef === 1) return top;
+          const denParts = [...(botCoef !== 1 ? [fmt(botCoef)] : []), ...den.map((d) => p(d, PREC.prod + 0.5))];
+          const bottom = denParts.length === 1 ? (den.length === 1 ? p(den[0], PREC.pow) : denParts[0]) : `(${denParts.join('*')})`;
           return `${top}/${bottom}`;
         }
         case '/':
