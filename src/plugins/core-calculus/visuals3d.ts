@@ -377,7 +377,7 @@ class LevelVisual implements Visual3D {
   private floor: FatSegments | null = null;
   private tangent: FatLine | null = null;
   update(item: SceneItem, ctx: Ctx3D) {
-    const { fn, at, value, g } = item.visual.props as { fn: FunctionValue; at: number[]; value: number; g: number[] };
+    const { fn, at, value, g } = item.visual.props as { fn: FunctionValue; at?: number[]; value: number; g?: number[] };
     const m = ctx.map;
     if (!this.lifted) {
       this.lifted = new FatSegments(ctx.lineMaterial(item.color, 3));
@@ -399,8 +399,8 @@ class LevelVisual implements Visual3D {
     this.lifted.lines.visible = onSurface;
     if (onSurface) this.lifted.set(up);
     this.floor!.set(fl);
-    const gn = Math.hypot(g[0], g[1]);
-    if (gn > 1e-9 && onSurface) {
+    const gn = g ? Math.hypot(g[0], g[1]) : 0;
+    if (at && g && gn > 1e-9 && onSurface) {
       const t = [-g[1] / gn, g[0] / gn];
       const L = m.size * 0.14;
       this.tangent!.set([at[0] - t[0] * L, at[1] - t[1] * L, zw, at[0] + t[0] * L, at[1] + t[1] * L, zw]);

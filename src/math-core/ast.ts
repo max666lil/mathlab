@@ -16,7 +16,8 @@ export type Expr =
   | { type: 'sym'; name: string; span?: Span }
   | { type: 'neg'; arg: Expr; span?: Span }
   | { type: 'bin'; op: BinOp; left: Expr; right: Expr; span?: Span }
-  | { type: 'call'; callee: Expr; args: Expr[]; span?: Span }
+  /** kwargs: keyword clauses of command syntax, e.g. limit f as x -> 0 → [['wrt', x], ['approach', 0]] */
+  | { type: 'call'; callee: Expr; args: Expr[]; kwargs?: [string, Expr][]; span?: Span }
   /** (a, b, ...) — a point by default */
   | { type: 'tuple'; items: Expr[]; span?: Span }
   /** <a, b, ...> — a vector */
@@ -61,7 +62,7 @@ export function children(e: Expr): Expr[] {
     case 'eq':
       return [e.left, e.right];
     case 'call':
-      return [e.callee, ...e.args];
+      return [e.callee, ...e.args, ...(e.kwargs ?? []).map(([, v]) => v)];
     case 'tuple':
     case 'vec':
     case 'list':
@@ -90,7 +91,7 @@ export function mapExpr(e: Expr, f: (e: Expr) => Expr): Expr {
       out = { ...e, left: m(e.left), right: m(e.right) };
       break;
     case 'call':
-      out = { ...e, callee: e.callee.type === 'sym' ? e.callee : m(e.callee), args: e.args.map(m) };
+      out = { ...e, callee: e.callee.type === 'sym' ? e.callee : m(e.callee), args: e.args.map(m), ...(e.kwargs ? { kwargs: e.kwargs.map(([k, v]) => [k, m(v)] as [string, Expr]) } : {}) };
       break;
     case 'tuple':
     case 'vec':
@@ -128,7 +129,7 @@ export function dependsOn(e: Expr, v: string): boolean {
     case 'sym':
       return e.name === v;
     case 'call':
-      return e.args.some((a) => dependsOn(a, v)) || (e.callee.type !== 'sym' && dependsOn(e.callee, v));
+      return e.args.some((a) => dependsOn(a, v)) || (e.callee.type !== 'sym' && dependsOn(e.callee, v)) || !!e.kwargs?.some(([, a]) => dependsOn(a, v));
     default:
       return children(e).some((c) => dependsOn(c, v));
   }

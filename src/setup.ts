@@ -2,8 +2,10 @@
 import { installCoreBuiltins } from './math-core/core-builtins';
 import { installPlugin } from './plugins/plugin-api';
 import { coreCalculusMath } from './plugins/core-calculus/math';
+import { coreAnalysisMath } from './plugins/core-calculus/analysis-builtins';
 
 export function installMathLab() {
   installCoreBuiltins();
   installPlugin(coreCalculusMath);
+  installPlugin(coreAnalysisMath);
 }

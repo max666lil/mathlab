@@ -13,11 +13,23 @@ export interface EvalContext {
   /** Named function, or an expression in x, y, z, t lifted to an anonymous function. */
   toFunction(e: Expr): FunctionValue;
   makeFunction(expr: Expr, params: string[], opts?: { label?: string; role?: string; base?: FunctionValue; env?: Record<string, number | number[]> }): FunctionValue;
+  /** evaluate, lifting expressions in x, y, z, t to anonymous functions */
+  evaluateOrLift(e: Expr): MathValue;
   lookup(name: string): MathValue | undefined;
+}
+
+/** Keyword clause values (command syntax), e.g. limit f as x -> 0 → { wrt: x, approach: 0 }. */
+export interface KwArgs {
+  values: Record<string, MathValue | undefined>;
+  raw: Record<string, Expr>;
 }
 
 export interface Builtin {
   name: string;
+  /** may be written without parentheses: critical f, limit f as x -> 0 */
+  command?: boolean;
+  /** keyword clauses accepted in command syntax and how their values are evaluated */
+  keywords?: Record<string, ArgMode>;
   minArgs: number;
   maxArgs: number;
   /** Per-argument evaluation mode (default 'value'); the last entry repeats. */
@@ -27,7 +39,7 @@ export interface Builtin {
   signature: string;
   doc: string;
   category: string;
-  apply(args: (MathValue | undefined)[], ctx: EvalContext, raw: Expr[]): MathValue;
+  apply(args: (MathValue | undefined)[], ctx: EvalContext, raw: Expr[], kw: KwArgs): MathValue;
 }
 
 const builtins = new Map<string, Builtin>();

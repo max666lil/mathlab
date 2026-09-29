@@ -37,6 +37,8 @@ export function registerDefaultVisual(kind: string, rule: DefaultVisualRule) {
 export const visual = (vtype: string, props: Record<string, unknown>, label?: string, role?: string): VisualValue => ({ kind: 'visual', vtype, props, label, role });
 
 export function toVisuals(v: MathValue, ctx: VisualContext): VisualValue[] {
+  const attached = (v.visuals as VisualValue[] | undefined) ?? [];
+  if (attached.length) return [...toVisuals({ ...v, visuals: undefined } as MathValue, ctx), ...attached];
   if (v.kind === 'visual') return [v as VisualValue];
   if (v.kind === 'show') return (v as ShowValue).items.flatMap((it) => toVisuals(it, ctx));
   if (v.kind === 'list') return (v as ListValue).items.flatMap((it) => toVisuals(it, ctx));
@@ -72,6 +74,14 @@ export const ROLE_COLORS: Record<string, string> = {
   'slice-y': '#52d69b',
   'slice-dir': '#c77dff',
   level: '#ffd166',
+  critical: '#ffffff',
+  zeros: '#ff8fab',
+  solutions: '#ff8fab',
+  asymptote: '#9aa3bd',
+  compare: '#f4a261',
+  difference: '#80deea',
+  taylor: '#f4a261',
+  directional: '#4cc9f0',
   path: '#ff8fab',
   hessian: '#b388ff',
   quadratic: '#80deea',

@@ -7,7 +7,7 @@ import { Expr, Span, freeSymbols } from '../math-core/ast';
 import { parseProgram, Statement, spanOf } from '../parser/parser';
 import { getBuiltin, EvalError } from '../math-core/builtins';
 import { getScalarFunction } from '../math-core/scalar-functions';
-import { symbolLatex, formatNumber } from '../math-core/symbolic/print';
+import { symbolLatex, formatNumber, toText } from '../math-core/symbolic/print';
 import { MathValue, FunctionValue, PointValue, VectorValue, ScalarValue, ShowValue, point, vector } from '../math-core/values';
 import { NodeDef } from './graph';
 import { Evaluator, Scope } from './evaluator';
@@ -40,7 +40,13 @@ export interface StatementInfo {
 let cellCounter = 0;
 export const newCellId = () => `c${++cellCounter}`;
 
-const parseOpts = { isPrefixFunction: (n: string) => !!getBuiltin(n)?.prefix || !!getScalarFunction(n) };
+const parseOpts = {
+  isPrefixFunction: (n: string) => !!getBuiltin(n)?.prefix || !!getScalarFunction(n),
+  commandKeywords: (n: string) => {
+    const b = getBuiltin(n);
+    return b?.command ? Object.keys(b.keywords ?? {}) : undefined;
+  },
+};
 
 export function isPrefixFunction(n: string) {
   return parseOpts.isPrefixFunction(n);
@@ -54,8 +60,10 @@ function statementExprs(st: Statement): Expr[] {
     case 'assign':
       return [st.value];
     case 'show':
+    case 'hide':
       return st.items;
-    case 'expr':
+    case 'compare':
+      return [st.a, st.b];    case 'expr':
       return [st.value];
     case 'animate':
       return [st.from, st.to, ...(st.duration ? [st.duration] : [])];
@@ -244,6 +252,18 @@ export function evaluateStatement(info: StatementInfo, ev: Evaluator, firstByNam
       const target = ev.lookup(st.name);
       if (!target || target.kind !== 'scalar') throw new EvalError(`'${st.name}' must be a slider or number to animate`, st.span);
       return { kind: 'animation', target: st.name, from, to, duration };
+    }
+    case 'hide':
+      return { kind: 'hide', targets: st.items.map((e) => toText(e)) } as MathValue;
+    case 'compare': {
+      const a = ev.evaluateOrLift(st.a);
+      const b = ev.evaluateOrLift(st.b);
+      const items: MathValue[] = [a, { ...b, role: 'compare' }];
+      if (a.kind === 'function' && b.kind === 'function') {
+        const d = ev.evaluate({ type: 'bin', op: '-', left: st.a, right: st.b });
+        if (d.kind === 'function') items.push({ ...d, role: 'difference', label: '\\Delta' } as FunctionValue);
+      }
+      return { kind: 'show', items } as ShowValue;
     }
     case 'custom':
       throw new EvalError(`Statement '${st.rule}' has no evaluator`, st.span);

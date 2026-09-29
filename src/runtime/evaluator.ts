@@ -6,7 +6,7 @@
 import { Expr, mapExpr, freeSymbols, sym, bin } from '../math-core/ast';
 import { compile, NumericEnv, CompileError } from '../math-core/compile';
 import { CONSTANTS, getScalarFunction } from '../math-core/scalar-functions';
-import { getBuiltin, argMode, EvalContext, EvalError } from '../math-core/builtins';
+import { getBuiltin, argMode, EvalContext, EvalError, KwArgs } from '../math-core/builtins';
 import { diff } from '../math-core/symbolic/diff';
 import { simplify } from '../math-core/symbolic/simplify';
 import { toText } from '../math-core/symbolic/print';
@@ -265,8 +265,15 @@ export class Evaluator implements EvalContext {
         if (m === 'function') return this.toFunction(a);
         return this.evaluate(a);
       });
+      const kw: KwArgs = { values: {}, raw: {} };
+      for (const [k, v] of e.kwargs ?? []) {
+        const mode = b.keywords?.[k];
+        if (!mode) throw spanErr(`${name} does not take '${k}'`, v);
+        kw.raw[k] = v;
+        kw.values[k] = mode === 'raw' ? undefined : mode === 'function' ? this.toFunction(v) : this.evaluate(v);
+      }
       try {
-        return b.apply(args, this, e.args);
+        return b.apply(args, this, e.args, kw);
       } catch (err) {
         if (err instanceof EvalError && !err.span) err.span = e.span;
         throw err;
@@ -435,6 +442,7 @@ function liftCandidates(e: Expr, out = new Set<string>()): Set<string> {
     e.args.forEach((a, i) => {
       if (!b || argMode(b, i) === 'value') liftCandidates(a, out);
     });
+    for (const [k, v] of e.kwargs ?? []) if (!b || (b.keywords?.[k] ?? 'value') === 'value') liftCandidates(v, out);
     if (e.callee.type !== 'sym') liftCandidates(e.callee, out);
   } else if (e.type !== 'member') for (const c of childrenOf(e)) liftCandidates(c, out);
   return out;

@@ -28,6 +28,8 @@ export type Statement =
   | (StatementBase & { kind: 'show'; items: Expr[] })
   | (StatementBase & { kind: 'animate'; name: string; from: Expr; to: Expr; duration?: Expr })
   | (StatementBase & { kind: 'expr'; value: Expr })
+  | (StatementBase & { kind: 'hide'; items: Expr[] })
+  | (StatementBase & { kind: 'compare'; a: Expr; b: Expr })
   | (StatementBase & { kind: 'custom'; rule: string; name?: string; data: unknown })
   | (StatementBase & { kind: 'error'; message: string; errorSpan: Span });
 
@@ -35,7 +37,9 @@ export const MODIFIERS = new Set(['draggable', 'hidden', 'fixed']);
 export const TYPE_HINTS = new Set([
   'point', 'vector', 'field', 'function', 'curve', 'surface', 'matrix', 'scalar', 'gradient', 'direction', 'slider',
 ]);
-const KEYWORDS = new Set(['at', 'from', 'to', 'over', 'draggable', 'hidden', 'fixed']);
+const KEYWORDS = new Set(['at', 'from', 'to', 'over', 'draggable', 'hidden', 'fixed', 'toward', 'along', 'as', 'order', 'wrt', 'with']);
+/** Clause words that end a command's main argument. */
+const CLAUSES = ['at', 'from', 'to', 'toward', 'along', 'as', 'order', 'wrt', 'with'];
 
 /** Hook for plugin syntax. `match` sees the statement's tokens (without newline/eof). */
 export interface StatementRule {
@@ -54,6 +58,11 @@ export function registerStatementRule(rule: StatementRule) {
 export interface ParserOptions {
   /** Names that may be applied without parentheses: `sin x`, `grad f`. */
   isPrefixFunction?: (name: string) => boolean;
+  /**
+   * Command builtins and the keyword clauses they accept:
+   *   limit f as x -> 0 · integrate f from 0 to 1 · directional f at P toward u · taylor f at 0 order 4
+   */
+  commandKeywords?: (name: string) => string[] | undefined;
 }
 
 const BP = { eq: 5, add: 10, at: 15, mul: 20, neg: 25, pow: 40, postfix: 50 } as const;
@@ -61,6 +70,7 @@ const BP = { eq: 5, add: 10, at: 15, mul: 20, neg: 25, pow: 40, postfix: 50 } as
 export class ExprParser {
   private i = 0;
   private noImplicitFn = 0;
+  private stops: Set<string>[] = [];
   private toks: Token[];
   private opts: ParserOptions;
   constructor(toks: Token[], opts: ParserOptions = {}) {
@@ -126,9 +136,26 @@ export class ExprParser {
     return t.kind === 'op' && (t.text === '∇' || t.text === '(');
   }
 
+  /** Parse with extra stop words (clause keywords end the current expression). */
+  withStops<T>(words: Iterable<string>, fn: () => T): T {
+    this.stops.push(new Set(words));
+    try {
+      return fn();
+    } finally {
+      this.stops.pop();
+    }
+  }
+
+  private stopped(t: Token) {
+    return t.kind === 'ident' && this.stops.some((s) => s.has(t.text));
+  }
+
   private infixBp(t: Token, left: Expr): number {
+    if (this.stopped(t)) return 0;
     if (t.kind === 'op') {
       switch (t.text) {
+        case '[':
+          return isCallable(left) && !t.spaced ? BP.postfix : 0;
         case '=':
           return BP.eq;
         case '+':
@@ -185,6 +212,12 @@ export class ExprParser {
           const right = this.parseExpr(BP.pow - 1);
           return { type: 'bin', op: '^', left, right, span: { from, to: spanOf(right).to } };
         }
+        case '[': {
+          this.next();
+          const index = this.withStops([], () => this.parseExpr(0));
+          const close = this.expectOp(']');
+          return { type: 'call', callee: sym('item'), args: [left, index], span: { from, to: close.to } };
+        }
         case '.': {
           this.next();
           const id = this.expectIdent();
@@ -226,8 +259,13 @@ export class ExprParser {
     if (t.kind === 'ident') {
       if (KEYWORDS.has(t.text)) throw new MathSyntaxError(`Unexpected '${t.text}'`, t.from, t.to);
       const s: Expr = { type: 'sym', name: t.text, span: { from: t.from, to: t.to } };
-      // prefix application: sin x, grad f
       const nx = this.peek();
+      // command syntax: critical f, limit f as x -> 0, integrate f from a to b …
+      const kws = this.opts.commandKeywords?.(t.text);
+      // limit(f, 0) is a call; limit (2x+1)/(x-3) as … (space before the parenthesis) is command syntax
+      if (kws && !(nx.kind === 'op' && nx.text === '(' && !nx.spaced) && (this.startsPrimary(nx) || (nx.kind === 'op' && ['-', '|', '<', '[', '('].includes(nx.text))))
+        return this.parseCommand(s, kws);
+      // prefix application: sin x, grad f
       if (this.opts.isPrefixFunction?.(t.text) && !(nx.kind === 'op' && nx.text === '(') && this.startsPrimary(nx)) {
         this.noImplicitFn++;
         let arg: Expr;
@@ -290,8 +328,63 @@ export class ExprParser {
     throw new MathSyntaxError(`Unexpected '${t.text}'`, t.from, t.to);
   }
 
-  /** A primary without postfix operators (so ∇f(P) parses as (∇f)(P)). */
-  private primaryOnly(): Expr {
+  /** name <arg> [at E] [toward|along E] [from E to E] [as x -> E[±]] [order N] [wrt x] [with E] */
+  private parseCommand(name: Extract<Expr, { type: 'sym' }>, kws: string[]): Expr {
+    const arg = this.withStops(CLAUSES, () => this.parseExpr(0));
+    // clause word → keyword argument it fills: 'as' fills wrt/approach, 'along' fills toward
+    const has = new Set(kws);
+    const allowed = new Set(CLAUSES.filter((w) => (w === 'as' ? has.has('approach') : w === 'along' ? has.has('toward') : w === 'to' ? false : has.has(w))));
+    const kwargs: [string, Expr][] = [];
+    let end = spanOf(arg).to;
+    this.withStops(CLAUSES, () => {
+      for (;;) {
+        const k = this.peek();
+        if (k.kind !== 'ident' || !allowed.has(k.text)) break;
+        this.next();
+        const value = (): Expr => {
+          const e = this.parseExpr(0);
+          end = spanOf(e).to;
+          return e;
+        };
+        switch (k.text) {
+          case 'from':
+            kwargs.push(['from', value()]);
+            this.expectIdent('to');
+            kwargs.push(['to', value()]);
+            break;
+          case 'as': {
+            const v = this.expectIdent();
+            kwargs.push(['wrt', { type: 'sym', name: v.text, span: { from: v.from, to: v.to } }]);
+            this.expectOp('->');
+            const target = this.parseExpr(BP.add);
+            end = spanOf(target).to;
+            kwargs.push(['approach', target]);
+            // one-sided: x -> 0+ / x -> 0-
+            if ((this.isOp('+') || this.isOp('-')) && (this.peek(1).kind === 'eof' || this.stopped(this.peek(1)))) {
+              const side = this.next();
+              end = side.to;
+              kwargs.push(['side', { type: 'sym', name: side.text === '+' ? 'right' : 'left' }]);
+            }
+            break;
+          }
+          case 'wrt': {
+            const v = this.expectIdent();
+            end = v.to;
+            kwargs.push(['wrt', { type: 'sym', name: v.text, span: { from: v.from, to: v.to } }]);
+            break;
+          }
+          case 'along':
+            kwargs.push(['toward', value()]);
+            break;
+          default:
+            kwargs.push([k.text, value()]);
+        }
+      }
+    });
+    return { type: 'call', callee: name, args: [arg], ...(kwargs.length ? { kwargs } : {}), span: { from: spanOf(name).from, to: end } };
+  }
+
+  /** A primary without postfix operators (so ∇f(P) parses as (∇f)(P)). */  private primaryOnly(): Expr {
     const t = this.peek();
     if (t.kind === 'ident') {
       this.next();
@@ -392,7 +485,28 @@ function parseCoreStatement(toks: Token[], span: Span, modifiers: string[], opts
     p.expectEnd();
     return { kind: 'show', items, span, modifiers };
   }
-  if (first.kind === 'ident' && first.text === 'animate' && toks.length > 1) {
+  if (first.kind === 'ident' && first.text === 'hide' && toks.length > 1) {
+    p.next();
+    const items: Expr[] = [];
+    for (;;) {
+      items.push(p.parseExpr(0));
+      if (p.isOp(',')) {
+        p.next();
+        continue;
+      }
+      break;
+    }
+    p.expectEnd();
+    return { kind: 'hide', items, span, modifiers };
+  }
+  if (first.kind === 'ident' && first.text === 'compare' && toks.length > 1) {
+    p.next();
+    const a = p.withStops(['with'], () => p.parseExpr(0));
+    p.expectIdent('with');
+    const b = p.parseExpr(0);
+    p.expectEnd();
+    return { kind: 'compare', a, b, span, modifiers };
+  }  if (first.kind === 'ident' && first.text === 'animate' && toks.length > 1) {
     p.next();
     const name = p.expectIdent().text;
     p.expectIdent('from');

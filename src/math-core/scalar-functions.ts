@@ -66,4 +66,7 @@ export const CONSTANTS: Record<string, number> = {
   π: Math.PI,
   τ: 2 * Math.PI,
   e: Math.E,
+  '∞': Infinity,
+  inf: Infinity,
+  oo: Infinity,
 };

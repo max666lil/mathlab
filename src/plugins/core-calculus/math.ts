@@ -220,11 +220,17 @@ const visuals: Builtin[] = [
     },
   },
   {
-    name: 'level', minArgs: 2, maxArgs: 2, argModes: [F, V], category: 'visual',
-    signature: 'level(f, P)', doc: 'The level curve through P with its tangent (perpendicular to ∇f).',
-    apply: ([fv, P], ctx) => {
-      const f = asScalarField(expectFunction(fv));
-      const d = localData(ctx, f, pointArg(P, f));
+    name: 'level', command: true, minArgs: 1, maxArgs: 2, argModes: ['raw', V], keywords: { at: V }, category: 'visual',
+    signature: 'level f at P  |  level f = c', doc: 'A level curve: through P (with its tangent, perpendicular to ∇f), or f = c.',
+    apply: ([, P], ctx, raw, kw) => {
+      const r0 = raw[0];
+      if (r0.type === 'eq') {
+        const f = asScalarField(ctx.toFunction(r0.left));
+        const c = expectNumber(ctx.evaluate(r0.right));
+        return visual('level', { fn: f, value: c }, `${f.label ?? 'f'} = ${L(c)}`, 'level');
+      }
+      const f = asScalarField(ctx.toFunction(r0));
+      const d = localData(ctx, f, pointArg(kw.values.at ?? P, f));
       return visual('level', { fn: f, at: d.p, value: d.f0, g: d.g }, `level ${f.label ?? 'f'} = ${L(d.f0)}`, 'level');
     },
   },

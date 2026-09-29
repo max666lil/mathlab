@@ -90,6 +90,11 @@ export function lex(src: string): Token[] {
       push('num', digits, start, i, parseFloat(digits));
       continue;
     }
+    if (c === '∞') {
+      push('ident', '∞', i, i + 1);
+      i++;
+      continue;
+    }
     if (isIdentStart(c)) {
       const start = i;
       i++;

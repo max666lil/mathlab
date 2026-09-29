@@ -9,11 +9,24 @@ import { Expr } from './ast';
 import { NumericEnv } from './compile';
 import { toLatex, formatNumber, numberLatex, symbolLatex } from './symbolic/print';
 
+/**
+ * How trustworthy a result is:
+ *  exact     — derived symbolically (or verified symbolically), e.g. derivatives, verified antiderivatives
+ *  numeric   — iterative numerical method with a residual check, e.g. a critical point found by Newton
+ *  heuristic — sampled / scanned evidence, e.g. a domain scan on a window, a numeric limit
+ */
+export type Certainty = 'exact' | 'numeric' | 'heuristic';
+
 interface Base {
   /** Semantic role used for styling / explanations, e.g. 'gradient', 'direction'. */
   role?: string;
   /** Optional LaTeX describing how the value was obtained, e.g. '\\nabla f(P)'. */
   derivation?: string;
+  certainty?: Certainty;
+  /** plain-text justification of the certainty (method, window, residual…) */
+  evidence?: string;
+  /** geometric interpretation carried by a result (e.g. a directional derivative carries u and its slice) */
+  visuals?: VisualValue[];
 }
 
 export interface ScalarValue extends Base {

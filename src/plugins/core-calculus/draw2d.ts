@@ -100,12 +100,13 @@ registerDrawer2D('contours', {
 registerDrawer2D('level', {
   layer: 3,
   draw(a) {
-    const { fn, at, value, g } = a.item.visual.props as { fn: FunctionValue; at: number[]; value: number; g: number[] };
+    const { fn, at, value, g } = a.item.visual.props as { fn: FunctionValue; at?: number[]; value: number; g?: number[] };
     const grid = viewGrid(a, fn, 200);
     const { ctx, view } = a;
     ctx.strokeStyle = a.item.color;
     ctx.lineWidth = a.selected ? 3.5 : 2.5;
     strokeSegments(ctx, cachedLevelSet(grid, value), (x) => view.sx(x), (y) => view.sy(y));
+    if (!at || !g) return;
     const gn = Math.hypot(g[0], g[1]);
     if (gn < 1e-9) return;
     // tangent to the level curve: perpendicular to the gradient

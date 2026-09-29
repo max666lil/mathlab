@@ -26,7 +26,7 @@ function classify(vals: number[]): NumericLimit {
     return { kind: 'dne', evidence: 'function undefined near the point' };
   }
   const tail = vals.slice(-4);
-  const big = tail.every((v) => Math.abs(v) > 1e6);
+  const big = tail.every((v) => Math.abs(v) > 1e4) && Math.abs(tail[tail.length - 1]) > 1e6;
   const growing = tail.every((v, i) => i === 0 || Math.abs(v) >= Math.abs(tail[i - 1]) * 1.5);
   if (big && growing) {
     if (tail.every((v) => v > 0)) return { kind: '+inf', evidence: `values grow without bound (… ${fmt(tail[tail.length - 1])})` };
