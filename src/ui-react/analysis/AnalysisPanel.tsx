@@ -36,6 +36,9 @@ function factLatex(v: MathValue): string {
   return valueLatex(v);
 }
 
+/** Result kinds that have an analysis of their own (the ↗ tool opens it). */
+const ANALYZE_AS: Record<string, string> = { matrix: 'a matrix', subspace: 'a subspace', affine: 'a solution set' };
+
 function appendRows(ws: Workspace, rows: string[]) {
   let after = ws.cells.filter((c) => c.source.trim()).slice(-1)[0]?.id;
   for (const r of rows) after = ws.addCell(after, r);
@@ -46,7 +49,16 @@ function FactRow({ plan, spec, an }: { plan: AnalysisPlan; spec: FactSpec; an: A
   const emph = useEmphasis();
   const st = an.fact(plan, spec);
   const keys = [`fact:${spec.id}`];
-  const pin = () => appendRows(ws, [`${freshName(ws, spec.pinName ?? (spec.id.replace(/[^A-Za-z]/g, '') || 'R'))} = ${spec.expr}`]);
+  const pinName = () => freshName(ws, spec.pinName ?? (spec.id.replace(/[^A-Za-z]/g, '') || 'R'));
+  const pin = () => appendRows(ws, [`${pinName()} = ${spec.expr}`]);
+  // a matrix-valued fact (e.g. the Hessian at P) becomes an object of its own: pin it and analyse it as a matrix
+  const analyzeAs = st.value && ANALYZE_AS[st.value.kind] && spec.expr !== plan.object ? ANALYZE_AS[st.value.kind] : undefined;
+  const openAs = () => {
+    const name = pinName();
+    appendRows(ws, [`${name} = ${spec.expr}`]);
+    ws.flush();
+    ws.setFocus(name);
+  };
   return (
     <div className={`fact ${emph.active(keys) ? 'lit' : ''}`} onMouseEnter={() => emph.enter(keys)} onMouseLeave={emph.leave}>
       <span className="fact-title">{spec.title}</span>
@@ -60,6 +72,11 @@ function FactRow({ plan, spec, an }: { plan: AnalysisPlan; spec: FactSpec; an: A
         {spec.visual === 'toggle' && (
           <button className={`mini ${an.isToggled(plan, spec.id) ? 'on' : ''}`} title="Show in the canvas" onClick={() => an.toggle(plan, spec.id)}>
             ◐
+          </button>
+        )}
+        {analyzeAs && (
+          <button className="mini hover-only" title={`Analyze as ${analyzeAs}: pin it and open its analysis`} onClick={openAs}>
+            ↗
           </button>
         )}
         <button className="mini hover-only" title={`Pin as a worksheet object: ${spec.expr}`} onClick={pin}>

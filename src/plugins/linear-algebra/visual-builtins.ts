@@ -5,7 +5,7 @@ import { linearMatrixOf } from './builtins';
 import { det } from '../../math-core/linalg';
 import { visual, ROLE_COLORS } from '../../visualization/scene-model';
 import { LinTransProps, TrackedVector, embed } from './lintrans';
-import type { EigenValue, SubspaceValue } from './values';
+import type { EigenValue, SubspaceValue, FactorizationValue } from './values';
 
 Object.assign(ROLE_COLORS, {
   lintrans: '#3fa9f5',
@@ -82,4 +82,39 @@ export function affineVisual(v: MathValue, name?: string): VisualValue[] {
 export function subspaceVisual(v: MathValue, name?: string): VisualValue[] {
   const s = v as unknown as SubspaceValue;
   return [visual('subspace', { s, timeline: s.of ? `lin:${s.of}` : undefined }, name ?? s.what, s.role ?? 'span')];
+}
+
+const T = (A: number[][]) => A[0].map((_, j) => A.map((r) => r[j]));
+const pad = (A: number[][], n: number) => Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => A[i]?.[j] ?? 0));
+
+/**
+ * A factorization as a stepped transformation: A = P D P⁻¹ plays P⁻¹ → D → P, A = U Σ Vᵀ plays
+ * Vᵀ (rotate) → Σ (stretch) → U (rotate), A = Q R plays R → Q. It replaces the plain I → A morph while shown.
+ */
+export function factorizationVisual(v: MathValue, name?: string): VisualValue[] {
+  const f = v as unknown as FactorizationValue;
+  const F = Object.fromEntries(f.factors);
+  const owner = f.of ?? 'A';
+  let steps: [string, number[][]][];
+  if (f.what === 'diagonalization') steps = [['P⁻¹', F.Pinv], ['D', F.D], ['P', F.P]];
+  else if (f.what === 'orthogonal diagonalization') steps = [['Qᵀ', T(F.Q)], ['D', F.D], ['Q', F.Q]];
+  else if (f.what === 'SVD') steps = [['Vᵀ', T(F.V)], ['Σ', F.S], ['U', F.U]];
+  else if (f.what === 'QR') steps = [['R', F.R], ['Q', F.Q]];
+  else return [];
+  const n = Math.max(...steps.flatMap(([, M]) => [M.length, M[0]?.length ?? 0]));
+  if (n > 3 || n < 2) return [];
+  const stages: number[][][] = [];
+  let acc: number[][] | null = null;
+  for (const [, M] of steps) {
+    const S = pad(M, n);
+    acc = acc ? mul(S, acc) : S;
+    stages.push(acc);
+  }
+  const stops = ['I', ...steps.map(([s], k) => (k === steps.length - 1 ? owner : steps.slice(0, k + 1).map(([x]) => x).reverse().join('')))];
+  const props: LinTransProps & { base: string } = {
+    stages, stops, n, name: owner, vectors: [], det: det(stages[stages.length - 1]),
+    timeline: `lin:${owner}:${f.what}`,
+    base: owner,
+  };
+  return [visual('lintrans', props as unknown as Record<string, unknown>, name ?? f.what, 'lintrans')];
 }

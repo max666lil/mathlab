@@ -248,8 +248,8 @@ export const linearAlgebraBuiltins: Builtin[] = [
     const d = diagonalizability(e);
     return bool(d.ok, d.reason, e.certainty ?? 'numeric');
   }),
-  unary('diagonalize', 'A = P D P⁻¹: eigenvectors in P, eigenvalues in D.', (m) => diagonalizationOf(m)),
-  unary('orthodiagonalize', 'Symmetric A = Q D Qᵀ with orthonormal eigenvectors (spectral theorem).', (m) => {
+  unary('diagonalize', 'A = P D P⁻¹: eigenvectors in P, eigenvalues in D.', (m, raw) => ({ ...diagonalizationOf(m), of: ownerOf(raw[0]) })),
+  unary('orthodiagonalize', 'Symmetric A = Q D Qᵀ with orthonormal eigenvectors (spectral theorem).', (m, raw) => {
     square(m, 'orthodiagonalize');
     if (!isSymmetric(m.rows)) throw new EvalError('orthogonal diagonalization needs a symmetric matrix');
     const e = eigenValueOf(m);
@@ -257,7 +257,7 @@ export const linearAlgebraBuiltins: Builtin[] = [
     const lambdas = e.pairs.flatMap((p) => p.basis.map(() => p.re));
     const Qm = columnsMatrix(cols);
     const D = lambdas.map((l, i) => lambdas.map((_, j) => (i === j ? l : 0)));
-    return { kind: 'factorization', what: 'orthogonal diagonalization', factors: [['Q', Qm], ['D', D]], product: 'Q D Q^{T}', certainty: e.certainty, key: JSON.stringify(['odiag', m.rows]) } as FactorizationValue;
+    return { kind: 'factorization', what: 'orthogonal diagonalization', factors: [['Q', Qm], ['D', D]], product: 'Q D Q^{T}', certainty: e.certainty, key: JSON.stringify(['odiag', m.rows]), of: ownerOf(raw[0]) } as FactorizationValue;
   }),
   unary('nullspace', 'Null space {x : A x = 0} with a basis.', (m, raw) => ({ ...nullspaceOf(m), of: ownerOf(raw[0]) })),
   unary('kernel', 'Kernel = null space.', (m) => nullspaceOf(m)),
@@ -332,13 +332,13 @@ export const linearAlgebraBuiltins: Builtin[] = [
     const out = orthonormalize(vs);
     return { kind: 'list', items: out.map((v) => vector(v, undefined, { certainty })), certainty } as ListValue;
   }, { prefix: true }),
-  unary('qr', 'A = Q R with orthonormal columns in Q (numeric).', (m) => {
+  unary('qr', 'A = Q R with orthonormal columns in Q (numeric).', (m, raw) => {
     const { Q: Qm, R } = qrOf(m.rows);
-    return { kind: 'factorization', what: 'QR', factors: [['Q', Qm], ['R', R]], product: 'Q R', certainty: 'numeric', key: JSON.stringify(['qr', m.rows]), evidence: 'modified Gram–Schmidt' } as FactorizationValue;
+    return { kind: 'factorization', what: 'QR', factors: [['Q', Qm], ['R', R]], product: 'Q R', certainty: 'numeric', key: JSON.stringify(['qr', m.rows]), evidence: 'modified Gram–Schmidt', of: ownerOf(raw[0]) } as FactorizationValue;
   }),
-  unary('svd', 'A = U Σ Vᵀ: rotate, stretch along axes, rotate (numeric).', (m) => {
+  unary('svd', 'A = U Σ Vᵀ: rotate, stretch along axes, rotate (numeric).', (m, raw) => {
     const s = svdOf(m.rows);
-    return { kind: 'factorization', what: 'SVD', factors: [['U', s.U], ['S', s.S], ['V', s.V]], product: 'U \\Sigma V^{T}', certainty: 'numeric', key: JSON.stringify(['svd', m.rows]), evidence: 'eigenvectors of AᵀA (Jacobi)', sigma: s.sigma } as FactorizationValue;
+    return { kind: 'factorization', what: 'SVD', factors: [['U', s.U], ['S', s.S], ['V', s.V]], product: 'U \\Sigma V^{T}', certainty: 'numeric', key: JSON.stringify(['svd', m.rows]), evidence: 'eigenvectors of AᵀA (Jacobi)', sigma: s.sigma, of: ownerOf(raw[0]) } as FactorizationValue;
   }),
   fn('coords', 1, 2, 'coords v in B', 'Coordinates of v in the basis B (columns of B, or a list of vectors).', ([v, b], kw) => {
     const basis = kw.values.in ?? b;

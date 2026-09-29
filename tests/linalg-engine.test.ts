@@ -141,3 +141,39 @@ describe('subspaces, vector lists, systems, linear maps', () => {
     expect(an.plan()).toBeFalsy();
   });
 });
+
+describe('stepped decompositions', () => {
+  it('diagonalization plays P⁻¹ → D → P and replaces the plain morph', () => {
+    const { ws, an } = setup('A = [[2,1],[1,2]]');
+    const plan = an.plan()!;
+    an.setSectionOpen(plan, 'eigen', true);
+    an.toggle(plan, 'diagonalize');
+    an.flushNow();
+    const items = ws.sceneItems().filter((i) => i.visible && i.visual.vtype === 'lintrans');
+    const stepped = items.find((i) => i.visual.props.base === 'A')!;
+    expect(stepped.visual.props.stops).toEqual(['I', 'P⁻¹', 'DP⁻¹', 'A']);
+    const stages = stepped.visual.props.stages as number[][][];
+    expect(stages[2].flat().map((x) => +x.toFixed(9))).toEqual([2, 1, 1, 2]);
+  });
+  it('SVD stages end at A', () => {
+    const { ws, an } = setup('A = [[3,0],[4,5]]');
+    const plan = an.plan()!;
+    an.setSectionOpen(plan, 'decomp', true);
+    an.toggle(plan, 'svd');
+    an.flushNow();
+    const stepped = ws.sceneItems().find((i) => i.visible && i.visual.props.base === 'A')!;
+    expect(stepped.visual.props.stops).toEqual(['I', 'Vᵀ', 'ΣVᵀ', 'A']);
+    const last = (stepped.visual.props.stages as number[][][])[2];
+    expect(last.flat().map((x) => +x.toFixed(9) + 0)).toEqual([3, 0, 4, 5]);
+  });
+  it('the Hessian at a point can be analysed as a matrix', () => {
+    const { ws, an } = setup('f(x,y) = x^2 - y^2 + x*y', 'P = point(1, 1) draggable', 'H = hessian f at P');
+    ws.setFocus('H');
+    const plan = an.plan()!;
+    expect(plan.typeLabel).toBe('2×2 matrix');
+    const e = plan.facts.find((x) => x.id === 'eigen')!;
+    an.setSectionOpen(plan, 'eigen', true);
+    an.flushNow();
+    expect((an.fact(plan, e).value as any).pairs.map((p: any) => +p.re.toFixed(6))).toEqual([+Math.sqrt(5).toFixed(6), -(+Math.sqrt(5).toFixed(6))]);
+  });
+});

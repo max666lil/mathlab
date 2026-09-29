@@ -66,6 +66,8 @@ src/
     plugin-api.ts     definePlugin / installPlugin
     core-calculus/    grad, hessian, partial, tangent_plane, slice, … + their 2D/3D visuals,
                       implemented as a plugin through the same API third parties use
+    linear-algebra/   exact (ℚ) / numeric linear algebra, eigen, decompositions, analyzers for
+                      matrices, subspaces, systems, linear maps + animated transformation visuals
   ui-react/         React owns only layout, notebook editors and panels
 ```
 
@@ -100,7 +102,9 @@ registered visuals. None of this changes the core runtime.
 | `grad(f) at P`, `∇f(P)`, `grad f at P` | gradient at a point |
 | `f'(x)`, `f_x`, `f_xy`, `partial(f, x)` | derivatives |
 | `hessian(f) at P`, `dirderiv(f, P, u)`, `linearization(f, P)`, `taylor2(f, P)` | local analysis |
-| `g · u`, `norm`, `normalize`, `cross`, `det`, `transpose`, `eigenvalues` | vectors & matrices |
+| `g · u`, `norm`, `normalize`, `cross` | vectors |
+| `A = [[2,1],[1,2]]`, `A v`, `A^-1`, `Aᵀ`, `det A`, `rank A`, `rref A`, `eigen A`, `diagonalize A` | matrices — analysed and animated as linear maps (exact for rational entries) |
+| `nullspace A`, `span(u, v)`, `solve(A, b)`, `project v onto W`, `leastsquares(A, b)`, `svd A` | subspaces, systems, projections, decompositions |
 | `show surface(f), contours(f, 20)` | add to the views (`hidden` to create switched off) |
 | `slice(f, x = P.x)`, `slice(f, P, u)` | vertical cross-sections |
 | `tangent_plane`, `level`, `hessian_axes`, `gradient_path`, `quadratic`, `arrow` | visual objects |
@@ -145,8 +149,10 @@ registerDrawer2D('my-visual', { layer: 3, draw: (a) => { /* canvas drawing */ } 
 **Phase 1 is done**: workbench shell, object recognition, lazy analysis of f(x) and f(x, y), CAS commands,
 typed results with certainty, `show` / `hide` / `compare`, analyzer-declared layouts.
 
-The full plan is in **[docs/ROADMAP.md](docs/ROADMAP.md)**: linear algebra (Phase 2, in progress —
-**[spec](docs/phases/phase-2-linear-algebra.md)**, with 3Blue1Brown-style animated transformations), then
-all of MAT235 (**[spec](docs/phases/phase-3-mat235.md)**: 3-D fields and Lagrange, multiple integrals,
+**Phase 2 (linear algebra) is done**: exact matrix computation, subspaces, systems, projections,
+decompositions, and 3Blue1Brown-style animated transformations in 2-D and 3-D (`plugins/linear-algebra`).
+
+The full plan is in **[docs/ROADMAP.md](docs/ROADMAP.md)**: linear algebra (Phase 2, done —
+**[spec](docs/phases/phase-2-linear-algebra.md)**), next all of MAT235 (**[spec](docs/phases/phase-3-mat235.md)**: 3-D fields and Lagrange, multiple integrals,
 vector fields with div / curl / Laplacian, line and surface integrals and the big theorems), ODEs and the
 Laplace transform, probability & statistics, and series.

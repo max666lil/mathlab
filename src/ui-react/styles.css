@@ -365,3 +365,4 @@ select { max-width: 360px; }
 }
 .transport .stops button.on { color: var(--text); border-color: var(--border); background: var(--accent-soft); }
 .summary .why-link { margin: 2px 0 0; font-size: 12px; }
+.fact-value { min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }

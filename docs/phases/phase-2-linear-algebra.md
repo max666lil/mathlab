@@ -1,6 +1,6 @@
 # Phase 2 — Linear algebra
 
-Status: **in progress**. Part of the [MathLab roadmap](../ROADMAP.md). Courses: MAT223 / MAT224.
+Status: **shipped** (milestones 2a–2e). Part of the [MathLab roadmap](../ROADMAP.md). Courses: MAT223 / MAT224.
 
 ## Goal
 
@@ -152,3 +152,23 @@ flatten onto the column-space plane; the null-space line is highlighted and coll
 Abstract vector spaces beyond ℝⁿ (polynomial spaces are represented by coordinate vectors), complex
 eigenvectors (complex eigenvalues are shown and explained as rotation-scaling), Jordan form, numerical
 conditioning analysis.
+
+## What shipped
+
+| Milestone | Delivered |
+|---|---|
+| 2a | `src/plugins/linear-algebra/` — field-generic algorithms (`field.ts`, `algorithms.ts`) running over ℚ (BigInt fractions, `src/math-core/rational.ts`) or doubles; `eigen.ts` (exact charpoly, rational roots + quadratic factor, Durand–Kerner, Jacobi); `decomp.ts` (QR, SVD with V a rotation); value kinds in `values.ts`; builtins in `builtins.ts`; `A^-1`, `A^T`, `Aᵀ`, `A(v)`, `v*A`, `A/2`, `solve(A, b)`, `project v onto W`, `coords v in B` |
+| 2b | Presentation timelines (play / scrub / stepped easing / autoplay with drag hold), transport bar declared by layouts, matrix analyzer, 2-D drawers (`draw2d.ts`), draggable matrix columns and vectors (inverse drag through `solveFor`), explanations (`src/ui-react/explain/LinearExplain.tsx`) |
+| 2c | Euclidean `WorldMap` mode + frame hints, 3-D visuals (`visuals3d.ts`): deforming lattice and unit cube, eigen-lines, subspaces with the null space collapsing |
+| 2d | Analyzers for subspaces, vector lists, solution sets (row picture) and linear maps `T(x,y) = (…)`; projection / coordinates geometry |
+| 2e | Stepped decompositions (◐ on diagonalization, QDQᵀ, SVD, QR) with rotation steps interpolated by angle; ↗ "Analyze as matrix" for matrix-valued facts (e.g. the Hessian at P); examples, help |
+
+Tests: `tests/linalg.test.ts` (algorithms and language), `tests/linalg-engine.test.ts` (analyzers, laziness,
+visuals, timelines, decompositions, Hessian → matrix).
+
+## Known limits
+
+- Direct manipulation of columns and vectors is 2-D only (the 3-D view is watch-and-orbit).
+- The 3-D lattice spans [−1, 1]³ so that large matrices stay readable; the frame follows the columns.
+- Complex eigenvectors are not computed (complex eigenvalues are shown and explained as rotation + scaling).
+- Exactness needs rational entries with denominators ≤ 10⁶; irrational input (√2, sin 1) is numeric.

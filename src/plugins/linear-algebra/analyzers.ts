@@ -65,7 +65,7 @@ registerAnalyzer({
       sections.push({ id: 'eigen', title: 'Eigenvalues & eigenvectors', why: 'eigen' });
       f('eigen', 'Eigen', `eigen(${A})`, 'eigen', { pinName: 'E', visual: 'auto' });
       f('diagonalizable', 'Diagonalizable', `diagonalizable(${A})`, 'eigen');
-      f('diagonalize', 'A = PDP⁻¹', `diagonalize(${A})`, 'eigen', { pinName: 'F' });
+      f('diagonalize', 'A = PDP⁻¹', `diagonalize(${A})`, 'eigen', { pinName: 'F', visual: 'toggle' });
       f('charpoly', 'Characteristic polynomial', `charpoly(${A})`, 'eigen', { pinName: 'p' });
     }
 
@@ -83,9 +83,9 @@ registerAnalyzer({
     f('rref', 'rref', `rref(${A})`, 'inverse', { pinName: 'R' });
 
     sections.push({ id: 'decomp', title: 'Decompositions' });
-    if (sq && isSymmetric(rows)) f('orthodiag', 'A = QDQᵀ', `orthodiagonalize(${A})`, 'decomp', { pinName: 'S' });
-    f('svd', 'SVD', `svd(${A})`, 'decomp', { pinName: 'SVD' });
-    f('qr', 'QR', `qr(${A})`, 'decomp', { pinName: 'QR' });
+    if (sq && isSymmetric(rows)) f('orthodiag', 'A = QDQᵀ', `orthodiagonalize(${A})`, 'decomp', { pinName: 'S', visual: 'toggle' });
+    f('svd', 'A = UΣVᵀ', `svd(${A})`, 'decomp', { pinName: 'SVD', visual: 'toggle' });
+    f('qr', 'A = QR', `qr(${A})`, 'decomp', { pinName: 'QR', visual: 'toggle' });
 
     const example = n === 3 ? '<1, 2, 1>' : n === 2 ? '<1, 2>' : `<${Array(n).fill(1).join(', ')}>`;
     if (v) {

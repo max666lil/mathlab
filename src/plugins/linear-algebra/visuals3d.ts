@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { registerVisual3D, Visual3D, Ctx3D, disposeObject, setOpacity, FatSegments, FatLine, Arrow3D, Label3D } from '../../visualization/3d/registry3d';
 import type { SceneItem } from '../../visualization/scene-model';
 import { formatNumber } from '../../math-core/symbolic/print';
-import { LinTransProps, matrixAt, apply } from './lintrans';
+import { LinTransProps, matrixAt, apply, yieldsTo } from './lintrans';
 import type { EigenValue, SubspaceValue } from './values';
 import { LA_COLORS } from './draw2d';
 
@@ -70,7 +70,7 @@ class LinTrans3D implements Visual3D {
 
   update(item: SceneItem, ctx: Ctx3D) {
     const p = item.visual.props as unknown as LinTransProps;
-    if (p.n !== 3) {
+    if (p.n !== 3 || yieldsTo(ctx.ws.sceneItems(), item, p)) {
       this.object.visible = false;
       return;
     }

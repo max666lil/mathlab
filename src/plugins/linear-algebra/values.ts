@@ -61,6 +61,8 @@ export interface FactorizationValue extends LABase {
   factors: [string, number[][]][];
   /** LaTeX of the product that equals A, e.g. 'P D P^{-1}' */
   product: string;
+  /** name of the factorized matrix (keys its stepped animation) */
+  of?: string;
 }
 
 const keyOf = (o: unknown) => JSON.stringify(o);

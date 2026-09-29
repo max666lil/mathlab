@@ -4,7 +4,7 @@ import { getBuiltin, Builtin, EvalError } from '../../math-core/builtins';
 import { linearAlgebraBuiltins, expectMx, solveOf, vectorsOf } from './builtins';
 import './values';
 import { registerCommandLatex, toLatex } from '../../math-core/symbolic/print';
-import { transformationBuiltin, eigenVisual, subspaceVisual, affineVisual } from './visual-builtins';
+import { transformationBuiltin, eigenVisual, subspaceVisual, affineVisual, factorizationVisual } from './visual-builtins';
 
 export const linearAlgebraMath = definePlugin({
   name: 'linear-algebra',
@@ -14,6 +14,7 @@ export const linearAlgebraMath = definePlugin({
     api.registerDefaultVisual('eigen', (v, ctx) => eigenVisual(v, ctx.name));
     api.registerDefaultVisual('subspace', (v, ctx) => subspaceVisual(v, ctx.name));
     api.registerDefaultVisual('affine', (v, ctx) => affineVisual(v, ctx.name));
+    api.registerDefaultVisual('factorization', (v, ctx) => factorizationVisual(v, ctx.name));
     // solve(A, b): linear systems; every other form goes to the equation solver
     const eqSolve = getBuiltin('solve');
     if (eqSolve) {

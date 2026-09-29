@@ -7,7 +7,7 @@ import { drawArrow, drawLabel } from '../core-calculus/draw-util';
 import { withAlpha } from '../../visualization/colormap';
 import { formatNumber } from '../../math-core/symbolic/print';
 import { MathValue, MatrixValue, VectorValue } from '../../math-core/values';
-import { LinTransProps, matrixAt, apply, det2 } from './lintrans';
+import { LinTransProps, matrixAt, apply, det2, yieldsTo } from './lintrans';
 import type { EigenValue, SubspaceValue } from './values';
 
 export const LA_COLORS = {
@@ -67,7 +67,7 @@ registerDrawer2D('lintrans', {
   layer: 1,
   draw(a) {
     const p = a.item.visual.props as unknown as LinTransProps;
-    if (p.n !== 2) return;
+    if (p.n !== 2 || yieldsTo(a.ws.sceneItems(), a.item, p)) return;
     const { ctx, view, theme } = a;
     const end = p.stages.length;
     const t = a.timeline(p.timeline, end);

@@ -130,7 +130,9 @@ export function CanvasPanel() {
     const p = it.visual.props as { timeline?: string; stops?: string[]; stages?: unknown };
     if (it.visible && p.timeline && p.stops && !timelines.has(p.timeline)) timelines.set(p.timeline, { key: p.timeline, stops: p.stops, signature: JSON.stringify(p.stages) });
   }
-  const bars = [...timelines.values()].slice(-2);
+  // a stepped decomposition (P⁻¹ → D → P …) takes over from the plain I → A bar of the same matrix
+  const stepped = new Set(ws.sceneItems().filter((i) => i.visible && typeof i.visual.props.base === 'string').map((i) => `lin:${i.visual.props.base}`));
+  const bars = [...timelines.values()].filter((tl) => !stepped.has(tl.key)).slice(-2);
 
   const act = (fn: () => void) => () => {
     fn();
