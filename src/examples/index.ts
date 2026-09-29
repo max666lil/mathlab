@@ -9,7 +9,7 @@ export interface Example {
 
 export const flagship: Example = {
   id: 'gradient-lab',
-  title: 'Gradient, tangent plane & directional derivative',
+  title: 'Gradient lab (explicit show statements)',
   course: 'Multivariable Calculus',
   cells: [
     '# A scalar field — edit it and everything updates\nf(x,y) = x^2 + 2y^2',
@@ -24,44 +24,61 @@ export const flagship: Example = {
 };
 
 export const examples: Example[] = [
-  flagship,
+  {
+    id: 'surface',
+    title: 'Function of two variables — gradient & tangent plane',
+    course: 'Multivariable Calculus',
+    cells: ['f(x,y) = x^2 + 2y^2', 'P = point(1, 1) draggable', 'θ = slider(0, 2π, 0.6)', 'u = <cos θ, sin θ>'],
+  },
+  {
+    id: 'cubic',
+    title: 'Function of one variable — full analysis',
+    course: 'Calculus I',
+    cells: ['f(x) = x^3 - 3x'],
+  },
+  {
+    id: 'rational',
+    title: 'Rational function — asymptotes',
+    course: 'Calculus I',
+    cells: ['f(x) = (x^2 + 1)/(x - 1)'],
+  },
   {
     id: 'saddle',
-    title: 'A saddle point',
+    title: 'Critical points of a surface',
     course: 'Multivariable Calculus',
+    cells: ['f(x,y) = x^3 - 3x + y^2', 'C = critical f', 'P = point(0.5, 0.8) draggable'],
+  },
+  {
+    id: 'cas',
+    title: 'Calculations (CAS)',
+    course: 'Calculus I–II',
     cells: [
-      'f(x,y) = x^2 - y^2',
-      'P = point(0.8, -0.6) draggable',
-      'show surface(f), contours(f), grad(f) at P\nshow tangent_plane(f, P), level(f, P)\nshow hessian_axes(f, P), quadratic(f, P)',
-      'H = hessian(f) at P',
+      'limit sin(x)/x as x -> 0',
+      'limit (1 + 1/x)^x as x -> ∞',
+      'integrate x^2 from 0 to 1',
+      'integrate x*exp(x^2)',
+      'solve x^2 - x - 1 = 0',
+      'taylor exp(x) at 0 order 4',
+      'derivative x^2 sin(x)',
     ],
   },
   {
-    id: 'waves',
-    title: 'Parameters & animation',
+    id: 'objects',
+    title: 'Results are objects',
     course: 'Multivariable Calculus',
-    cells: [
-      'a = slider(-2, 2, 1)\nt = slider(0, 2π, 0)',
-      'f(x,y) = a sin(x + t) cos(y - t)',
-      'P = point(0.5, 0.5) draggable',
-      'show surface(f), contours(f), grad(f) at P, tangent_plane(f, P)',
-      'animate t from 0 to 2π',
-    ],
+    cells: ['f(x,y) = x^2 - y^2 + x*y/2', 'C = critical f', 'Q = first(C)', 'H = hessian f at Q', 'eigenvalues H', 'P = point(1, 0.5) draggable', 'directional f at P toward (3,-2)'],
   },
   {
     id: 'peaks',
-    title: 'Local extrema & gradient ascent',
+    title: 'Peaks — extrema & gradient ascent',
     course: 'Multivariable Calculus',
-    cells: [
-      'f(x,y) = 3(1-x)^2 exp(-x^2 - (y+1)^2) - 10(x/5 - x^3 - y^5) exp(-x^2 - y^2) - exp(-(x+1)^2 - y^2)/3',
-      'P = point(0.3, 0.9) draggable',
-      'show surface(f), contours(f, 24)\nshow grad(f) at P, gradient_path(f, P)\nshow level(f, P)',
-    ],
+    cells: ['f(x,y) = 3(1-x)^2 exp(-x^2 - (y+1)^2) - 10(x/5 - x^3 - y^5) exp(-x^2 - y^2) - exp(-(x+1)^2 - y^2)/3', 'P = point(0.3, 0.9) draggable'],
   },
   {
-    id: 'single-variable',
-    title: 'Derivative of one variable',
+    id: 'parameter',
+    title: 'Parameters — watch the analysis update',
     course: 'Calculus I',
-    cells: ['f(x) = sin(x) + x/3', "show f, f'", 'a = slider(-3, 3, 1)', "m = f'(a)"],
+    cells: ['a = slider(-3, 3, 1)', 'f(x) = x^3 - a x', 'animate a from -3 to 3'],
   },
+  flagship,
 ];

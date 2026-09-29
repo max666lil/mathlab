@@ -1,38 +1,16 @@
-/** Application shell: toolbar with concept modes + resizable layout of linked views. */
+/** Application shell: Worksheet | Canvas | Analysis. Everything else appears on demand. */
 import { useEffect, useState } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import type { Workspace } from '../runtime/workspace';
 import type { Presentation } from '../visualization/presentation';
-import { getModes } from '../visualization/presentation';
-import { WorkspaceContext, PresentationContext, useWs, useTopics } from './hooks';
+import type { AnalysisService } from '../runtime/analysis';
+import { WorkspaceContext, PresentationContext, AnalysisContext } from './hooks';
 import { Notebook } from './notebook/Notebook';
-import { Scene3DPanel, Graph2DPanel, CrossSectionPanel } from './panels/ViewPanels';
-import { InsightPanel } from './panels/InsightPanel';
+import { CanvasPanel } from './panels/CanvasPanel';
+import { AnalysisPanel } from './analysis/AnalysisPanel';
 import { examples } from '../examples';
 import { setTheme } from '../visualization/theme';
 import { HelpDialog } from './Help';
-
-function ModeBar() {
-  const ws = useWs();
-  useTopics('view');
-  return (
-    <nav className="modebar" aria-label="Concept">
-      {getModes().map((m, i) => (
-        <button key={m.id} className={`mode ${ws.mode === m.id ? 'active' : ''}`} title={m.hint} onClick={() => ws.setMode(m.id)}>
-          {m.id !== 'all' && <span className="mode-num">{i + 1}</span>}
-          {m.title}
-        </button>
-      ))}
-    </nav>
-  );
-}
-
-function ModeHint() {
-  const ws = useWs();
-  useTopics('view');
-  const m = getModes().find((x) => x.id === ws.mode);
-  return <div className="mode-hint">{m?.hint}</div>;
-}
 
 function Toolbar({ ws }: { ws: Workspace }) {
   const [theme, setThemeState] = useState<'dark' | 'light'>('dark');
@@ -45,17 +23,20 @@ function Toolbar({ ws }: { ws: Workspace }) {
     <header className="toolbar">
       <div className="brand">
         <span className="logo">∂</span> MathLab
+        <span className="tagline">mathematical analysis workbench</span>
       </div>
-      <ModeBar />
       <div className="toolbar-right">
         <select
-          title="Example"
+          title="Examples"
+          value=""
           onChange={(e) => {
             const ex = examples.find((x) => x.id === e.target.value);
             if (ex) ws.loadDocument(ex.cells);
           }}
-          defaultValue={examples[0].id}
         >
+          <option value="" disabled>
+            Examples…
+          </option>
           {examples.map((ex) => (
             <option key={ex.id} value={ex.id}>
               {ex.title}
@@ -72,58 +53,28 @@ function Toolbar({ ws }: { ws: Workspace }) {
   );
 }
 
-export function App({ ws, pres }: { ws: Workspace; pres: Presentation }) {
-  // keyboard: 1–4 switch concept modes (when not typing)
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement;
-      if (t.closest('.cm-editor, input, select, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
-      const m = getModes()[Number(e.key) - 1];
-      if (m) ws.setMode(m.id);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [ws]);
+export function App({ ws, pres, analysis }: { ws: Workspace; pres: Presentation; analysis: AnalysisService }) {
   return (
     <WorkspaceContext.Provider value={ws}>
       <PresentationContext.Provider value={pres}>
-        <div className="app">
-          <Toolbar ws={ws} />
-          <ModeHint />
-          <Group orientation="horizontal" className="main">
-            <Panel defaultSize="25" minSize="16">
-              <Notebook />
-            </Panel>
-            <Separator className="sep sep-v" />
-            <Panel defaultSize="75" minSize="40">
-              <Group orientation="vertical">
-                <Panel defaultSize="62" minSize="25">
-                  <Group orientation="horizontal">
-                    <Panel defaultSize="50" minSize="20">
-                      <Scene3DPanel />
-                    </Panel>
-                    <Separator className="sep sep-v" />
-                    <Panel defaultSize="50" minSize="20">
-                      <Graph2DPanel />
-                    </Panel>
-                  </Group>
-                </Panel>
-                <Separator className="sep sep-h" />
-                <Panel defaultSize="38" minSize="12">
-                  <Group orientation="horizontal">
-                    <Panel defaultSize="40" minSize="15">
-                      <CrossSectionPanel />
-                    </Panel>
-                    <Separator className="sep sep-v" />
-                    <Panel defaultSize="60" minSize="20">
-                      <InsightPanel />
-                    </Panel>
-                  </Group>
-                </Panel>
-              </Group>
-            </Panel>
-          </Group>
-        </div>
+        <AnalysisContext.Provider value={analysis}>
+          <div className="app">
+            <Toolbar ws={ws} />
+            <Group orientation="horizontal" className="main">
+              <Panel defaultSize="26" minSize="16">
+                <Notebook />
+              </Panel>
+              <Separator className="sep sep-v" />
+              <Panel defaultSize="46" minSize="25">
+                <CanvasPanel />
+              </Panel>
+              <Separator className="sep sep-v" />
+              <Panel defaultSize="28" minSize="16">
+                <AnalysisPanel />
+              </Panel>
+            </Group>
+          </div>
+        </AnalysisContext.Provider>
       </PresentationContext.Provider>
     </WorkspaceContext.Provider>
   );

@@ -60,6 +60,9 @@ describe('commands and results as objects', () => {
     expect(v('D').certainty).toBe('exact');
     expect(v('A').vertical).toEqual([1]);
     expect(v('A').horizontal.map((h: any) => h.value)).toEqual([0, 0]);
+    const r = run('q(x) = (x^2 + 1)/(x - 1)', 'A = asymptotes q');
+    expect(r.v('A').vertical).toEqual([1]);
+    expect(r.v('A').oblique.map((o: any) => [o.m, o.b])).toEqual([[1, 1], [1, 1]]);
     expect(v('Dh').intervals.map((i: any) => [i.a, i.b])).toEqual([[0, Infinity]]);
     expect(v('Dh').certainty).toBe('heuristic');
   });

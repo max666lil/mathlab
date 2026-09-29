@@ -42,6 +42,25 @@ export function recognize(x: number): Recognized | null {
     const s = rational(x / Math.sqrt(n), 24);
     if (s) return { latex: fracLatex(s[0], s[1], `\\sqrt{${n}}`), text: fracText(s[0], s[1], `√${n}`) };
   }
+  // (p + r√n)/q — e.g. roots of quadratics such as 1 − √2
+  for (const n of SQUAREFREE.slice(0, 12)) {
+    const sq = Math.sqrt(n);
+    for (let q = 1; q <= 12; q++)
+      for (let r = -12; r <= 12; r++) {
+        if (r === 0) continue;
+        const p = Math.round(x * q - r * sq);
+        if (p === 0) continue;
+        if (Math.abs((p + r * sq) / q - x) <= 1e-10 * Math.max(1, Math.abs(x))) {
+          const g = gcd(gcd(Math.abs(p), Math.abs(r)), q);
+          const [pp, rr, qq] = [p / g, r / g, q / g];
+          const rs = `${Math.abs(rr) === 1 ? '' : Math.abs(rr)}\\sqrt{${n}}`;
+          const rt = `${Math.abs(rr) === 1 ? '' : Math.abs(rr)}√${n}`;
+          const num = `${pp} ${rr < 0 ? '-' : '+'} ${rs}`;
+          const numT = `${pp} ${rr < 0 ? '-' : '+'} ${rt}`;
+          return qq === 1 ? { latex: num, text: numT } : { latex: `\\frac{${num}}{${qq}}`, text: `(${numT})/${qq}` };
+        }
+      }
+  }
   const pi = rational(x / Math.PI, 12);
   if (pi) return { latex: fracLatex(pi[0], pi[1], '\\pi'), text: fracText(pi[0], pi[1], 'π') };
   const e = rational(x / Math.E, 6);
@@ -49,4 +68,7 @@ export function recognize(x: number): Recognized | null {
   const l2 = rational(x / Math.LN2, 6);
   if (l2) return { latex: fracLatex(l2[0], l2[1], '\\ln 2'), text: fracText(l2[0], l2[1], 'ln 2') };
   return null;
+}
+function gcd(a: number, b: number): number {
+  return b ? gcd(b, a % b) : Math.abs(a) || 1;
 }

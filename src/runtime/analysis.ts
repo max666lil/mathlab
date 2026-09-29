@@ -95,6 +95,15 @@ export class AnalysisService {
 
   constructor(private ws: Workspace) {
     ws.analysis = this;
+    // a newly loaded document starts with default cards
+    let doc = ws.doc;
+    ws.on('doc', () => {
+      if (ws.doc !== doc) {
+        doc = ws.doc;
+        this.open.clear();
+        this.toggled.clear();
+      }
+    });
   }
 
   on(fn: () => void): () => void {

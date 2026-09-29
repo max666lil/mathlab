@@ -42,13 +42,13 @@ export function gradOf(ctx: EvalContext, f: FunctionValue): FunctionValue {
     const label = `\\nabla ${f.label ?? 'f'}`;
     if (f.expr) {
       try {
-        return ctx.makeFunction(gradient(f.expr, f.params), f.params, { label, role: 'gradient', base: f, env: f.env });
+        return { ...ctx.makeFunction(gradient(f.expr, f.params), f.params, { label, role: 'gradient', base: f, env: f.env }), certainty: 'exact', evidence: 'symbolic differentiation' };
       } catch (e) {
         if (!(e instanceof NotDifferentiableError)) throw e;
       }
     }
     const fn = f.eval as Scalar;
-    return { kind: 'function', params: f.params, env: f.env, out: 'vector', eval: (...p: number[]) => numericGradient(fn, p), label, role: 'gradient', base: f, key: `ngrad|${f.key}` };
+    return { kind: 'function', params: f.params, env: f.env, out: 'vector', eval: (...p: number[]) => numericGradient(fn, p), label, role: 'gradient', base: f, key: `ngrad|${f.key}`, certainty: 'numeric', evidence: 'central differences' };
   });
 }
 
@@ -58,7 +58,7 @@ export function hessianOf(ctx: EvalContext, f: FunctionValue): FunctionValue {
     const label = `H_{${f.label ?? 'f'}}`;
     if (f.expr) {
       try {
-        return ctx.makeFunction(hessian(f.expr, f.params), f.params, { label, role: 'hessian', base: f, env: f.env });
+        return { ...ctx.makeFunction(hessian(f.expr, f.params), f.params, { label, role: 'hessian', base: f, env: f.env }), certainty: 'exact', evidence: 'symbolic differentiation' };
       } catch (e) {
         if (!(e instanceof NotDifferentiableError)) throw e;
       }

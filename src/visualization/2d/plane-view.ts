@@ -10,7 +10,7 @@ import type { SceneItem } from '../scene-model';
 import { withAlpha } from '../colormap';
 import { frameFromItems, SceneFrame } from '../sampling';
 import { getTheme, onThemeChange, MATH_FONT, UI_FONT } from '../theme';
-import { formatNumber } from '../../math-core/symbolic/print';
+import { formatNumber, toText } from '../../math-core/symbolic/print';
 
 export class PlaneView {
   readonly canvas = document.createElement('canvas');
@@ -96,8 +96,11 @@ export class PlaneView {
 
   private draw() {
     const items = this.ws.sceneItems();
-    this.frame = frameFromItems(items);
-    const fk = `${this.frame.xr}|${this.frame.yr}`;
+    this.frame = frameFromItems(items, this.ws.focus ? this.ws.value(this.ws.focus) : undefined);
+    const graph = this.frame.graph;
+    this.view.equal = !graph;
+    // refit when the object changes, not when a parameter inside it moves
+    const fk = graph ? `graph|${this.ws.focus}|${graph.expr ? toText(graph.expr) : ''}` : `${this.frame.xr}|${this.frame.yr}`;
     if (!this.fitted || fk !== this.lastFrameKey) {
       this.view.fit(this.frame.xr, this.frame.yr);
       this.fitted = true;
@@ -215,10 +218,11 @@ export class PlaneView {
     const { ctx, view } = this;
     const theme = getTheme();
     const step = niceStep(40 / view.scale);
+    const stepY = niceStep(40 / view.ys);
     const [x0, x1] = view.xRange;
     const [y0, y1] = view.yRange;
     ctx.lineWidth = 1;
-    for (const [strong, s] of [[false, step / 5], [true, step]] as const) {
+    for (const [strong, s, sy] of [[false, step / 5, stepY / 5], [true, step, stepY]] as const) {
       ctx.strokeStyle = strong ? theme.gridStrong : theme.grid;
       if (s * view.scale < 8) continue;
       ctx.beginPath();
@@ -227,7 +231,7 @@ export class PlaneView {
         ctx.moveTo(px, 0);
         ctx.lineTo(px, view.height);
       }
-      for (let y = Math.ceil(y0 / s) * s; y <= y1; y += s) {
+      for (let y = Math.ceil(y0 / sy) * sy; y <= y1; y += sy) {
         const py = Math.round(view.sy(y)) + 0.5;
         ctx.moveTo(0, py);
         ctx.lineTo(view.width, py);
@@ -249,6 +253,7 @@ export class PlaneView {
     const { ctx, view } = this;
     const theme = getTheme();
     const step = niceStep(70 / view.scale);
+    const stepY = niceStep(40 / view.ys);
     ctx.font = `11px ${UI_FONT}`;
     ctx.fillStyle = theme.textDim;
     const ay = Math.min(view.height - 14, Math.max(4, view.sy(0) + 4));
@@ -258,7 +263,7 @@ export class PlaneView {
     const [y0, y1] = view.yRange;
     for (let x = Math.ceil(x0 / step) * step; x <= x1; x += step) if (Math.abs(x) > 1e-9) ctx.fillText(formatNumber(x, 3), view.sx(x) + 3, ay);
     ctx.textBaseline = 'middle';
-    for (let y = Math.ceil(y0 / step) * step; y <= y1; y += step) if (Math.abs(y) > 1e-9) ctx.fillText(formatNumber(y, 3), ax, view.sy(y));
+    for (let y = Math.ceil(y0 / stepY) * stepY; y <= y1; y += stepY) if (Math.abs(y) > 1e-9) ctx.fillText(formatNumber(y, 3), ax, view.sy(y));
     ctx.font = `italic 15px ${MATH_FONT}`;
     ctx.fillStyle = theme.text;
     ctx.fillText('x', view.width - 16, Math.min(view.height - 12, Math.max(12, view.sy(0) - 12)));
@@ -347,7 +352,7 @@ export class PlaneView {
     }
     if (this.pan) {
       this.view.cx = this.pan.cx - (px - this.pan.px) / this.view.scale;
-      this.view.cy = this.pan.cy + (py - this.pan.py) / this.view.scale;
+      this.view.cy = this.pan.cy + (py - this.pan.py) / this.view.ys;
       this.invalidate();
       return;
     }
@@ -389,9 +394,9 @@ export class PlaneView {
     const wx = this.view.wx(px);
     const wy = this.view.wy(py);
     const k = Math.exp(-e.deltaY * 0.0015);
-    this.view.scale = Math.min(1e5, Math.max(2, this.view.scale * k));
+    this.view.zoom(k);
     this.view.cx = wx - (px - this.view.width / 2) / this.view.scale;
-    this.view.cy = wy + (py - this.view.height / 2) / this.view.scale;
+    this.view.cy = wy + (py - this.view.height / 2) / this.view.ys;
     this.invalidate();
   };
 }

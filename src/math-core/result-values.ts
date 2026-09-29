@@ -83,7 +83,16 @@ export interface FocusValue extends ResultBase {
   target: string;
 }
 
-const pointLatex = (p: SetPoint) => (p.coords.length === 1 ? rn(p.coords[0]) : `\\left(${p.coords.map(rn).join(', ')}\\right)`);
+/** Closed forms are shown for exact results; for numeric ones only as "≈ recognised form". */
+function pointLatex(p: SetPoint, exact: boolean): string {
+  const body = p.coords.length === 1 ? rn(p.coords[0]) : `\\left(${p.coords.map(rn).join(', ')}\\right)`;
+  const recognised = p.coords.some((c) => recognize(c) && !Number.isInteger(c));
+  if (exact || !recognised) return body;
+  const dec = p.coords.length === 1 ? numberLatex(p.coords[0], 4) : `\\left(${p.coords.map((c) => numberLatex(c, 4)).join(', ')}\\right)`;
+  return `${dec} \\approx ${body}`;
+}
+
+const lines = (items: string[]) => (items.length <= 1 ? (items[0] ?? '') : `\\begin{array}{l} ${items.join(' \\\\ ')} \\end{array}`);
 
 export function intervalLatex(i: Interval): string {
   const a = Number.isFinite(i.a) ? rn(i.a) : '-\\infty';
@@ -103,8 +112,8 @@ registerValueKind({
   latex: (v) => {
     const s = v as unknown as PointSetValue;
     if (!s.points.length) return '\\varnothing';
-    const items = s.points.map((p) => `${s.dim === 1 && s.what !== 'solutions' ? 'x = ' : ''}${pointLatex(p)}${p.type ? `\\ \\text{(${p.type})}` : ''}`);
-    return s.dim === 1 ? items.join(',\\quad ') : `\\left\\{ ${items.join(',\\; ')} \\right\\}`;
+    const items = s.points.map((p) => `${s.dim === 1 && s.what !== 'solutions' ? 'x = ' : ''}${pointLatex(p, s.certainty === 'exact')}${p.type ? `\\ \\text{(${p.type})}` : ''}`);
+    return lines(items);
   },
   typeLabel: (v) => `${(v as unknown as PointSetValue).points.length} ${(v as unknown as PointSetValue).what}`,
 });
@@ -115,7 +124,7 @@ registerValueKind({
     const s = v as unknown as IntervalsValue;
     const labels = [...new Set(s.intervals.map((i) => i.label ?? ''))];
     if (labels.length === 1 && !labels[0]) return unionLatex(s.intervals);
-    return labels.map((l) => `\\text{${l} on } ${unionLatex(s.intervals.filter((i) => (i.label ?? '') === l))}`).join(';\\quad ');
+    return lines(labels.map((l) => `\\text{${l} on } ${unionLatex(s.intervals.filter((i) => (i.label ?? '') === l))}`));
   },
   typeLabel: (v) => `intervals (${(v as unknown as IntervalsValue).what})`,
 });
@@ -153,7 +162,7 @@ registerValueKind({
       ...a.horizontal.map((h) => `y = ${rn(h.value)}\\ (x \\to ${h.side > 0 ? '+' : '-'}\\infty)`),
       ...a.oblique.map((o) => `y = ${rn(o.m)}x ${o.b < 0 ? '-' : '+'} ${rn(Math.abs(o.b))}\\ (x \\to ${o.side > 0 ? '+' : '-'}\\infty)`),
     ];
-    return parts.length ? parts.join(',\\quad ') : '\\text{none}';
+    return parts.length ? lines(parts) : '\\text{none found}';
   },
   typeLabel: () => 'asymptotes',
 });

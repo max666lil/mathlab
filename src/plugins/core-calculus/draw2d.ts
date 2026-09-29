@@ -6,6 +6,7 @@ import { registerDrawer2D, Draw2DArgs, Handle2D } from '../../visualization/2d/r
 import { sampleGrid, niceLevels, cachedLevelSet, steepestPath, lineBoxInterval, Grid } from '../../visualization/sampling';
 import { colormap, withAlpha } from '../../visualization/colormap';
 import { FunctionValue, PointValue, SliceValue, MathValue, VectorValue } from '../../math-core/values';
+import type { PointSetValue } from '../../math-core/result-values';
 import { formatNumber } from '../../math-core/symbolic/print';
 import { normalize, EigenPair } from '../../math-core/linalg';
 import { drawArrow, drawLabel, strokeSegments, plainLabel } from './draw-util';
@@ -377,5 +378,79 @@ registerDrawer2D('field2', {
       const [ux, uy] = normalize(v);
       drawArrow(ctx, px - (ux * len) / 2, py + (uy * len) / 2, px + (ux * len) / 2, py - (uy * len) / 2, withAlpha(a.item.color, 0.35 + 0.65 * (n / maxN)), 1.4, 6);
     }
+  },
+});
+// ---------------------------------------------------------------- point sets (critical points, zeros, …)
+
+export const MARKER_COLORS: Record<string, string> = {
+  'local min': '#52d69b',
+  'local max': '#ff6b6b',
+  saddle: '#ffd166',
+  inflection: '#c77dff',
+  degenerate: '#9aa3bd',
+  'no extremum': '#9aa3bd',
+};
+
+registerDrawer2D('markers', {
+  layer: 5,
+  draw(a) {
+    const set = a.item.visual.props.set as PointSetValue;
+    const { ctx, view } = a;
+    for (const p of set.points) {
+      const x = p.coords[0];
+      const y = set.dim === 1 ? (p.value ?? 0) : p.coords[1];
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      const px = view.sx(x);
+      const py = view.sy(y);
+      const color = (p.type && MARKER_COLORS[p.type]) || a.item.color;
+      ctx.fillStyle = color;
+      ctx.strokeStyle = a.theme.bg;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      if (p.type === 'saddle') {
+        ctx.rect(px - 5, py - 5, 10, 10);
+      } else ctx.arc(px, py, a.selected ? 6.5 : 5, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+      a.hits.push({ itemId: a.item.id, pts: [x, y, x, y] });
+      if (a.selected && p.type) drawLabel(ctx, p.type, px + 9, py - 10, color, a.theme, 12);
+    }
+  },
+});
+
+// ---------------------------------------------------------------- asymptotes
+
+registerDrawer2D('lines', {
+  layer: 1,
+  draw(a) {
+    const { vertical, horizontal, oblique } = a.item.visual.props as {
+      vertical: number[];
+      horizontal: { side: number; value: number }[];
+      oblique: { side: number; m: number; b: number }[];
+    };
+    const { ctx, view } = a;
+    const [x0, x1] = view.xRange;
+    ctx.strokeStyle = a.item.color;
+    ctx.lineWidth = a.selected ? 2 : 1.4;
+    ctx.setLineDash([6, 5]);
+    ctx.beginPath();
+    for (const v of vertical) {
+      ctx.moveTo(view.sx(v), 0);
+      ctx.lineTo(view.sx(v), view.height);
+      a.hits.push({ itemId: a.item.id, pts: [v, view.yRange[0], v, view.yRange[1]] });
+    }
+    const half = (side: number): [number, number] => (side > 0 ? [Math.max(x0, 0), x1] : [x0, Math.min(x1, 0)]);
+    for (const h of horizontal) {
+      const [l, r] = half(h.side);
+      ctx.moveTo(view.sx(l), view.sy(h.value));
+      ctx.lineTo(view.sx(r), view.sy(h.value));
+    }
+    for (const o of oblique) {
+      const [l, r] = half(o.side);
+      ctx.moveTo(view.sx(l), view.sy(o.m * l + o.b));
+      ctx.lineTo(view.sx(r), view.sy(o.m * r + o.b));
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
   },
 });

@@ -139,5 +139,13 @@ export function scanDomain1D(f: (x: number) => number, conds: DomainCondition[],
     split.push({ a, b: iv.b, closedA: ca, closedB: iv.closedB });
   }
   const clean = (v: number) => (Math.abs(v - Math.round(v)) < 1e-9 ? Math.round(v) : v);
-  return { intervals: split.map((i) => ({ ...i, a: clean(i.a), b: clean(i.b) })), window };
+  // decide open/closed at the cleaned end point (bisection stops just inside the domain)
+  return {
+    intervals: split.map((i) => {
+      const a = clean(i.a);
+      const b = clean(i.b);
+      return { a, b, closedA: i.closedA && Number.isFinite(a) && ok(a), closedB: i.closedB && Number.isFinite(b) && ok(b) };
+    }),
+    window,
+  };
 }

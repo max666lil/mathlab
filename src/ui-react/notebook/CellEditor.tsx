@@ -5,7 +5,7 @@
 import { useEffect, useRef } from 'react';
 import { EditorView, keymap, drawSelection, placeholder as cmPlaceholder } from '@codemirror/view';
 import { EditorState, Annotation } from '@codemirror/state';
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { defaultKeymap, history, historyKeymap, insertNewline } from '@codemirror/commands';
 import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete';
 import { setDiagnostics } from '@codemirror/lint';
 import { useWs } from '../hooks';
@@ -19,9 +19,12 @@ interface Props {
   onCommit(cellId: string): void;
   onFocus(cellId: string): void;
   onBlur?(cellId: string): void;
+  /** Backspace in an empty row */
+  onDeleteEmpty?(cellId: string): void;
+  placeholder?: string;
 }
 
-export function CellEditor({ cellId, autoFocus, onCommit, onFocus, onBlur }: Props) {
+export function CellEditor({ cellId, autoFocus, onCommit, onFocus, onBlur, onDeleteEmpty, placeholder }: Props) {
   const ws = useWs();
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -45,11 +48,20 @@ export function CellEditor({ cellId, autoFocus, onCommit, onFocus, onBlur }: Pro
           mll,
           mllHighlight,
           EditorView.lineWrapping,
-          cmPlaceholder('f(x,y) = x^2 + y^2'),
+          cmPlaceholder(placeholder ?? 'f(x) = x^3 - 3x'),
           autocompletion({ override: [mllCompletions(() => ws.statements().filter((s) => s.name).map((s) => s.name!))], icons: false }),
           keymap.of([
-            { key: 'Shift-Enter', run: commit },
+            { key: 'Enter', run: commit },
             { key: 'Mod-Enter', run: commit },
+            { key: 'Shift-Enter', run: insertNewline },
+            {
+              key: 'Backspace',
+              run: (v) => {
+                if (v.state.doc.length || !onDeleteEmpty) return false;
+                onDeleteEmpty(cellId);
+                return true;
+              },
+            },
             ...closeBracketsKeymap,
             ...completionKeymap,
             ...defaultKeymap,

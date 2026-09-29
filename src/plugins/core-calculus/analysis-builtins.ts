@@ -215,8 +215,10 @@ export function asymptotes1D(f: FunctionValue): AsymptotesValue {
       else if (L.kind === '+inf' || L.kind === '-inf') {
         const m = limitInf((t) => F(t) / t, dir);
         if (m.kind === 'finite' && Math.abs(m.value!) > 1e-9) {
-          const b = limitInf((t) => F(t) - m.value! * t, dir);
-          if (b.kind === 'finite') oblique.push({ side: dir, m: m.value!, b: b.value! });
+          // the slope limit carries ~1e-9 error; snap it to a nearby simple rational before b = lim f − m x
+          const snapped = [1, 2, 3, 4, 5, 6, 8, 10, 12].map((q) => Math.round(m.value! * q) / q).find((r) => Math.abs(r - m.value!) < 1e-6) ?? m.value!;
+          const b = limitInf((t) => F(t) - snapped * t, dir);
+          if (b.kind === 'finite') oblique.push({ side: dir, m: snapped, b: b.value! });
         }
       }
     }

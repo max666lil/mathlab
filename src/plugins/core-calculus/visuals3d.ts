@@ -12,6 +12,7 @@ import type { FunctionValue, PlaneValue, SliceValue } from '../../math-core/valu
 import { formatNumber } from '../../math-core/symbolic/print';
 import type { EigenPair } from '../../math-core/linalg';
 import { plainLabel } from './draw-util';
+import { MARKER_COLORS } from './draw2d';
 
 type F2 = (x: number, y: number) => number;
 const tmpColor = new THREE.Color();
@@ -620,3 +621,36 @@ class QuadraticVisual implements Visual3D {
   }
 }
 registerVisual3D('quadratic', () => new QuadraticVisual());
+// ---------------------------------------------------------------- point sets on the surface
+
+class MarkersVisual implements Visual3D {
+  object = new THREE.Group();
+  private spheres: THREE.Mesh[] = [];
+  update(item: SceneItem, ctx: Ctx3D, selected: boolean) {
+    const set = item.visual.props.set as { dim: number; points: { coords: number[]; value?: number; type?: string }[] };
+    const m = ctx.map;
+    const pts = set.dim === 2 ? set.points : [];
+    while (this.spheres.length < pts.length) {
+      const s = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), new THREE.MeshStandardMaterial({ roughness: 0.35 }));
+      this.spheres.push(s);
+      this.object.add(s);
+    }
+    this.spheres.forEach((s, i) => {
+      const p = pts[i];
+      s.visible = !!p;
+      if (!p) return;
+      const z = p.value ?? ctx.surfaceZ(p.coords[0], p.coords[1]) ?? m.zLo;
+      s.position.set(p.coords[0], p.coords[1], m.z(z));
+      s.scale.setScalar(m.size * (selected ? 0.016 : 0.012));
+      const color = MARKER_COLORS[p.type ?? ''] ?? item.color;
+      const mat = s.material as THREE.MeshStandardMaterial;
+      mat.color.set(color);
+      mat.emissive.set(color);
+      mat.emissiveIntensity = 0.3;
+    });
+  }
+  dispose() {
+    disposeObject(this.object);
+  }
+}
+registerVisual3D('markers', () => new MarkersVisual());

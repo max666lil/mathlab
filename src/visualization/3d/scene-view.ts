@@ -183,7 +183,7 @@ export class SceneView {
   private sync() {
     this.needsSync = false;
     const items = this.ws.sceneItems();
-    this.frame = frameFromItems(items);
+    this.frame = frameFromItems(items, this.ws.focus ? this.ws.value(this.ws.focus) : undefined);
     this.map.update(this.frame);
     const pad = 1e-3;
     this.clip[0].constant = this.map.topZ + pad + (this.map.flatten < 1 ? 0 : this.map.boxH * 0.02);

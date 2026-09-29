@@ -7,6 +7,12 @@ import type { Workspace } from '../../runtime/workspace';
 import type { FunctionValue, MathValue, PointValue, VectorValue } from '../../math-core/values';
 import { valueLatex } from '../../math-core/values';
 import { symbolLatex } from '../../math-core/symbolic/print';
+import { registerRelation } from '../../visualization/presentation';
+
+// emphasising one object brings out the objects that explain it
+registerRelation('role:gradient', ['role:level']);
+registerRelation('role:direction', ['role:slice-dir', 'annot:angle']);
+registerRelation('role:hessian', ['role:quadratic']);
 
 /** A name not used in the document (for rows inserted by actions / pins). */
 export function freshName(ws: Workspace, base: string): string {
@@ -23,8 +29,10 @@ function firstDirection(ws: Workspace): string | undefined {
   return ws.statements().find((s) => s.name && ws.value(s.id)?.kind === 'vector' && (ws.value(s.id) as VectorValue).comps.length === 2 && !(ws.value(s.id) as VectorValue).anchor)?.name;
 }
 
+/** A slider meant as a point on the x-axis (a, b, c, x0 …) — angles such as θ are not used. */
 function firstSlider(ws: Workspace): string | undefined {
-  return ws.statements().find((s) => s.name && s.input?.kind === 'slider')?.name;
+  const sliders = ws.statements().filter((s) => s.name && s.input?.kind === 'slider').map((s) => s.name!);
+  return sliders.find((n) => /^(a|b|c|x0|x_0|p)$/.test(n));
 }
 
 const isFn = (v: MathValue, n: number) => v.kind === 'function' && (v as FunctionValue).out === 'scalar' && (v as FunctionValue).params.length === n && !!(v as FunctionValue).expr;

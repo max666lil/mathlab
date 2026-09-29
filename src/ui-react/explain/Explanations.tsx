@@ -157,25 +157,23 @@ function LocalExplain({ a }: { a: LocalAnalysis }) {
   );
 }
 
-export function Explanation() {
+/** Explanations by topic (shown from an analysis card's "Why?"). */
+export function Explanation({ topic }: { topic: string }) {
   const ws = useWs();
   useTopics('values', 'view', 'selection', 'animation');
   const a = localAnalysis(ws);
-  if (!a) return <div className="empty">Define a function of two variables and a point to see the explanation.</div>;
-  switch (ws.mode) {
+  if (!a) return <div className="empty">Add a point to see the explanation.</div>;
+  switch (topic) {
     case 'surface':
       return <SurfaceExplain a={a} />;
-    case 'gradient':
-      return <GradientExplain a={a} />;
-    case 'directional':
-      return <DirectionalExplain a={a} />;
     case 'local':
       return <LocalExplain a={a} />;
     default:
       return (
         <div className="explain-stack">
           <GradientExplain a={a} />
-          <DirectionalExplain a={a} />
+          {a.directions.length > 0 && <DirectionalExplain a={a} />}
+          <LocalExplain a={a} />
         </div>
       );
   }

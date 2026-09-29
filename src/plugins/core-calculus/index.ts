@@ -4,5 +4,4 @@
  */
 import './draw2d';
 import './visuals3d';
-import './modes';
 export { coreCalculusMath } from './math';

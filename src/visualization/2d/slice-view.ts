@@ -103,7 +103,7 @@ export class SliceView {
     const sl = this.slice();
     if (!sl) return;
     const { s, color } = sl;
-    const frame = frameFromItems(this.ws.sceneItems());
+    const frame = frameFromItems(this.ws.sceneItems(), this.ws.focus ? this.ws.value(this.ws.focus) : undefined);
     const iv = lineBoxInterval(s.origin, s.dir, frame.xr, frame.yr) ?? [-3, 3];
     const { t, z } = sliceSamples(s.fn, s.origin, s.dir, iv[0], iv[1], 240);
     let zmin = Infinity;

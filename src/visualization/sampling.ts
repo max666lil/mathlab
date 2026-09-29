@@ -214,6 +214,8 @@ export interface SceneFrame {
   xr: Range;
   yr: Range;
   surface?: FunctionValue;
+  /** set when the primary object is a function of one variable (graph view) */
+  graph?: FunctionValue;
   grid?: Grid;
   zLo: number;
   zHi: number;
@@ -226,7 +228,38 @@ export function sceneFrame(surface: FunctionValue | undefined, xr: Range = DEFAU
 }
 
 /** The frame for a set of scene items: the first visible surface (or contour map) is primary. */
-export function frameFromItems(items: { visible: boolean; visual: { vtype: string; props: Record<string, unknown> } }[]): SceneFrame {
+/** Frame for the graph of a function of one variable: x window and a robust y range. */
+export function graphFrame(fn: FunctionValue, xr: Range = [-6, 6]): SceneFrame {
+  const f = fn.eval as (x: number) => number;
+  const ys: number[] = [];
+  for (let i = 0; i <= 600; i++) {
+    const y = f(xr[0] + ((xr[1] - xr[0]) * i) / 600);
+    if (Number.isFinite(y)) ys.push(y);
+  }
+  ys.sort((a, b) => a - b);
+  let lo = ys.length ? ys[Math.floor(ys.length * 0.04)] : -1;
+  let hi = ys.length ? ys[Math.floor(ys.length * 0.96)] : 1;
+  lo = Math.min(lo, 0);
+  hi = Math.max(hi, 0);
+  if (hi - lo < 1e-9) {
+    lo -= 1;
+    hi += 1;
+  }
+  const pad = (hi - lo) * 0.15;
+  return { xr, yr: [lo - pad, hi + pad], graph: fn, zLo: lo, zHi: hi };
+}
+
+/**
+ * The frame for a set of scene items. The focused object decides: a function of one variable gives
+ * a graph frame, a function of two variables its surface frame; otherwise the first visible surface.
+ */
+export function frameFromItems(items: { visible: boolean; visual: { vtype: string; props: Record<string, unknown> } }[], focus?: { kind: string }): SceneFrame {
+  const fv = focus?.kind === 'function' ? (focus as FunctionValue) : undefined;
+  if (fv && fv.out === 'scalar' && fv.params.length === 1) return graphFrame(fv);
+  if (fv && fv.out === 'scalar' && fv.params.length === 2) {
+    const own = items.find((i) => i.visual.vtype === 'surface' && (i.visual.props.fn as FunctionValue | undefined)?.key === fv.key)?.visual.props as { xRange?: Range; yRange?: Range } | undefined;
+    return sceneFrame(fv, own?.xRange ?? DEFAULT_RANGE, own?.yRange ?? DEFAULT_RANGE);
+  }
   const primary = items.find((i) => i.visible && i.visual.vtype === 'surface') ?? items.find((i) => i.visible && i.visual.vtype === 'contours');
   const p = primary?.visual.props as { fn?: FunctionValue; xRange?: Range; yRange?: Range } | undefined;
   return sceneFrame(p?.fn, p?.xRange ?? DEFAULT_RANGE, p?.yRange ?? DEFAULT_RANGE);

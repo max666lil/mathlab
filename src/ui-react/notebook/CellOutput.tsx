@@ -9,7 +9,8 @@ import { symbolLatex, formatNumber, toLatex } from '../../math-core/symbolic/pri
 import { DependencyError } from '../../runtime/graph';
 import { plainLabel } from '../../plugins/core-calculus/draw-util';
 import { sliceTitle } from '../../visualization/2d/slice-view';
-import { objectKeys } from '../panels/ValuesPanel';
+import { objectKeys } from '../object-keys';
+import { CertaintyBadge } from '../analysis/AnalysisPanel';
 
 /** Is the expression just literal data (no point in printing it next to its value)? */
 function literal(e: Expr): boolean {
@@ -156,6 +157,7 @@ function Row({ ws, info, math }: { ws: Workspace; info: StatementInfo; math: boo
   return (
     <div className={`out-row ${selected ? 'selected' : ''} ${lit ? 'lit' : ''}`} onClick={select} {...hover}>
       {slider ? <SliderRow ws={ws} info={info} v={v as ScalarValue} /> : <Tex tex={outputLatex(info, v, math)} className="out-tex" />}
+      {!slider && <CertaintyBadge v={v} />}
       {info.input?.kind === 'point' && <span className="hint">drag in any view</span>}
     </div>
   );

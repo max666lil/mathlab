@@ -2,9 +2,29 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { Workspace, Topic } from '../runtime/workspace';
 import type { Presentation } from '../visualization/presentation';
+import type { AnalysisService } from '../runtime/analysis';
 
 export const WorkspaceContext = createContext<Workspace | null>(null);
 export const PresentationContext = createContext<Presentation | null>(null);
+export const AnalysisContext = createContext<AnalysisService | null>(null);
+
+/** The analysis service; re-renders when the analysis or the workspace values change. */
+export function useAnalysis(): AnalysisService {
+  const a = useContext(AnalysisContext);
+  if (!a) throw new Error('Analysis missing');
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    return a.on(() => {
+      if (!raf) raf = requestAnimationFrame(() => {
+        raf = 0;
+        setTick((t) => t + 1);
+      });
+    });
+  }, [a]);
+  useTopics('values', 'doc', 'view');
+  return a;
+}
 
 export function usePres(): Presentation {
   const p = useContext(PresentationContext);

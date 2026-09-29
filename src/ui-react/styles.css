@@ -227,3 +227,77 @@ select { max-width: 360px; }
 .values .local-card { margin-bottom: 14px; }
 .section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--dim); margin: 8px 0 4px; }
 .kv td.val { max-width: 360px; overflow-x: auto; }
+/* ================= analysis workbench ================= */
+.spacer { flex: 1; }
+.tagline { color: var(--dim); font-weight: 400; font-size: 12px; }
+
+/* worksheet */
+.notebook .cell { grid-template-columns: 22px 1fr auto; padding: 2px 4px 2px 0; }
+.notebook .cell-index { cursor: pointer; padding-top: 6px; user-select: none; }
+.focus-dot { color: var(--border); font-size: 11px; }
+.focus-dot.on { color: var(--accent); }
+.cell.focus-row { background: var(--accent-soft); border-color: transparent; }
+.cell.input-row .cell-index { color: var(--accent); font-size: 14px; }
+.cell.input-row .cm-editor { border-style: dashed; }
+.notebook.math .cell:hover { background: var(--panel-2); }
+.notebook.math .cell.focus-row:hover { background: var(--accent-soft); }
+
+/* certainty badges */
+.badge { display: inline-block; font-size: 9.5px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; border: 1px solid; white-space: nowrap; cursor: help; flex: none; }
+.badge-exact { color: #52d69b; border-color: rgba(82, 214, 155, 0.45); }
+.badge-numeric { color: #4cc9f0; border-color: rgba(76, 201, 240, 0.45); }
+.badge-heuristic { color: #f4a261; border-color: rgba(244, 162, 97, 0.45); }
+:root[data-theme='light'] .badge-exact { color: #178a55; }
+:root[data-theme='light'] .badge-numeric { color: #0b76a8; }
+:root[data-theme='light'] .badge-heuristic { color: #b35c12; }
+.out-row .badge { margin-left: auto; }
+
+/* canvas */
+.canvas-body { display: flex; }
+.canvas-slot { position: relative; flex: 1; min-width: 0; height: 100%; }
+.canvas-body.split .canvas-slot + .canvas-slot { border-left: 1px solid var(--border); }
+.menu-wrap { position: relative; }
+.menu { position: absolute; right: 0; top: 28px; z-index: 20; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 4px; display: flex; flex-direction: column; min-width: 190px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3); }
+.menu button { background: none !important; border: none !important; text-align: left; padding: 6px 10px !important; border-radius: 5px !important; }
+.menu button:hover { background: var(--accent-soft) !important; }
+.inset { position: absolute; left: 10px; bottom: 10px; width: min(360px, 60%); height: 200px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); z-index: 5; }
+.inset-head { display: flex; gap: 2px; padding: 3px; border-bottom: 1px solid var(--border); }
+.inset-head button { background: none; border: none; color: var(--dim); font-size: 11.5px; padding: 3px 7px; border-radius: 5px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+.inset-head button.active { color: var(--text); background: var(--accent-soft); }
+.inset-head .close { margin-left: auto; }
+.inset-body { position: relative; flex: 1; }
+
+/* analysis */
+.analysis { padding: 10px 12px 24px; }
+.type-chip { font-size: 11px; color: var(--dim); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; }
+.analysis-title { font-size: 15px; margin: 2px 0 10px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.card { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; background: var(--panel-2); overflow: hidden; }
+.card-head { width: 100%; display: flex; align-items: center; gap: 8px; background: none; border: none; padding: 7px 10px; cursor: pointer; text-align: left; color: var(--text); font-weight: 600; font-size: 12.5px; }
+.card-head:hover { background: var(--accent-soft); }
+.chev { color: var(--dim); width: 10px; font-size: 10px; }
+.card-count { margin-left: auto; color: var(--dim); font-weight: 400; font-size: 11px; }
+.card-body { padding: 2px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
+.fact { border-radius: 6px; padding: 4px 6px; transition: background 0.15s; }
+.fact.lit, .fact:hover { background: var(--accent-soft); }
+.fact-head { display: flex; align-items: center; gap: 6px; }
+.fact-title { font-size: 11.5px; color: var(--dim); }
+.fact-tools { margin-left: auto; display: flex; gap: 4px; align-items: center; }
+.mini { background: none; border: 1px solid transparent; color: var(--dim); border-radius: 4px; cursor: pointer; font-size: 12px; padding: 0 4px; line-height: 18px; }
+.mini:hover { color: var(--text); border-color: var(--border); }
+.mini.on { color: var(--accent); border-color: var(--accent); }
+.fact-value { font-size: 14px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; padding: 2px 0; }
+.fact-value::-webkit-scrollbar, .analysis-title::-webkit-scrollbar { display: none; }
+.action { align-self: flex-start; background: var(--chip); border: 1px dashed var(--accent); color: var(--accent); border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 12px; }
+.why-toggle { align-self: flex-start; background: none; border: none; color: var(--accent); cursor: pointer; font-size: 12px; padding: 2px 0; }
+.why { border-top: 1px solid var(--border); padding-top: 8px; }
+.relations { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0 6px; }
+.relation { font-size: 11.5px; color: var(--dim); border: 1px solid var(--border); border-radius: 12px; padding: 2px 9px; cursor: help; }
+.relation.lit { color: var(--text); border-color: var(--accent); background: var(--accent-soft); }
+.analysis-foot { font-size: 11px; line-height: 1.8; margin-top: 12px; }
+/* compact worksheet rows: actions float on hover instead of taking height */
+.notebook .cell { position: relative; grid-template-columns: 22px 1fr; min-height: 30px; }
+.notebook .cell-actions { position: absolute; right: 4px; top: 3px; flex-direction: row; background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; padding: 1px 2px; z-index: 3; pointer-events: none; }
+.notebook .cell:hover .cell-actions { pointer-events: auto; }
+.notebook .cell-output { padding: 2px 2px 2px 4px; }
+.notebook .out-row { min-height: 26px; }
+.notebook { gap: 2px; }

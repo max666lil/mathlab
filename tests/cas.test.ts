@@ -62,6 +62,10 @@ describe('CAS core', () => {
     const r = P('1/(x - 1)');
     const d2 = scanDomain1D(compileScalar(r, ['x']), domainConditions(r, ['x']), 'x');
     expect(d2.intervals.map((i) => [i.a, i.b])).toEqual([[-Infinity, 1], [1, Infinity]]);
+    expect(d2.intervals.map((i) => [i.closedA, i.closedB])).toEqual([[false, false], [false, false]]);
+    const q = P('(x^2 + 1)/(x - 1)');
+    const d4 = scanDomain1D(compileScalar(q, ['x']), domainConditions(q, ['x']), 'x');
+    expect(d4.intervals.map((i) => [i.closedA, i.closedB])).toEqual([[false, false], [false, false]]);
     const s = P('sqrt(x)');
     const d3 = scanDomain1D(compileScalar(s, ['x']), domainConditions(s, ['x']), 'x');
     expect(d3.intervals).toEqual([{ a: 0, b: Infinity, closedA: true, closedB: false }]);

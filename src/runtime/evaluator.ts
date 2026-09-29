@@ -306,10 +306,12 @@ export class Evaluator implements EvalContext {
       throw spanErr(`${f.label ?? 'function'} takes ${f.params.length} input(s), got ${coords.length}`, e);
     const out = f.eval(...coords);
     const derivation = `${f.label ?? 'f'}\\left(${coords.map((c) => +c.toFixed(4)).join(', ')}\\right)`;
-    if (typeof out === 'number') return scalar(out, { derivation, role: f.role });
-    if (Array.isArray(out[0])) return matrixV(out as number[][], { derivation, role: f.role });
+    // evaluating a symbolic formula is exact arithmetic (up to floating point); numeric functions are numeric
+    const certainty = f.certainty ?? (f.expr ? 'exact' : 'numeric');
+    if (typeof out === 'number') return scalar(out, { derivation, role: f.role, certainty });
+    if (Array.isArray(out[0])) return matrixV(out as number[][], { derivation, role: f.role, certainty });
     const comps = out as number[];
-    return vector(comps, comps.length === coords.length ? coords.slice() : undefined, { derivation, role: f.role });
+    return vector(comps, comps.length === coords.length ? coords.slice() : undefined, { derivation, role: f.role, certainty });
   }
 
   toFunction(e: Expr): FunctionValue {
