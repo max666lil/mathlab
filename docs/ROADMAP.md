@@ -18,12 +18,11 @@ It should feel as simple as Desmos at first glance and as deep as a mathematical
 | Phase | Core capabilities | Mathematical world | Status |
 |---|---|---|---|
 | 1 | f(x), f(x,y), derivatives, limits, integrals, Taylor, gradient, Hessian, critical points | one-variable and multivariable functions | ✅ done |
-| 2 | f(x,y,z), level surfaces, constraints, Lagrange multipliers | 3-D scalar fields + optimisation | next — [spec](phases/phase-2.md) |
-| 3 | double/triple integrals, regions, polar/cylindrical/spherical coordinates, Jacobian, change of variables | multiple integrals and coordinate systems | planned |
-| 4 | vectors, matrices, linear maps, span, basis, rank, null space, eigenvalues/eigenvectors, determinant | linear algebra | planned |
+| 2 | matrices, vectors, linear maps, rref, rank, det, inverse, subspaces, eigen, diagonalization, systems, projections, least squares, QR, SVD — with 3Blue1Brown-style animated transformations in 2-D and 3-D | linear algebra (MAT223/224) | in progress — [spec](phases/phase-2-linear-algebra.md) |
+| 3 | 3a 3-D fields + Lagrange · 3b multiple integrals, coordinates, Jacobian · 3c vector fields, div, curl, Laplacian · 3d line/surface integrals, Green/Stokes/Divergence | multivariable and vector calculus (MAT235) | planned — [spec](phases/phase-3-mat235.md) |
+| 4 | Laplace / inverse Laplace transform, linear ODEs and IVPs, slope fields, systems x′ = Ax and phase portraits | differential equations and transforms (MAT244) | planned |
 | 5 | distributions, random-variable transformations, joint/conditional, expectation, sampling, CLT, estimation | probability and statistics | planned |
-| 6 | vector fields, flow, line/surface integrals, curl, divergence, flux, Green/Stokes/Divergence theorems | vector calculus | planned |
-| 7 | sequences, series, power series, Taylor series, convergence | infinite processes | planned |
+| 6 | sequences, series, power series, Taylor series, convergence | infinite processes | planned |
 
 ---
 
@@ -73,30 +72,33 @@ Three layers, one language:
 |---|---|---|
 | ScalarField1D / 2D (`function`) | 1 | FunctionValue with 1 or 2 params, symbolic body |
 | PointSet, Intervals, Domain, Limit, Asymptotes | 1 | typed analysis results with certainty |
-| Point, Vector, Matrix (numeric) | 1 | already exist; become first-class in Phase 4 |
-| ScalarField3D, Constraint, OptimizationProblem, Candidates | 2 | |
-| Region (2-D / 3-D), Integral, CoordinateSystem, Jacobian | 3 | Jacobian is a Matrix-valued function |
-| LinearMap, Subspace (span / null space / column space), Basis | 4 | |
+| Point, Vector, Matrix | 1 | exact (rational) matrices and draggable vectors/columns in Phase 2 |
+| Subspace, Affine (solution set), Eigen, Diagonalization, QR, SVD, Complex, Boolean (with reason), LinearMap | 2 | |
+| ScalarField3D, Constraint, OptimizationProblem, Candidates | 3a | |
+| Region (2-D / 3-D), Integral, CoordinateSystem, Jacobian | 3b | Jacobian is a Matrix-valued function |
+| VectorField, Potential, Curve (parametric), Surface (parametric), Flow | 3c–3d | |
+| Transform (Laplace), ODE, IVP, SolutionCurve | 4 | |
 | Distribution, RandomVariable, Sample, Estimator | 5 | samples are heavy nodes (seeded RNG, worker) |
-| VectorField, Curve (parametric), Surface (parametric), Flow | 6 | |
-| Sequence, Series, PowerSeries | 7 | |
+| Sequence, Series, PowerSeries | 6 | |
 
 ### Cross-phase flows (why one object system matters)
 
 ```
 f(x,y) = x^2 - y^2          ScalarField2D           (Phase 1)
 H = hessian f               MatrixField             (Phase 1)
-A = H at (0,0)              Matrix                  (Phase 1 → Phase 4)
-eigenvectors A              Vectors                 (Phase 4)
-show eigenvectors A         visualization
+A = H at (0,0)              Matrix                  (Phase 1 → Phase 2)
+eigen A                     Eigen → eigenspaces     (Phase 2)
+show transformation A       visualization
 
-J = jacobian (r cos θ, r sin θ)    Matrix-valued function → det J = r    (Phase 3 → Phase 4)
+J = jacobian (r cos θ, r sin θ)    Matrix-valued function → det J = r    (Phase 3b → Phase 2)
+F = gradient f              VectorField              (Phase 1 → Phase 3c)
+jacobian F at P             Matrix → eigenvalues classify the equilibrium (Phase 3c → Phase 2)
+x' = A x                    ODE system → phase portrait from eigen A     (Phase 4 → Phase 2)
 X ~ Uniform(0,1); Y = X^2   RandomVariable → Transformation → RandomVariable (Phase 5)
-F = gradient f              VectorField              (Phase 1 → Phase 6)
 ```
 
 Any matrix- or vector-valued fact offers **"Analyze as matrix / vector"** — e.g. the Hessian at a point
-opens the Phase 4 matrix analysis.
+opens the Phase 2 matrix analysis.
 
 ---
 
@@ -136,75 +138,62 @@ layout · canvas · explanations · flagship acceptance · certainty · dependen
   with slider a and tangent line; `C = critical f → Q = first(C) → H = hessian f at Q → eigenvalues H`.
 - **Known limits**: see §6.
 
-### Phase 2 — 3-D scalar fields and constrained optimisation (next)
+### Phase 2 — Linear algebra (in progress)
 
-Full specification: **[phases/phase-2.md](phases/phase-2.md)**.
+Full specification: **[phases/phase-2-linear-algebra.md](phases/phase-2-linear-algebra.md)**.
 
-- **Goal**: leave "z = f(x,y) only" — true fields `T: ℝ³ → ℝ` and optimisation under constraints.
-- **Objects**: ScalarField3D, Constraint, OptimizationProblem, Candidates, 3-D Point, LevelSurface.
-- **Operations**: `maximize|minimize f subject to g = c`, `lagrange`, `level T = c`, `slice T at x = a`,
-  3-D `critical`, `gradient`, `hessian`, `directional`.
-- **Analyzers**: `scalar-field-3d`, `optimization`.
-- **Flagships**: the **Earth** temperature field `T(x,y,z)` (radial symmetry, spherical level surfaces,
-  slice plane) and the **Lagrange** scene `maximize 4 - x^2 - 2y^2 subject to x^2 + y^2 = 1`
-  (level curve expanding until it first touches the constraint; ∇f = λ∇g).
-- **Dependencies**: Phase 1 engine; new equal-aspect 3-D world map; marching cubes.
+- **Goal**: matrices and linear maps as first-class objects with geometric meaning — complete MAT223/224
+  computation, exact for rational input, and a 3Blue1Brown-style animated transformation view.
+- **Objects**: Matrix, Vector, Subspace (span / null / column / row / eigenspace), Affine (solution sets),
+  Eigen, Diagonalization, QR, SVD, Complex, Boolean-with-reason, LinearMap.
+- **Operations**: `det`, `trace`, `rank`, `rref`, `inverse`, `A^-1`, `A^T`, `eigen`, `charpoly`,
+  `diagonalize`, `nullspace`, `columnspace`, `rowspace`, `span`, `basis`, `independent`, `solve(A, b)`,
+  `project v onto W`, `leastsquares`, `gramschmidt`, `qr`, `svd`, `coords v in B`, `standardmatrix T`,
+  `transformation(A, …)`.
+- **Analyzers**: `matrix` (layout by shape: 2-D transformation view / 3-D view / numbers), `subspace`,
+  `vector-list`, `affine`, `linear-map`.
+- **Canvas**: the grid deforms continuously from I to A (transport bar, auto-play on edit); î, ĵ, k̂ land
+  on the columns; unit square / cube → parallelogram / parallelepiped with |det A|; eigen-lines stay put;
+  the null space collapses; stepped timelines for composition, diagonalization (P⁻¹ → D → P) and SVD
+  (rotate → stretch → rotate); draggable columns and vectors rewrite the worksheet.
+- **Flagships**: `A = [[2,1],[1,2]]` (det 3, eigen 3 and 1, animated), `[[1,2,3],[4,5,6],[7,8,9]]` in 3-D
+  (collapses onto a plane, null space ⟨1,−2,1⟩), composition / diagonalization / SVD timelines, and from
+  Phase 1: Hessian at a point → **Analyze as matrix**.
+- **Certainty**: exact (fraction arithmetic) for rational matrices; numeric otherwise (eigenvalues by
+  Durand–Kerner on the exact characteristic polynomial, SVD via the symmetric eigensolver).
 
-### Phase 3 — Multiple integrals and coordinate systems
+### Phase 3 — Multivariable and vector calculus (MAT235)
 
-- **Goal**: make ∬ f dA and ∭ f dV geometric, and make dA = r dr dθ something you *see*, not memorise.
-- **Objects**: Region (inequalities, type I/II descriptions, polar/cylindrical/spherical descriptions),
-  Integral (iterated, with bounds), CoordinateSystem, Jacobian (matrix-valued function).
-- **Operations**: `R = x^2 + y^2 <= 1`, `integrate f over R`, `integrate f over R in polar`,
-  `coordinates polar | cylindrical | spherical`, `jacobian T`, `bounds R`, `area R`, `volume E`,
-  `change of variables u = …, v = …`, `swap order`.
-- **Analyzers**: `region` (layout: region in the plane / in space), `integral` (layout: surface over the
-  region + volume + iterated-bounds view).
-- **Canvas**: region shading in the xy-plane; surface z = f(x,y) above it; the volume; an infinitesimal
-  column f dA; Riemann boxes refining to the integral; iterated-integral sweep (inner then outer).
-- **Explanations**: a dx dy cell deforms continuously into an r dr dθ sector (area scale = |det J| = r);
-  the same for cylindrical (r dr dθ dz) and spherical (ρ² sin φ dρ dφ dθ) cells.
-- **Flagship acceptance**:
-  ```
-  R = x^2 + y^2 <= 1
-  f(x,y) = 4 - x^2 - y^2
-  I = integrate f over R          # 7π/2, exact via polar
-  coordinates polar               # animates dx dy → r dr dθ, shows dA = r dr dθ
-  J = jacobian (r cos θ, r sin θ) # Matrix-valued; det J = r
-  ```
-  plus a triple integral over a ball in spherical coordinates.
-- **Certainty**: exact when bounds and antiderivatives are symbolic; numeric (adaptive cubature with error
-  estimate) otherwise; region descriptions from inequalities are exact, sampled boundaries are evidence.
-- **Dependencies**: Phase 1 integration (`antiderivative`, quadrature), Phase 2 3-D rendering; the
-  Jacobian is the first Matrix-valued object consumed by Phase 4.
-- **Out of scope**: general improper multiple integrals, surface integrals (Phase 6).
+Full specification: **[phases/phase-3-mat235.md](phases/phase-3-mat235.md)**.
 
-### Phase 4 — Linear algebra
+- **3a — 3-D scalar fields and constrained optimisation**: `T: ℝ³ → ℝ` with gradient, Hessian, Laplacian,
+  level surfaces (marching cubes), slice planes; `maximize|minimize f subject to g = c`, Lagrange
+  candidates, the level curve expanding until it first touches the constraint (∇f = λ∇g).
+  Flagships: the **Earth** temperature field and the **Lagrange** scene.
+- **3b — multiple integrals and coordinates**: regions, `integrate f over R`, polar / cylindrical /
+  spherical, Jacobian (a Matrix-valued function; |det J| is the cell's area scale, animated with the
+  Phase 2 timeline machinery). Flagship: ∬ over the unit disk = 7π/2 with dx dy → r dr dθ.
+- **3c — vector fields**: `div`, `curl`, `laplacian` (∇²), conservative fields and potentials,
+  streamlines and particles, equilibria classified by the Jacobian's eigenvalues. Flagship:
+  `F(x,y) = <-y, x>` (div 0, curl 2) and a gradient field with its potential.
+- **3d — curves, surfaces and the big theorems**: line integrals, flux, Green / Stokes / Divergence with
+  the cancelling-cells animation. Flagship: circulation of ⟨−y, x⟩ around the unit circle = 2π.
+- **Dependencies**: Phase 1 engine; Phase 2 matrices, eigen and the Euclidean 3-D map; marching cubes.
 
-- **Goal**: matrices and linear maps as first-class objects with geometric meaning.
-- **Objects**: Vector, Matrix, LinearMap, Subspace (span, null space, column/row space), Basis,
-  Eigenpairs, Projection, LeastSquaresProblem.
-- **Operations**: `analyze A`, `det`, `rank`, `rref`, `inverse`, `transpose`, `span`, `basis`, `nullspace`,
-  `columnspace`, `eigenvalues`, `eigenvectors`, `diagonalize`, `project v onto W`, `least squares`,
-  `A v`, `show transformation A`, `compose`.
-- **Analyzers**: `matrix` (layout: transformation view in ℝ² / ℝ³ + numbers), `vector-set` (span/basis),
-  `linear-map`.
-- **Canvas**: grid continuously deforming under A; unit square → parallelogram with area = |det A|;
-  many vectors transforming with eigen-directions highlighted (they stay on their lines); vectors
-  collapsing to 0 for the null space; projection and residual for least squares.
-- **Flagship acceptance**:
-  ```
-  A = [[2,1],[1,2]]
-  analyze A         # shape 2×2, det 3, rank 2, eigenvalues 3, 1, eigenvectors, nullspace {0}, column space ℝ²
-  v = <2,1>
-  w = A v
-  show transformation A
-  ```
-  and from Phase 1: Hessian at a point → **Analyze as matrix** → principal directions = eigenvectors.
-- **Certainty**: exact for rational/integer matrices (fraction arithmetic); numeric for floating input.
-- **Dependencies**: Phase 1 matrices, `symmetricEigen`; Phase 3 Jacobian.
-- **Out of scope**: abstract vector spaces beyond ℝⁿ, complex eigenvalues beyond display.
+### Phase 4 — Differential equations and transforms (MAT244)
 
+- **Goal**: ODEs and the Laplace transform as objects, with solutions you can see.
+- **Objects**: Transform (Laplace pair F(s) ↔ f(t)), ODE, IVP, SolutionCurve, SlopeField, LinearSystem.
+- **Operations**: `laplace f`, `inverse laplace F` (table + partial fractions), `solve y'' + 3y' + 2y = 0
+  with y(0) = 1, y'(0) = 0` (via Laplace or characteristic equation), `slopefield y' = …`,
+  `x' = A x` (phase portrait).
+- **Analyzers**: `transform` (f(t) and F(s) side by side; poles in the s-plane), `ode` (slope field +
+  solution curves through draggable initial points), `linear-system` (phase portrait whose type — node,
+  saddle, spiral, centre — comes from `eigen A` of Phase 2).
+- **Canvas**: slope fields (reusing the Phase 3c arrow drawers), solution curves through a draggable
+  initial condition, e^{−st} weighting under f(t) for the Laplace integral, pole locations vs. behaviour.
+- **Certainty**: table / partial-fraction transforms exact; numeric integration (RK45 with error control)
+  is numeric.
 ### Phase 5 — Probability and statistics
 
 - **Goal**: let the user *see* how probability mass moves and how estimators behave.
@@ -228,28 +217,10 @@ Full specification: **[phases/phase-2.md](phases/phase-2.md)**.
   and `X ~ Uniform(0,1); Y = X^2` with the change-of-variables formula made visible.
 - **Certainty**: analytic pdf/cdf/moments exact; Monte Carlo results are evidence with sample size and
   standard error; seeded RNG for reproducibility.
-- **Dependencies**: heavy graph nodes (workers), Phase 1 integration/limits for analytic moments.
+- **Dependencies**: heavy graph nodes (workers), Phase 1 integration/limits for analytic moments, Phase 3b multiple integrals for joint distributions.
 - **Out of scope**: full regression suites, Bayesian inference beyond simple conjugate examples.
 
-### Phase 6 — Vector calculus
-
-- **Goal**: fields, flow and the big theorems understood visually.
-- **Objects**: VectorField (2-D/3-D), Curve (parametric, closed/open), Surface (parametric, oriented),
-  Flow, LineIntegral, FluxIntegral.
-- **Operations**: `F(x,y) = <-y, x>`, `div F`, `curl F`, `streamlines F`, `animate particle in F from P`,
-  `C(t) = (cos t, sin t)`, `integrate F along C`, `flux F through S`, `potential F`, `green`, `stokes`,
-  `divergence theorem`.
-- **Analyzers**: `vector-field` (layout: arrows / streamlines / particles), `curve`, `surface`.
-- **Canvas**: arrows, streamlines, moving particles; divergence as net outflow through a tiny box;
-  curl as a spinning paddle wheel; a particle along C accumulating F·dr; flux as flow through a surface
-  with normals; conservative fields and potentials.
-- **Explanations**: Green's theorem by subdividing a region into cells whose interior boundaries cancel,
-  converging to the continuous theorem; the same idea for Stokes and Divergence.
-- **Flagship acceptance**: `F(x,y) = <-y, x>` with div 0, curl 2, circulation around the unit circle 2π
-  (exact) and Green's theorem cell animation.
-- **Dependencies**: Phase 2 (3-D fields), Phase 3 (regions, double/triple integrals, Jacobians).
-
-### Phase 7 — Sequences and series
+### Phase 6 — Sequences and series
 
 - **Goal**: infinite processes with honest certainty.
 - **Objects**: Sequence, Series, PowerSeries, TaylorSeries, ConvergenceResult.
@@ -266,11 +237,11 @@ Full specification: **[phases/phase-2.md](phases/phase-2.md)**.
 
 | Topic | Why | First needed |
 |---|---|---|
-| Equal-aspect 3-D world map | today `WorldMap` rescales z for graphs of f(x,y); fields in ℝ³, regions and vector fields need true geometry | Phase 2 |
-| Workers for heavy nodes | marching cubes, Monte Carlo, cubature must not block typing or dragging | Phase 2 (marching cubes), Phase 5 |
-| Exact rational arithmetic | exact matrices, exact region bounds | Phase 3–4 |
+| Equal-aspect 3-D world map | today `WorldMap` rescales z for graphs of f(x,y); fields in ℝ³, regions and vector fields and 3-D linear maps need true geometry | Phase 2 (3-D transformations) |
+| Workers for heavy nodes | marching cubes, Monte Carlo, cubature must not block typing or dragging | Phase 3a (marching cubes), Phase 5 |
+| Exact rational arithmetic | exact matrices, exact region bounds | Phase 2 |
 | Undo / history, save / load documents | real work sessions | any time |
-| "Analyze as …" actions | cross-phase object flows | Phase 4 |
+| "Analyze as …" actions | cross-phase object flows | Phase 2 |
 | Test strategy | per phase: unit tests (CAS, analyzers), engine tests (recognition, laziness, results-as-objects), browser run of the flagship scenarios | every phase |
 | Documentation | README, this roadmap, one spec per phase in `docs/phases/` | every phase |
 
@@ -288,7 +259,7 @@ Full specification: **[phases/phase-2.md](phases/phase-2.md)**.
 ## 7. Order and milestones
 
 ```
-Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7
+Phase 2 (linear algebra) → Phase 3 (MAT235: 3a → 3b → 3c → 3d) → Phase 4 (ODEs, Laplace) → Phase 5 → Phase 6
 ```
 
 A phase is done when:

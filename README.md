@@ -145,8 +145,8 @@ registerDrawer2D('my-visual', { layer: 3, draw: (a) => { /* canvas drawing */ } 
 **Phase 1 is done**: workbench shell, object recognition, lazy analysis of f(x) and f(x, y), CAS commands,
 typed results with certainty, `show` / `hide` / `compare`, analyzer-declared layouts.
 
-The full plan — seven phases from 3-D scalar fields and constrained optimisation to multiple integrals,
-linear algebra, probability & statistics, vector calculus and series — is in
-**[docs/ROADMAP.md](docs/ROADMAP.md)**. The next phase is specified in
-**[docs/phases/phase-2.md](docs/phases/phase-2.md)** (flagships: the Earth 3-D temperature field and the
-Lagrange constraint scene).
+The full plan is in **[docs/ROADMAP.md](docs/ROADMAP.md)**: linear algebra (Phase 2, in progress —
+**[spec](docs/phases/phase-2-linear-algebra.md)**, with 3Blue1Brown-style animated transformations), then
+all of MAT235 (**[spec](docs/phases/phase-3-mat235.md)**: 3-D fields and Lagrange, multiple integrals,
+vector fields with div / curl / Laplacian, line and surface integrals and the big theorems), ODEs and the
+Laplace transform, probability & statistics, and series.

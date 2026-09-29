@@ -1,17 +1,24 @@
-# Phase 2 — 3-D scalar fields and constrained optimisation
+# Phase 3 — Multivariable and vector calculus (MAT235)
 
-Status: **next**. Part of the [MathLab roadmap](../ROADMAP.md).
+Status: **planned** (after [Phase 2 — Linear algebra](phase-2-linear-algebra.md)). Part of the
+[MathLab roadmap](../ROADMAP.md). Course: MAT235 (all of it).
 
 ## Goal
 
-MathLab leaves the "z = f(x, y) only" stage:
+All of MAT235 in one object system, in four sub-phases:
 
-1. **True 3-D scalar fields** `T: ℝ³ → ℝ` — gradient, Hessian, critical points, symmetry, level surfaces,
-   slices — visualised in ℝ³ with correct geometry (not as a graph).
-2. **Constrained optimisation** — `maximize/minimize f subject to g = c`, Lagrange multipliers, and the
-   geometry that explains them (∇f ∥ ∇g, a level set first touching the constraint).
+| Sub-phase | Content |
+|---|---|
+| **3a** | true 3-D scalar fields `T: ℝ³ → ℝ` (gradient, Hessian, **Laplacian**, level surfaces, slices) and constrained optimisation (**Lagrange multipliers**) |
+| **3b** | double and triple integrals, regions, polar / cylindrical / spherical coordinates, Jacobian, change of variables |
+| **3c** | vector fields: divergence, curl, Laplacian ∇², conservative fields and potentials, streamlines, particles |
+| **3d** | parametric curves and surfaces, line integrals, flux, Green / Stokes / Divergence theorems |
 
-Both are recognised automatically; no mode selector.
+Everything is recognised automatically; no mode selector. Linear algebra (Phase 2) is reused
+throughout: the Hessian and the Jacobian are Matrix objects, `det J` is the area/volume scale, and a
+field's Jacobian matrix at a point decomposes into stretch (symmetric part) and rotation (curl).
+
+The rest of this document first specifies **3a** in detail (Flagships A and B), then 3b–3d.
 
 ---
 
@@ -30,6 +37,7 @@ Expected:
 | type | `function ℝ³ → ℝ` | — |
 | domain | ℝ³ | exact |
 | gradient | ∇T = ⟨−11400x, −11400y, −11400z⟩ | exact |
+| Laplacian | ∇²T = −34200 (constant: heat sources are uniform) | exact |
 | radial symmetry | T depends only on r; ∇T ∥ position vector (x × ∇T = 0) | exact (symbolic check), else evidence |
 | level surfaces | T = c are spheres of radius √((6000 − c)/5700) | exact (from radial form) / evidence |
 | critical points | (0, 0, 0), local max, T = 6000 | exact (constant Hessian) |
@@ -138,13 +146,14 @@ Relations (for linked highlighting): `gradient ⟂ level surface`, `∇f ∥ ∇
 - Lagrange solver: build ∇f − λ∇g = 0, g = c; solve exactly for low-degree polynomial systems (factor
   out common terms as in the flagship), otherwise multi-start Newton in (x, y[, z], λ).
 
-## Milestones
+## Milestones (3a)
 
-1. **2a** — ScalarField3D recognition, tier-0 facts, equal-aspect 3-D map, 3-D points.
-2. **2b** — marching cubes, level surfaces, slice plane + 2-D slice view → Earth flagship passes.
-3. **2c** — `maximize/minimize … subject to …`, Lagrange candidates, optimization analyzer (2 variables).
-4. **2d** — Lagrange animation and explanations → Lagrange flagship passes.
-5. **2e** — three-variable constraints; README/roadmap updated.
+1. **3a.1** — ScalarField3D recognition, tier-0 facts (incl. the Laplacian ∇²T), 3-D points (the
+   Euclidean 3-D map ships with Phase 2c).
+2. **3a.2** — marching cubes, level surfaces, slice plane + 2-D slice view → Earth flagship passes.
+3. **3a.3** — `maximize/minimize … subject to …`, Lagrange candidates, optimization analyzer (2 variables).
+4. **3a.4** — Lagrange animation and explanations → Lagrange flagship passes.
+5. **3a.5** — three-variable constraints.
 
 ## Tests and acceptance
 
@@ -156,13 +165,80 @@ Relations (for linked highlighting): `gradient ⟂ level surface`, `∇f ∥ ∇
 - Browser: both flagships end to end — drag the slice plane and the 3-D point; play the Lagrange
   animation; no console errors.
 
-## Out of scope for Phase 2
+## Out of scope for 3a
 
-Inequality constraints / KKT conditions, more than two equality constraints, vector fields (Phase 6),
-triple integrals over regions (Phase 3).
+Inequality constraints / KKT conditions, more than two equality constraints.
 
 ## Risks
 
 - Marching-cubes cost on dense grids → worker + cached meshes, coarse grid while dragging.
 - Transparency sorting for nested level surfaces → render back-to-front by level, depthWrite off.
 - Symbolic Lagrange systems grow quickly → keep the numeric path as the default, exact only when cheap.
+
+---
+
+# 3b — Multiple integrals and coordinate systems
+
+- **Goal**: make ∬ f dA and ∭ f dV geometric; make dA = r dr dθ something you *see*.
+- **Objects**: Region (inequalities; type I / II descriptions; polar / cylindrical / spherical
+  descriptions), Integral (iterated, with bounds), CoordinateSystem, Jacobian (a Matrix-valued function —
+  Phase 2 analysis applies to it at any point).
+- **Language**: `R = x^2 + y^2 <= 1`, `integrate f over R`, `integrate f over R in polar`,
+  `coordinates polar | cylindrical | spherical`, `jacobian T`, `bounds R`, `area R`, `volume E`,
+  `change of variables u = …, v = …`, `swap order`.
+- **Analyzers**: `region` (region in the plane / in space, its descriptions), `integral` (surface over
+  the region + volume + iterated-bounds sweep).
+- **Canvas**: region shading; the surface above it; the volume; an infinitesimal column f dA; Riemann
+  boxes refining to the integral; the inner-then-outer sweep of an iterated integral.
+- **Explanation**: a dx dy cell deforms continuously into an r dr dθ sector — the area scale is
+  |det J| = r (the same timeline machinery as Phase 2's transformation view); cylindrical r dr dθ dz and
+  spherical ρ² sin φ dρ dφ dθ cells.
+- **Flagship**:
+  ```
+  R = x^2 + y^2 <= 1
+  f(x,y) = 4 - x^2 - y^2
+  I = integrate f over R          # 7π/2, exact via polar
+  coordinates polar               # animates dx dy → r dr dθ
+  J = jacobian (r cos θ, r sin θ) # Matrix-valued; det J = r
+  ```
+  plus a triple integral over a ball in spherical coordinates.
+- **Certainty**: exact when bounds and antiderivatives are symbolic; numeric (adaptive cubature with an
+  error estimate) otherwise; sampled region boundaries are evidence.
+
+# 3c — Vector fields, divergence, curl, Laplacian
+
+- **Objects**: VectorField (2-D / 3-D; a vector-valued function that is *not* linear — linear ones are
+  analysed as linear maps in Phase 2), Potential, FlowLine.
+- **Language**: `F(x,y) = <-y, x>`, `div F`, `curl F`, `laplacian f` (also `∇²f`, `Δf`),
+  `potential F`, `conservative F`, `streamlines F`, `animate particle in F from P`,
+  `jacobian F at P` (→ Matrix: symmetric part = stretch, antisymmetric part = rotation = curl / 2).
+- **Analyzer `vector-field`** — layout: arrows (plane) / 3-D arrows + streamlines; summary: div, curl,
+  conservative?; sections: potential (exact when curl = 0 on a simply connected domain and the
+  antiderivative is symbolic), critical points of the field (equilibria) classified by the eigenvalues of
+  the Jacobian (Phase 2), flow.
+- **Scalar fields gain the Laplacian** as a summary fact: ∇²f = div(∇f); harmonic functions are
+  recognised (∇²f = 0, exact).
+- **Canvas**: arrows, streamlines, moving particles; divergence as net outflow through a tiny box (the
+  box's flux → div as the box shrinks); curl as a spinning paddle wheel; Laplacian as "value at P minus the
+  average on a small circle".
+- **Flagship**: `F(x,y) = <-y, x>` → div 0, curl 2, not conservative, particles rotating; then
+  `G = gradient f` for `f = x^2 - y^2` → conservative, curl 0, potential f, ∇²f = 0 (harmonic).
+
+# 3d — Curves, surfaces, line and surface integrals, the big theorems
+
+- **Objects**: Curve (parametric, open / closed, orientation), Surface (parametric, oriented, normals),
+  LineIntegral, FluxIntegral.
+- **Language**: `C(t) = (cos t, sin t) for t from 0 to 2π`, `integrate F along C`, `work F along C`,
+  `circulation F around C`, `S(u,v) = …`, `flux F through S`, `green F on R`, `stokes`, `divergence theorem`.
+- **Canvas**: a particle travelling along C accumulating F·dr (running total); flux as flow through a
+  surface with its normals; Green's theorem as a region subdivided into cells whose interior boundaries
+  cancel, converging to the continuous theorem — the same idea for Stokes and Divergence.
+- **Flagship**: circulation of `F = <-y, x>` around the unit circle = 2π (exact) = ∬ curl F dA with the
+  Green cell animation.
+- **Certainty**: exact when the parametrisation and the integrand integrate symbolically; numeric
+  quadrature (with error estimate) otherwise.
+
+## Order of work
+
+3a → 3b → 3c → 3d. Each sub-phase ends with its flagship passing as an engine test and end to end in
+the browser.
