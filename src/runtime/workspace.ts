@@ -10,6 +10,8 @@ import { freeSymbols } from '../math-core/ast';
 import { EvalError } from '../math-core/builtins';
 import { SceneItem, toVisuals, colorFor } from '../visualization/scene-model';
 import { installCoreBuiltins } from '../math-core/core-builtins';
+import { analyzerFor } from './analysis';
+import type { AnalysisService } from './analysis';
 
 export type Topic = 'doc' | 'values' | 'selection' | 'hover' | 'view' | 'animation' | 'emphasis';
 
@@ -47,6 +49,9 @@ interface Playing {
 
 const TAU = 2 * Math.PI;
 
+/** Result kinds that are drawn automatically when named (Desmos-like). */
+const SHOWN_KINDS = new Set(['point', 'plane', 'pointset', 'visual', 'asymptotes', 'slice']);
+
 export class Workspace {
   doc: MathDocument;
   graph = new Graph<MathValue>();
@@ -58,7 +63,11 @@ export class Workspace {
   versions: Record<Topic, number> = { doc: 0, values: 0, selection: 0, hover: 0, view: 0, animation: 0, emphasis: 0 };
   emphasis: Emphasis | null = null;
   /** active concept mode (interpreted by the presentation layer) */
-  mode = 'gradient';
+  mode = 'all';
+  /** the object being analysed (Analysis panel + primary canvas view) */
+  focus: string | null = null;
+  analysis: AnalysisService | null = null;
+  private lastEditedCell: string | null = null;
 
   private listeners = new Map<Topic, Set<() => void>>();
   private rebuildTimer: ReturnType<typeof setTimeout> | null = null;
@@ -95,6 +104,7 @@ export class Workspace {
     const cell = this.doc.cell(cellId);
     if (!cell || cell.source === source) return;
     cell.source = source;
+    this.lastEditedCell = cellId;
     this.emit('doc');
     this.scheduleRebuild(immediate ? 0 : 150);
   }
@@ -123,6 +133,8 @@ export class Workspace {
 
   loadDocument(sources: string[]) {
     this.doc = new MathDocument(sources);
+    this.focus = null;
+    this.lastEditedCell = null;
     this.selection = null;
     this.visibility.clear();
     this.playing.clear();
@@ -144,6 +156,7 @@ export class Workspace {
     this.doc.analyze();
     this.graph.define(this.doc.nodeDefs());
     for (const [id, p] of this.playing) if (!this.graph.has(id) || !this.isScalarInput(id)) this.playing.delete(p.target);
+    this.updateFocus();
     this.emit('doc');
     this.emit('values');
   }
@@ -154,6 +167,48 @@ export class Workspace {
     this.flushRewrites();
   }
 
+  // ---------------------------------------------------------------- focus (object recognition)
+
+  isAnalyzable(name: string): boolean {
+    return !!analyzerFor(this.value(name), name, this);
+  }
+
+  setFocus(name: string | null) {
+    if (name && !this.isAnalyzable(name)) return;
+    if (this.focus === name) return;
+    this.focus = name;
+    this.emit('view');
+  }
+
+  /**
+   * Pick the object to analyse: what the user just edited (a definition or `analyze X`), else the
+   * current focus if still valid, else an explicit `analyze X`, else the last analysable definition.
+   */
+  private updateFocus() {
+    const named = this.doc.statements.filter((s) => s.name);
+    const request = (ids: string[]) => {
+      for (const id of ids) {
+        const v = this.value(id);
+        if (v?.kind === 'focus') {
+          const t = (v as unknown as { target: string }).target;
+          if (this.value(t)) return t;
+        }
+      }
+      return undefined;
+    };
+    let next: string | null = null;
+    if (this.lastEditedCell) {
+      const inCell = this.doc.statements.filter((s) => s.cellId === this.lastEditedCell);
+      next = request(inCell.map((s) => s.id)) ?? inCell.find((s) => s.name && this.value(s.id)?.kind === 'function' && this.isAnalyzable(s.name))?.name ?? null;
+      this.lastEditedCell = null;
+    }
+    if (!next && this.focus && this.isAnalyzable(this.focus)) next = this.focus;
+    if (!next) next = request(this.doc.statements.map((s) => s.id).reverse()) ?? null;
+    // prefer primary objects (functions) over derived results such as point sets
+    if (!next) next = [...named].reverse().find((s) => this.value(s.id)?.kind === 'function' && this.isAnalyzable(s.name!))?.name ?? null;
+    if (!next) next = [...named].reverse().find((s) => this.isAnalyzable(s.name!))?.name ?? null;
+    this.focus = next;
+  }
   // ---------------------------------------------------------------- values
 
   statements(): StatementInfo[] {
@@ -322,7 +377,11 @@ export class Workspace {
 
   // ---------------------------------------------------------------- scene
 
-  /** Visual items for all views, in document order. Cached per values/view version. */
+  /**
+   * Visual items for all views: the analysis of the focused object, explicit `show` statements, and
+   * results that carry geometry (points, bound vectors, planes, point sets, command results).
+   * `hide` statements remove matching items. Cached per values/view version.
+   */
   sceneItems(): SceneItem[] {
     const c = this.sceneCache;
     if (c && c.version === this.versions.values && c.view === this.versions.view) return c.items;
@@ -339,45 +398,63 @@ export class Workspace {
       keys.add(primary);
       return [...keys];
     };
+    const add = (id: string, nodeId: string, visual: VisualValue, keys: string[], primary: string, visible: boolean) => {
+      if (seen.has(id)) return;
+      seen.add(id);
+      items.push({ id, nodeId, visual, color: colorFor(visual, items.length), visible: this.visibility.get(id) ?? visible, keys, primary });
+    };
     const push = (nodeId: string, v: MathValue, defaultVisible: boolean, name?: string) => {
       const inputId = this.statement(nodeId)?.input ? nodeId : undefined;
       toVisuals(v, { nodeId, name, inputId }).forEach((visual, i) => {
-        const id = `${nodeId}#${i}`;
-        if (seen.has(id)) return;
-        seen.add(id);
-        const visible = this.visibility.get(id) ?? this.visibility.get(`${nodeId}#auto`) ?? defaultVisible;
         const primary = (visual.props.sourceId as string | undefined) ?? nodeId;
-        items.push({ id, nodeId, visual, color: colorFor(visual, items.length), visible, keys: keysFor(visual, [nodeId], primary), primary });
+        add(`${nodeId}#${i}`, nodeId, visual, keysFor(visual, [nodeId], primary), primary, this.visibility.get(`${nodeId}#auto`) ?? defaultVisible);
       });
     };
+    // 1. automatic analysis of the focused object
+    for (const a of this.analysis?.autoValues() ?? []) {
+      toVisuals(a.value, { nodeId: a.primary, name: a.primary }).forEach((visual, i) => add(`${a.id}#${i}`, a.primary, visual, keysFor(visual, a.keys, a.primary), a.primary, a.visible));
+    }
+    // 2. the worksheet
+    const hides: string[] = [];
     for (const info of this.doc.statements) {
       const v = this.value(info.id);
       if (!v) continue;
+      if (v.kind === 'hide') {
+        hides.push(...((v as unknown as { targets: string[] }).targets ?? []));
+        continue;
+      }
       if (v.kind === 'show') {
         const sv = v as ShowValue;
         sv.items.forEach((it, k) => {
           const src = sv.sources?.[k];
           if (src && this.value(src)) return push(src, it, !info.hidden, src);
-          // names referenced by the shown expression, in source order
           const expr = info.stmt.kind === 'show' ? info.stmt.items[k] : undefined;
           const refs = expr ? [...freeSymbols(expr)].filter(named) : [];
           toVisuals(it, { nodeId: info.id }).forEach((visual, i) => {
-            const id = `${info.id}#${k}.${i}`;
-            if (seen.has(id)) return;
-            seen.add(id);
-            const visible = this.visibility.get(id) ?? !info.hidden;
             const primary = (visual.props.sourceId as string | undefined) ?? refs[refs.length - 1] ?? info.id;
-            items.push({ id, nodeId: info.id, visual, color: colorFor(visual, items.length), visible, keys: keysFor(visual, refs, primary), primary });
+            add(`${info.id}#${k}.${i}`, info.id, visual, keysFor(visual, refs, primary), primary, !info.hidden);
           });
         });
-      } else if (info.name && v.kind === 'point') {
-        push(info.id, v, true, info.name);
-      } else if (info.name && this.visibility.get(`${info.id}#auto`)) {
-        push(info.id, v, true, info.name);
+        continue;
+      }
+      const geometric = SHOWN_KINDS.has(v.kind) || (v.kind === 'vector' && !!(v as { anchor?: number[] }).anchor) || !!v.visuals?.length;
+      if (info.name && (geometric || this.visibility.get(`${info.id}#auto`))) {
+        if (v.kind === 'function' && info.name === this.focus && !v.visuals?.length) continue; // drawn by the analysis
+        push(info.id, v, !info.hidden, info.name);
+      } else if (!info.name && info.stmt.kind === 'expr' && geometric) {
+        // a command such as `tangent f at P` shows its result
+        const refs = [...freeSymbols(info.stmt.value)].filter(named);
+        toVisuals(v, { nodeId: info.id }).forEach((visual, i) => {
+          const primary = (visual.props.sourceId as string | undefined) ?? refs[refs.length - 1] ?? info.id;
+          add(`${info.id}#${i}`, info.id, visual, keysFor(visual, refs, primary), primary, !info.hidden);
+        });
       }
     }
-    this.sceneCache = { version: this.versions.values, view: this.versions.view, items };
-    return items;
+    const hidden = (it: SceneItem) =>
+      hides.some((h) => h === it.visual.vtype || h === it.visual.role || h === it.nodeId || h === it.primary || it.keys.includes(h) || it.keys.includes(`fact:${h}`) || (h === 'graph' && it.visual.vtype === 'graph1d'));
+    const out = hides.length ? items.filter((it) => !hidden(it)) : items;
+    this.sceneCache = { version: this.versions.values, view: this.versions.view, items: out };
+    return out;
   }
   setVisible(key: string, visible: boolean) {
     this.visibility.set(key, visible);

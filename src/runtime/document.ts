@@ -48,6 +48,9 @@ const parseOpts = {
   },
 };
 
+/** Parser options of the document language (commands, prefix functions). */
+export const parserOptions = parseOpts;
+
 export function isPrefixFunction(n: string) {
   return parseOpts.isPrefixFunction(n);
 }
