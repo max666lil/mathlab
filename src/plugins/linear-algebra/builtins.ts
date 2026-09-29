@@ -84,12 +84,12 @@ export const rankOf = (m: Mx) => onField(m, (F, A) => alg.rref(F, A).pivots.leng
 
 export function nullspaceOf(m: Mx): SubspaceValue {
   const basis = onField(m, (F, A) => alg.nullspace(F, A).map((v) => (F.exact ? primitive(v as unknown as Q[]).map((q) => Number(q.n) / Number(q.d)) : v.map((x) => clean(F.num(x))))));
-  return subspace(m.rows[0].length, basis, 'null space', m.certainty, { role: 'nullspace' });
+  return subspace(m.rows[0].length, basis, 'null space', m.certainty, { role: 'nullspace', matrix: m.rows });
 }
 
 export function columnspaceOf(m: Mx): SubspaceValue {
   const pivots = onField(m, (F, A) => alg.rref(F, A).pivots);
-  return subspace(m.rows.length, pivots.map((j) => m.rows.map((r) => r[j])), 'column space', m.certainty, { role: 'colspace', pivots });
+  return subspace(m.rows.length, pivots.map((j) => m.rows.map((r) => r[j])), 'column space', m.certainty, { role: 'colspace', pivots, matrix: m.rows });
 }
 
 export function rowspaceOf(m: Mx): SubspaceValue {
@@ -112,7 +112,7 @@ export function eigenValueOf(m: Mx): EigenValue {
   square(m, 'eigen');
   const r = eigenOf(m.rows, m.certainty === 'exact' && !!m.q);
   const certainty = m.certainty === 'exact' ? r.certainty : weakest([m.certainty, 'numeric']);
-  return { kind: 'eigen', n: m.rows.length, pairs: r.pairs, charpoly: r.charpoly, certainty, evidence: r.evidence, key: JSON.stringify(['eig', m.rows]) };
+  return { kind: 'eigen', n: m.rows.length, pairs: r.pairs, charpoly: r.charpoly, certainty, evidence: r.evidence, key: JSON.stringify(['eig', m.rows]), matrix: m.rows };
 }
 
 function diagonalizability(e: EigenValue): { ok: boolean; reason: string } {
@@ -204,7 +204,7 @@ export const linearAlgebraBuiltins: Builtin[] = [
     const ok = m.q ? d !== 0 : Math.abs(d) > tolFor(m.rows);
     return bool(ok, ok ? `\\det = ${L(d, m.certainty)} \\neq 0` : `\\det = 0,\\ \\operatorname{rank} = ${rankOf(m)} < ${m.rows.length}`, m.certainty);
   }),
-  unary('eigen', 'Eigenvalues with their eigenspaces and multiplicities.', (m) => eigenValueOf(m)),
+  unary('eigen', 'Eigenvalues with their eigenspaces and multiplicities.', (m, raw) => ({ ...eigenValueOf(m), of: raw[0]?.type === 'sym' ? raw[0].name : undefined })),
   unary('eigenvalues', 'Eigenvalues (with multiplicity; complex ones as a ± bi).', (m) => eigenvaluesList(eigenValueOf(m))),
   unary('eigenvectors', 'A basis of each real eigenspace.', (m) => eigenvectorsList(eigenValueOf(m))),
   fn('eigenspace', 2, 2, 'eigenspace(A, λ)', 'The eigenspace null(A − λI).', ([a, l]) => {
@@ -251,9 +251,9 @@ export const linearAlgebraBuiltins: Builtin[] = [
     const D = lambdas.map((l, i) => lambdas.map((_, j) => (i === j ? l : 0)));
     return { kind: 'factorization', what: 'orthogonal diagonalization', factors: [['Q', Qm], ['D', D]], product: 'Q D Q^{T}', certainty: e.certainty, key: JSON.stringify(['odiag', m.rows]) } as FactorizationValue;
   }),
-  unary('nullspace', 'Null space {x : A x = 0} with a basis.', (m) => nullspaceOf(m)),
+  unary('nullspace', 'Null space {x : A x = 0} with a basis.', (m, raw) => ({ ...nullspaceOf(m), of: raw[0]?.type === 'sym' ? raw[0].name : undefined })),
   unary('kernel', 'Kernel = null space.', (m) => nullspaceOf(m)),
-  unary('columnspace', 'Column space: spanned by the pivot columns of A.', (m) => columnspaceOf(m)),
+  unary('columnspace', 'Column space: spanned by the pivot columns of A.', (m, raw) => ({ ...columnspaceOf(m), of: raw[0]?.type === 'sym' ? raw[0].name : undefined })),
   unary('rowspace', 'Row space: spanned by the non-zero rows of rref(A).', (m) => rowspaceOf(m)),
   fn('span', 1, 8, 'span(u, v, …)', 'The subspace spanned by vectors (basis = an independent subset).', (args) => {
     const { vs, certainty } = vectorsOf(args);

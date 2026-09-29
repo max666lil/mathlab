@@ -3,6 +3,7 @@ import 'katex/dist/katex.min.css';
 import './ui-react/styles.css';
 import { installMathLab } from './setup';
 import './plugins/core-calculus';
+import './plugins/linear-algebra';
 import { Workspace } from './runtime/workspace';
 import { AnalysisService } from './runtime/analysis';
 import { examples } from './examples';

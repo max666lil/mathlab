@@ -240,7 +240,7 @@ registerValueKind({
   latex: (v) => {
     const b = v as BoolValue;
     if (!b.reason) return b.value ? '\\text{true}' : '\\text{false}';
-    return `\\text{${b.value ? 'yes' : 'no'}}\\quad \\left(${b.reason}\\right)`;
+    return `\\begin{array}{l} \\text{${b.value ? 'yes' : 'no'}} \\\\ \\scriptstyle ${b.reason} \\end{array}`;
   },
   typeLabel: () => 'boolean',
 });

@@ -8,7 +8,7 @@ import { parseProgram, Statement, spanOf } from '../parser/parser';
 import { getBuiltin, EvalError } from '../math-core/builtins';
 import { getScalarFunction } from '../math-core/scalar-functions';
 import { symbolLatex, formatNumber, toText } from '../math-core/symbolic/print';
-import { MathValue, FunctionValue, PointValue, VectorValue, ScalarValue, ShowValue, point, vector } from '../math-core/values';
+import { MathValue, FunctionValue, PointValue, VectorValue, MatrixValue, ScalarValue, ShowValue, point, vector } from '../math-core/values';
 import { NodeDef } from './graph';
 import { Evaluator, Scope } from './evaluator';
 
@@ -18,7 +18,7 @@ export interface Cell {
 }
 
 export interface InputSpec {
-  kind: 'point' | 'slider';
+  kind: 'point' | 'slider' | 'vector' | 'matrix';
   nodeId: string;
   cellId: string;
   /** Span in the cell source replaced when the value changes */
@@ -162,6 +162,21 @@ export class MathDocument {
         format: (val) => wrap((val as PointValue).coords.map((c) => formatInputNumber(c, 2)).join(', ')),
       };
     }
+    const plainNumbers = (items: Expr[]) => items.every((e) => e.type === 'num');
+    // v = <1, 2> draggable: the tip can be dragged
+    if (st.modifiers.includes('draggable') && v.type === 'vec' && plainNumbers(v.items)) {
+      return {
+        kind: 'vector', nodeId: info.id, cellId: info.cellId, span: spanOf(v),
+        format: (val) => `<${(val as VectorValue).comps.map((c) => formatInputNumber(c, 2)).join(', ')}>`,
+      };
+    }
+    // A = [[2, 1], [1, 2]]: a numeric matrix literal can be reshaped on the canvas (drag î, ĵ)
+    if (v.type === 'matrix' && plainNumbers(v.rows.flat())) {
+      return {
+        kind: 'matrix', nodeId: info.id, cellId: info.cellId, span: spanOf(v),
+        format: (val) => `[${(val as MatrixValue).rows.map((r) => `[${r.map((c) => formatInputNumber(c, 2)).join(', ')}]`).join(', ')}]`,
+      };
+    }
     if (isCall(v, 'slider') && v.type === 'call' && v.args.length >= 2) {
       const [lo, hi, , step] = v.args;
       const shorthand = st.typeHint === 'slider' && cell.source.slice(spanOf(v).from, spanOf(v).from + 1) === '[';
@@ -241,7 +256,7 @@ export function evaluateStatement(info: StatementInfo, ev: Evaluator, firstByNam
       if (v.kind === 'function' && !(v as FunctionValue).label) v = { ...(v as FunctionValue), label: symbolLatex(st.name) };
       if (st.typeHint === 'vector' && v.kind === 'point') v = vector((v as PointValue).coords);
       if (st.typeHint === 'point' && v.kind === 'vector') v = point((v as VectorValue).comps);
-      if (st.modifiers.includes('draggable') && v.kind !== 'point') throw new EvalError('Only points can be draggable', st.span);
+      if (st.modifiers.includes('draggable') && v.kind !== 'point' && v.kind !== 'vector' && v.kind !== 'matrix') throw new EvalError('Only points, vectors and matrices can be draggable', st.span);
       return v;
     }
     case 'show':

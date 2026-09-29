@@ -336,3 +336,32 @@ select { max-width: 360px; }
 .drawer-tabs button.active { color: var(--text); background: var(--accent-soft); }
 .drawer-canvas { position: relative; flex: 1; min-height: 0; }
 .drawer-scroll { flex: 1; overflow: auto; padding: 10px 14px; }
+
+/* ---------------------------------------------------------------- transformation timeline */
+.canvas-body { position: relative; }
+.transports {
+  position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 6px; z-index: 5; pointer-events: none;
+}
+.transport {
+  pointer-events: auto;
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 12px; border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(6px);
+}
+.transport .play {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center; padding: 0;
+  background: var(--accent); color: #fff; border: none; font-size: 12px;
+}
+.transport input[type='range'] { width: 180px; accent-color: var(--accent); }
+.transport .stops { display: flex; gap: 2px; }
+.transport .stops button {
+  font-family: var(--font-math, 'KaTeX_Main', serif); font-style: italic;
+  padding: 2px 8px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: var(--dim);
+}
+.transport .stops button.on { color: var(--text); border-color: var(--border); background: var(--accent-soft); }
+.summary .why-link { margin: 2px 0 0; font-size: 12px; }

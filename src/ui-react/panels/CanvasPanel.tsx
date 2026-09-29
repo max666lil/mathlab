@@ -51,6 +51,46 @@ function SliceDrawer() {
   );
 }
 
+interface TimelineSpec {
+  key: string;
+  stops: string[];
+  signature: string;
+  duration?: number;
+}
+
+/** ▶ / ⏸, a scrubber and the stop labels (I → A, I → B → AB …) of an animation the layout offers. */
+function TransportBar({ tl }: { tl: TimelineSpec }) {
+  const pres = usePres();
+  const [, force] = useState(0);
+  useEffect(() => {
+    const off = pres.on(() => force((x) => x + 1));
+    return () => {
+      off();
+    };
+  }, [pres]);
+  const end = tl.stops.length - 1;
+  useEffect(() => pres.autoplay(tl.key, tl.signature, end), [pres, tl.key, tl.signature, end]);
+  const st = pres.timelineState(tl.key);
+  const t = st?.t ?? end;
+  const playing = !!st?.playing;
+  const toggle = () => (playing ? pres.pauseTimeline(tl.key) : pres.playTimeline(tl.key, { from: t >= end - 1e-6 ? 0 : t, to: end, duration: tl.duration }));
+  return (
+    <div className="transport">
+      <button className="play" onClick={toggle} title={playing ? 'Pause' : 'Play the transformation'}>
+        {playing ? '⏸' : '▶'}
+      </button>
+      <input type="range" min={0} max={end} step={0.001} value={t} onChange={(e) => pres.setTimeline(tl.key, +e.target.value)} />
+      <div className="stops">
+        {tl.stops.map((s, i) => (
+          <button key={i} className={Math.abs(t - i) < 1e-3 ? 'on' : ''} onClick={() => pres.playTimeline(tl.key, { from: t, to: i, duration: 0.9 })}>
+            {s}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function CanvasPanel() {
   const ws = useWs();
   const pres = usePres();
@@ -83,6 +123,14 @@ export function CanvasPanel() {
   const show3d = renderers.has('scene');
   const show2d = renderers.has('plane');
   const drawer = an.drawer;
+  // animations: the one the layout declares, plus any visible animated visual (transformation(A, B) …)
+  const timelines = new Map<string, TimelineSpec>();
+  if (layout.timeline) timelines.set(layout.timeline.key, layout.timeline);
+  for (const it of ws.sceneItems()) {
+    const p = it.visual.props as { timeline?: string; stops?: string[]; stages?: unknown };
+    if (it.visible && p.timeline && p.stops && !timelines.has(p.timeline)) timelines.set(p.timeline, { key: p.timeline, stops: p.stops, signature: JSON.stringify(p.stages) });
+  }
+  const bars = [...timelines.values()].slice(-2);
 
   const act = (fn: () => void) => () => {
     fn();
@@ -111,12 +159,13 @@ export function CanvasPanel() {
             <div className="menu" onMouseLeave={() => setMenu(false)}>
               <button onClick={act(() => plane?.resetView())}>Fit the 2D view</button>
               {show3d &&
+                layout.menu?.shots &&
                 SHOTS.map((s) => (
                   <button key={s.name} title={s.hint} onClick={act(() => scene?.shot(s.name as ShotName))}>
                     {s.label === '3D' ? 'Default 3D view' : s.label === 'Top' ? 'Top view' : s.label}
                   </button>
                 ))}
-              {show3d && (
+              {show3d && layout.menu?.flatten && (
                 <button
                   onClick={act(() => {
                     scene?.setFlatten(!scene.flattened);
@@ -133,6 +182,13 @@ export function CanvasPanel() {
       <div className={`panel-body canvas-body ${show3d && show2d ? 'split' : ''}`}>
         <div className="canvas-slot" style={{ display: show3d ? 'block' : 'none' }} ref={host3d} />
         <div className="canvas-slot" style={{ display: show2d ? 'block' : 'none' }} ref={host2d} />
+        {bars.length > 0 && (
+          <div className="transports">
+            {bars.map((tl) => (
+              <TransportBar key={tl.key} tl={tl} />
+            ))}
+          </div>
+        )}
       </div>
       {drawer && (
         <div className={`drawer drawer-${drawer.kind}`}>

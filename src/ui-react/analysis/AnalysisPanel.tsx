@@ -81,6 +81,11 @@ function Section({ plan, section, an }: { plan: AnalysisPlan; section: SectionSp
         {facts.map((f) => (
           <FactRow key={f.id} plan={plan} spec={f} an={an} />
         ))}
+        {section.why && (
+          <button className="why-toggle why-link" onClick={() => an.setDrawer({ kind: 'why', topic: section.why! })}>
+            Why? — explain
+          </button>
+        )}
       </div>
     );
   const open = an.sectionOpen(plan, section.id);

@@ -5,6 +5,7 @@ import { coreCalculusMath } from './plugins/core-calculus/math';
 import { coreAnalysisMath } from './plugins/core-calculus/analysis-builtins';
 import { linearAlgebraMath } from './plugins/linear-algebra/plugin';
 import './plugins/core-calculus/analyzers';
+import './plugins/linear-algebra/analyzers';
 
 export function installMathLab() {
   installCoreBuiltins();

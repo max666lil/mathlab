@@ -40,6 +40,10 @@ export interface Draw2DArgs {
   hits: Hit2D[];
   /** per-view cache for expensive layers */
   cache: Map<string, unknown>;
+  /** current value of a presentation timeline (animated morphs) */
+  timeline(key: string, fallback?: number): number;
+  /** keep a timeline at its end state while an object is being dragged */
+  holdTimeline(key: string, end: number): void;
 }
 
 export interface Drawer2D {

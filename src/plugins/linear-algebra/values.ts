@@ -23,6 +23,9 @@ export interface SubspaceValue extends LABase {
   basis: number[][];
   /** 'null space' | 'column space' | 'row space' | 'span' | 'eigenspace λ = 3' | … */
   what: string;
+  /** the matrix it belongs to (null space moves with its transformation) */
+  matrix?: number[][];
+  of?: string;
 }
 
 export interface AffineValue extends LABase {
@@ -46,6 +49,8 @@ export interface EigenValue extends LABase {
   n: number;
   pairs: EigenPair[];
   charpoly: number[];
+  matrix?: number[][];
+  of?: string;
 }
 
 export interface FactorizationValue extends LABase {
@@ -206,7 +211,8 @@ registerValueKind({
     const f = v as unknown as FactorizationValue;
     const ex = f.certainty === 'exact';
     const name = (n: string) => (n === 'Pinv' ? 'P^{-1}' : n === 'S' ? '\\Sigma' : n === 'Vt' ? 'V^{T}' : n);
-    return `A = ${f.product},\\quad ${f.factors.map(([n, m]) => `${name(n)} = ${matrixLatex(m, ex)}`).join(',\\ ')}`;
+    // one factor per line: the row title already says A = P D P⁻¹
+    return `\\begin{array}{l} ${f.factors.map(([n, m]) => `${name(n)} = ${matrixLatex(m, ex)}`).join(' \\\\[2pt] ')} \\end{array}`;
   },
   typeLabel: (v) => (v as unknown as FactorizationValue).what,
   member: (v, prop) => {

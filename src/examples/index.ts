@@ -81,6 +81,36 @@ export const examples: Example[] = [
     cells: ['f(x,y) = 3(1-x)^2 exp(-x^2 - (y+1)^2) - 10(x/5 - x^3 - y^5) exp(-x^2 - y^2) - exp(-(x+1)^2 - y^2)/3', 'P = point(0.3, 0.9) draggable'],
   },
   {
+    id: 'matrix',
+    title: 'Matrix as a transformation — eigenvectors',
+    course: 'Linear Algebra',
+    cells: ['A = [[2,1],[1,2]]', 'v = <1, 2> draggable', 'w = A v'],
+  },
+  {
+    id: 'shear',
+    title: 'Shear — not diagonalizable',
+    course: 'Linear Algebra',
+    cells: ['S = [[1,1],[0,1]]'],
+  },
+  {
+    id: 'rotation',
+    title: 'Rotation — complex eigenvalues',
+    course: 'Linear Algebra',
+    cells: ['θ = slider(0, 2π, 0.8)', 'R = [[cos θ, -sin θ],[sin θ, cos θ]]'],
+  },
+  {
+    id: 'singular3',
+    title: 'Singular 3×3 — space collapses onto a plane',
+    course: 'Linear Algebra',
+    cells: ['B = [[1,2,3],[4,5,6],[7,8,9]]'],
+  },
+  {
+    id: 'la-systems',
+    title: 'Linear systems, projections, least squares',
+    course: 'Linear Algebra',
+    cells: ['A = [[1,1],[1,-1]]', 'solve(A, <3, 1>)', 'W = span(<1,0,1>, <0,1,1>)', 'project <1, 2, 3> onto W', 'leastsquares([[1,0],[1,1],[1,2]], <6, 0, 0>)'],
+  },
+  {
     id: 'parameter',
     title: 'Parameters — watch the analysis update',
     course: 'Calculus I',

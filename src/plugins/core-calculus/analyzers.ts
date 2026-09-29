@@ -16,6 +16,7 @@ const SURFACE_LAYOUT: WorkspaceLayout = {
   ],
   combos: [{ id: 'split', label: 'Split', views: ['3d', 'contour'] }],
   defaultView: '3d',
+  menu: { shots: true, flatten: true },
 };
 import type { Workspace } from '../../runtime/workspace';
 import type { FunctionValue, MathValue, PointValue, VectorValue } from '../../math-core/values';

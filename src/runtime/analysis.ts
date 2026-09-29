@@ -68,6 +68,13 @@ export interface WorkspaceLayout {
   /** named combinations shown side by side, e.g. "Both" = 3D + contour */
   combos?: { id: string; label: string; views: string[] }[];
   defaultView: string;
+  /**
+   * An animation the canvas offers a transport bar for (▶, scrubber with stop labels). It auto-plays
+   * when `signature` changes, e.g. the I → A morph of a matrix whose entries were edited.
+   */
+  timeline?: { key: string; stops: string[]; signature: string; duration?: number };
+  /** entries of the ⋯ menu that make sense for this object */
+  menu?: { shots?: boolean; flatten?: boolean };
 }
 
 /** Layout when nothing is being analysed: a plain coordinate plane. */
@@ -91,6 +98,8 @@ export interface AnalysisPlan {
 
 export interface Analyzer {
   id: string;
+  /** editing a definition of this kind moves the focus to it (functions, matrices — not derived results) */
+  focusOnEdit?: boolean;
   recognizes(value: MathValue, name: string, ws: Workspace): boolean;
   plan(name: string, value: MathValue, ws: Workspace): AnalysisPlan;
 }
@@ -212,15 +221,16 @@ export class AnalysisService {
    * State of a fact. Tier-0 facts (and facts whose section is open) are computed on demand; the first
    * computation of a tier-1 fact is deferred so typing stays responsive.
    */
-  fact(plan: AnalysisPlan, spec: FactSpec): FactState {
+  /** `now`: an explanation needs the value immediately, even if its section is closed. */
+  fact(plan: AnalysisPlan, spec: FactSpec, now = false): FactState {
     const key = this.depsKey(spec.expr);
     const ck = `${plan.object}|${spec.expr}`;
     const hit = this.cache.get(ck);
-    const needed = spec.tier === 0 || this.sectionOpen(plan, spec.section);
+    const needed = now || spec.tier === 0 || this.sectionOpen(plan, spec.section);
     if (hit && hit.key === key && hit.state.status !== 'pending') return hit.state;
     if (!needed) return hit?.key === key ? hit.state : { spec, status: 'idle' };
     // tier 0, or a tier-1 fact that was computed before (its heavy parts are memoised): compute now
-    if (spec.tier === 0 || (hit && hit.state.status === 'ready')) return this.compute(ck, key, spec);
+    if (now || spec.tier === 0 || (hit && hit.state.status === 'ready')) return this.compute(ck, key, spec);
     this.queue.add(ck);
     if (!hit || hit.state.status !== 'pending') this.cache.set(ck, { key, state: { spec, status: 'pending' } });
     if (!this.timer) this.timer = setTimeout(() => this.flush(plan), 0);

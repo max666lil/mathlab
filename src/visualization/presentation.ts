@@ -73,6 +73,23 @@ interface Anim {
 }
 
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
+const smooth = (t: number) => t * t * (3 - 2 * t);
+
+/**
+ * A named animation parameter (e.g. the I → A morph of a linear transformation). Values run over
+ * [0, stops − 1]; playing across several stops eases each step separately (3Blue1Brown style).
+ */
+interface Timeline {
+  t: number;
+  from: number;
+  to: number;
+  start: number;
+  /** seconds per step */
+  duration: number;
+  playing: boolean;
+  signature?: string;
+  holdUntil: number;
+}
 
 export class Presentation {
   private items = new Map<string, Anim>();
@@ -85,6 +102,7 @@ export class Presentation {
   private lastMode = '';
   private active = new Set<string>();
   private unsubs: (() => void)[] = [];
+  private timelines = new Map<string, Timeline>();
 
   constructor(readonly ws: Workspace) {
     for (const t of ['values', 'view', 'selection', 'emphasis', 'doc'] as const) this.unsubs.push(ws.on(t, () => (this.dirty = true)));
@@ -189,6 +207,22 @@ export class Presentation {
         changed = true;
       }
     }
+    for (const tl of this.timelines.values()) {
+      if (!tl.playing) continue;
+      if (tl.start < 0) tl.start = now;
+      const steps = Math.max(1e-9, Math.abs(tl.to - tl.from));
+      const u = Math.min(1, (now - tl.start) / (tl.duration * 1000 * Math.max(1, steps)));
+      const dir = tl.to >= tl.from ? 1 : -1;
+      const pos = u * steps;
+      const k = Math.min(Math.floor(pos), Math.ceil(steps) - 1);
+      const local = steps < 1 ? smooth(u) * steps : k + smooth(Math.min(1, pos - k));
+      tl.t = tl.from + dir * Math.min(steps, local);
+      if (u >= 1) {
+        tl.t = tl.to;
+        tl.playing = false;
+      }
+      changed = true;
+    }
     if (changed) this.listeners.forEach((l) => l());
     return changed;
   }
@@ -197,6 +231,67 @@ export class Presentation {
     const a = this.items.get(itemId);
     if (!a) return { alpha: 0, grow: 0, highlight: false };
     return { alpha: a.alpha, grow: easeOut(a.grow), highlight: a.highlight };
+  }
+
+  // ---------------------------------------------------------------- timelines
+
+  /** Current value of a timeline (default: fully applied). */
+  timeline(key: string, fallback = 1): number {
+    return this.timelines.get(key)?.t ?? fallback;
+  }
+  timelineState(key: string): { t: number; playing: boolean } | undefined {
+    const tl = this.timelines.get(key);
+    return tl && { t: tl.t, playing: tl.playing };
+  }
+  private tl(key: string): Timeline {
+    let tl = this.timelines.get(key);
+    if (!tl) this.timelines.set(key, (tl = { t: 1, from: 0, to: 1, start: -1, duration: 1.4, playing: false, holdUntil: 0 }));
+    return tl;
+  }
+  /** Scrub: set the value directly (stops playback). */
+  setTimeline(key: string, t: number) {
+    const tl = this.tl(key);
+    tl.t = t;
+    tl.playing = false;
+    this.listeners.forEach((l) => l());
+  }
+  playTimeline(key: string, opts: { from?: number; to: number; duration?: number }) {
+    const tl = this.tl(key);
+    tl.from = opts.from ?? tl.t;
+    tl.to = opts.to;
+    tl.t = tl.from;
+    tl.duration = opts.duration ?? 1.4;
+    tl.start = -1;
+    tl.playing = true;
+    this.listeners.forEach((l) => l());
+  }
+  pauseTimeline(key: string) {
+    const tl = this.timelines.get(key);
+    if (tl?.playing) {
+      tl.playing = false;
+      this.listeners.forEach((l) => l());
+    }
+  }
+  /** Suppress auto-play for a moment (direct manipulation of the object being animated). */
+  holdTimeline(key: string, end: number) {
+    const tl = this.tl(key);
+    tl.holdUntil = performance.now() + 800;
+    tl.playing = false;
+    tl.t = end;
+  }
+  /**
+   * Play from the start when the animated object changes (new signature) — unless the change came
+   * from dragging it, in which case the view stays at the end state.
+   */
+  autoplay(key: string, signature: string, end: number) {
+    const tl = this.tl(key);
+    if (tl.signature === signature) return;
+    tl.signature = signature;
+    if (performance.now() < tl.holdUntil) {
+      tl.t = end;
+      return;
+    }
+    this.playTimeline(key, { from: 0, to: end });
   }
 
   annotation(name: string): number {

@@ -3,11 +3,15 @@ import { definePlugin } from '../plugin-api';
 import { getBuiltin, Builtin, EvalError } from '../../math-core/builtins';
 import { linearAlgebraBuiltins, expectMx, solveOf, vectorsOf } from './builtins';
 import './values';
+import { transformationBuiltin, eigenVisual, subspaceVisual } from './visual-builtins';
 
 export const linearAlgebraMath = definePlugin({
   name: 'linear-algebra',
   install(api) {
     linearAlgebraBuiltins.forEach((b) => api.registerBuiltin(b));
+    api.registerBuiltin(transformationBuiltin);
+    api.registerDefaultVisual('eigen', (v, ctx) => eigenVisual(v, ctx.name));
+    api.registerDefaultVisual('subspace', (v, ctx) => subspaceVisual(v, ctx.name));
     // solve(A, b): linear systems; every other form goes to the equation solver
     const eqSolve = getBuiltin('solve');
     if (eqSolve) {

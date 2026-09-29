@@ -126,7 +126,7 @@ export class PlaneView {
       ctx.globalAlpha = style.alpha;
       try {
         const selected = style.highlight || this.ws.selection === item.primary;
-        d!.draw({ ctx, view: this.view, item, frame: this.frame, theme, ws: this.ws, selected, style, handles, hits, cache: this.cache });
+        d!.draw({ ctx, view: this.view, item, frame: this.frame, theme, ws: this.ws, selected, style, handles, hits, cache: this.cache, timeline: (k, f) => this.pres.timeline(k, f), holdTimeline: (k, e) => this.pres.holdTimeline(k, e) });
       } catch (e) {
         console.warn(`2D drawer ${item.visual.vtype} failed`, e);
       }

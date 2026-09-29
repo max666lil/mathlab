@@ -5,7 +5,7 @@
  */
 import { Graph, NodeState, DependencyError } from './graph';
 import { MathDocument, StatementInfo, newCellId } from './document';
-import { MathValue, PointValue, ScalarValue, ShowValue, AnimationValue, VisualValue, point, scalar } from '../math-core/values';
+import { MathValue, PointValue, VectorValue, MatrixValue, ScalarValue, ShowValue, AnimationValue, VisualValue, point, scalar } from '../math-core/values';
 import { freeSymbols } from '../math-core/ast';
 import { EvalError } from '../math-core/builtins';
 import { SceneItem, toVisuals, colorFor } from '../visualization/scene-model';
@@ -50,7 +50,7 @@ interface Playing {
 const TAU = 2 * Math.PI;
 
 /** Result kinds that are drawn automatically when named (Desmos-like). */
-const SHOWN_KINDS = new Set(['point', 'plane', 'pointset', 'visual', 'asymptotes', 'slice']);
+const SHOWN_KINDS = new Set(['point', 'plane', 'pointset', 'visual', 'asymptotes', 'slice', 'subspace', 'affine']);
 
 export class Workspace {
   doc: MathDocument;
@@ -173,6 +173,14 @@ export class Workspace {
     return !!analyzerFor(this.value(name), name, this);
   }
 
+  /** Primary objects (functions, matrices) take the focus when defined; derived results do not. */
+  private claimsFocus(name: string): boolean {
+    const v = this.value(name);
+    if (!v) return false;
+    const a = analyzerFor(v, name, this);
+    return !!a && (v.kind === 'function' || !!a.focusOnEdit);
+  }
+
   setFocus(name: string | null) {
     if (name && !this.isAnalyzable(name)) return;
     if (this.focus === name) return;
@@ -199,13 +207,13 @@ export class Workspace {
     let next: string | null = null;
     if (this.lastEditedCell) {
       const inCell = this.doc.statements.filter((s) => s.cellId === this.lastEditedCell);
-      next = request(inCell.map((s) => s.id)) ?? inCell.find((s) => s.name && this.value(s.id)?.kind === 'function' && this.isAnalyzable(s.name))?.name ?? null;
+      next = request(inCell.map((s) => s.id)) ?? inCell.find((s) => s.name && this.claimsFocus(s.name))?.name ?? null;
       this.lastEditedCell = null;
     }
     if (!next && this.focus && this.isAnalyzable(this.focus)) next = this.focus;
     if (!next) next = request(this.doc.statements.map((s) => s.id).reverse()) ?? null;
     // prefer primary objects (functions) over derived results such as point sets
-    if (!next) next = [...named].reverse().find((s) => this.value(s.id)?.kind === 'function' && this.isAnalyzable(s.name!))?.name ?? null;
+    if (!next) next = [...named].reverse().find((s) => this.claimsFocus(s.name!))?.name ?? null;
     if (!next) next = [...named].reverse().find((s) => this.isAnalyzable(s.name!))?.name ?? null;
     this.focus = next;
   }
@@ -296,11 +304,11 @@ export class Workspace {
     for (const id of inputs) {
       const v = this.value(id);
       if (v?.kind === 'scalar') slots.push({ id, k: -1 });
-      else if (v?.kind === 'point') (v as PointValue).coords.forEach((_, k) => slots.push({ id, k }));
+      else if (v && componentsOf(v)) componentsOf(v)!.forEach((_, k) => slots.push({ id, k }));
     }
     const getX = () => slots.map(({ id, k }) => {
       const v = this.value(id)!;
-      return k < 0 ? (v as ScalarValue).value : (v as PointValue).coords[k];
+      return k < 0 ? (v as ScalarValue).value : componentsOf(v)![k];
     });
     const setX = (x: number[], notify: boolean) => {
       const byId = new Map<string, MathValue>();
@@ -315,9 +323,9 @@ export class Workspace {
           }
           byId.set(id, scalar(val, { slider: s }));
         } else {
-          const c = (v as PointValue).coords.slice();
-          c[k] = x[i];
-          byId.set(id, point(c));
+          const c = componentsOf(v)!.slice();
+          c[k] = notify && v.kind !== 'point' ? Math.round(x[i] * 100) / 100 : x[i];
+          byId.set(id, withComponents(v, c));
         }
       });
       for (const [id, v] of byId) this.graph.setInput(id, v, false);
@@ -570,4 +578,20 @@ function solveLinear(A: number[][], b: number[]): number[] | null {
     }
   }
   return M.map((r, i) => r[n] / r[i]);
+}
+
+/** Numeric components of a manipulable value (points, vectors, matrices row by row). */
+function componentsOf(v: MathValue): number[] | undefined {
+  if (v.kind === 'point') return (v as PointValue).coords;
+  if (v.kind === 'vector') return (v as VectorValue).comps;
+  if (v.kind === 'matrix') return (v as MatrixValue).rows.flat();
+  return undefined;
+}
+
+function withComponents(v: MathValue, c: number[]): MathValue {
+  if (v.kind === 'point') return point(c);
+  if (v.kind === 'vector') return { ...(v as VectorValue), comps: c };
+  const rows = (v as MatrixValue).rows;
+  const n = rows[0].length;
+  return { ...(v as MatrixValue), rows: rows.map((_, i) => c.slice(i * n, i * n + n)) };
 }

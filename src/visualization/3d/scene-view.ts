@@ -171,6 +171,7 @@ export class SceneView {
       ws: this.ws,
       clip: this.clip,
       lineMaterial: this.lineMaterial,
+      timeline: (k, f) => this.pres.timeline(k, f),
       surfaceZ: (x, y) => {
         if (!surf) return undefined;
         const z = surf(x, y);

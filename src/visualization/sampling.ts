@@ -219,6 +219,15 @@ export interface SceneFrame {
   grid?: Grid;
   zLo: number;
   zHi: number;
+  /** true geometry in ℝ³: one scale on all axes (linear maps, subspaces) instead of a graph box */
+  euclid?: boolean;
+}
+
+/** A visual that knows how much of the plane / space it needs (e.g. a transformed unit cell). */
+export type FrameHint = (props: Record<string, unknown>) => { r: number; dim: number } | undefined;
+const frameHints = new Map<string, FrameHint>();
+export function registerFrameHint(vtype: string, hint: FrameHint) {
+  frameHints.set(vtype, hint);
 }
 
 export function sceneFrame(surface: FunctionValue | undefined, xr: Range = DEFAULT_RANGE, yr: Range = DEFAULT_RANGE): SceneFrame {
@@ -260,6 +269,17 @@ export function frameFromItems(items: { visible: boolean; visual: { vtype: strin
     const own = items.find((i) => i.visual.vtype === 'surface' && (i.visual.props.fn as FunctionValue | undefined)?.key === fv.key)?.visual.props as { xRange?: Range; yRange?: Range } | undefined;
     return sceneFrame(fv, own?.xRange ?? DEFAULT_RANGE, own?.yRange ?? DEFAULT_RANGE);
   }
+  // visuals with their own extent (linear maps, subspaces): a symmetric Euclidean frame
+  let r = 0;
+  let dim = 0;
+  for (const i of items) {
+    const h = i.visible ? frameHints.get(i.visual.vtype)?.(i.visual.props) : undefined;
+    if (h) {
+      r = Math.max(r, h.r);
+      dim = Math.max(dim, h.dim);
+    }
+  }
+  if (r > 0) return { xr: [-r, r], yr: [-r, r], zLo: dim === 3 ? -r : -1, zHi: dim === 3 ? r : 1, euclid: dim === 3 };
   const primary = items.find((i) => i.visible && i.visual.vtype === 'surface') ?? items.find((i) => i.visible && i.visual.vtype === 'contours');
   const p = primary?.visual.props as { fn?: FunctionValue; xRange?: Range; yRange?: Range } | undefined;
   return sceneFrame(p?.fn, p?.xRange ?? DEFAULT_RANGE, p?.yRange ?? DEFAULT_RANGE);

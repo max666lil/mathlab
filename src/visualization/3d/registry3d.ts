@@ -79,6 +79,8 @@ export interface Ctx3D {
   lineMaterial(color: string, width: number, opts?: { dashed?: boolean; opacity?: number; depthTest?: boolean }): LineMaterial;
   /** height of the primary surface (math units), if any */
   surfaceZ(x: number, y: number): number | undefined;
+  /** current value of a presentation timeline (animated morphs) */
+  timeline(key: string, fallback?: number): number;
 }
 
 export interface Handle3D {
