@@ -64,7 +64,35 @@ describe('analysis engine', () => {
     expect(b.ws.sceneItems().map((i) => i.visual.vtype)).toContain('surface');
   });
 
+  it('the analyzer decides the workspace layout (no 3D for f(x))', () => {
+    const one = setup('f(x) = sin(x) + x/3', 'a = slider(-5, 5, -2.744)').an.plan()!;
+    expect(one.layout.canvasTitle).toBe('Graph');
+    expect(one.layout.views.map((v) => v.renderer)).toEqual(['plane']);
+    expect(one.sections.find((s) => s.id === 'at')!.why).toBe('tangent-1d');
+    const two = setup('f(x,y) = x^2 - y^2').an.plan()!;
+    expect(two.layout.views.map((v) => v.renderer)).toEqual(['scene', 'plane']);
+    expect(two.layout.combos!.map((c) => c.id)).toEqual(['both']);
+    // editing f(x,y) into f(x) switches the workspace
+    const { ws, an } = setup('f(x,y) = x^2 - y^2');
+    ws.setCellSource(ws.cells[0].id, 'f(x) = x^2', true);
+    ws.flush();
+    expect(an.plan()!.layout.canvasTitle).toBe('Graph');
+    expect(an.plan()!.typeLabel).toBe('function ℝ → ℝ');
+  });
+
+  it('1-D facts at a are live objects', () => {
+    const { ws, an } = setup('f(x) = sin(x) + x/3', 'a = slider(-5, 5, -2.744)');
+    const plan = an.plan()!;
+    an.flushNow();
+    const slope = an.fact(plan, plan.facts.find((x) => x.id === 'slope-at')!).value as any;
+    expect(slope.value).toBeCloseTo(Math.cos(-2.744) + 1 / 3, 10);
+    ws.setSlider('a', 0);
+    an.flushNow();
+    expect((an.fact(an.plan()!, plan.facts.find((x) => x.id === 'slope-at')!).value as any).value).toBeCloseTo(4 / 3, 10);
+  });
+
   it('focus follows the last edited definition', () => {
+
     const { ws, an } = setup('f(x) = x^2', 'g(x,y) = x*y');
     expect(ws.focus).toBe('g');
     ws.setCellSource(ws.cells[0].id, 'f(x) = x^3', true);

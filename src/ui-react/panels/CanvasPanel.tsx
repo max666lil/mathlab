@@ -1,16 +1,15 @@
 /**
- * The canvas: one primary visualization chosen from the focused object — a graph for f(x), a surface
- * (3D), contour map or both for f(x, y). Renderers are framework-free; this is a thin shell.
+ * The canvas: shows the views the analyzer of the focused object asks for (its WorkspaceLayout) —
+ * nothing here depends on what kind of object it is. Renderers are framework-free; this is a thin shell.
  */
 import { useEffect, useRef, useState } from 'react';
-import { useWs, usePres, useTopics } from '../hooks';
+import { useWs, usePres, useTopics, useAnalysis } from '../hooks';
+import { DEFAULT_LAYOUT } from '../../runtime/analysis';
 import { SceneView } from '../../visualization/3d/scene-view';
 import { SHOTS, ShotName } from '../../visualization/3d/camera';
 import { PlaneView } from '../../visualization/2d/plane-view';
 import { SliceView, sliceTitle } from '../../visualization/2d/slice-view';
-import type { FunctionValue, SliceValue } from '../../math-core/values';
-
-type View = '3d' | 'contour' | 'split';
+import type { SliceValue } from '../../math-core/values';
 
 function devViews(): Record<string, unknown> {
   const w = window as unknown as { __views?: Record<string, unknown> };
@@ -58,7 +57,8 @@ export function CanvasPanel() {
   const host2d = useRef<HTMLDivElement>(null);
   const [scene, setScene] = useState<SceneView | null>(null);
   const [plane, setPlane] = useState<PlaneView | null>(null);
-  const [view, setView] = useState<View>('3d');
+  const an = useAnalysis();
+  const [choice, setChoice] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
   const [insetClosed, setInsetClosed] = useState(false);
   useEffect(() => {
@@ -73,23 +73,26 @@ export function CanvasPanel() {
     };
   }, [ws, pres]);
 
-  const focus = ws.focus ? (ws.value(ws.focus) as FunctionValue | undefined) : undefined;
-  const dims = focus?.kind === 'function' ? focus.params.length : 0;
-  const surfaceObject = dims === 2;
-  const show3d = surfaceObject && view !== 'contour';
-  const show2d = !surfaceObject || view !== '3d';
+  const layout = an.plan()?.layout ?? DEFAULT_LAYOUT;
+  const options = [...layout.views.map((v) => ({ id: v.id, label: v.label, views: [v.id] })), ...(layout.combos ?? [])];
+  const layoutKey = options.map((o) => o.id).join('|');
+  useEffect(() => setChoice(null), [layoutKey]);
+  const active = options.find((o) => o.id === choice) ?? options.find((o) => o.id === layout.defaultView) ?? options[0];
+  const renderers = new Set(active.views.map((id) => layout.views.find((v) => v.id === id)?.renderer));
+  const show3d = renderers.has('scene');
+  const show2d = renderers.has('plane');
   const hasSlices = ws.sceneItems().some((i) => i.visual.vtype === 'slice' && i.visible);
   useEffect(() => setInsetClosed(false), [hasSlices]);
 
   return (
     <div className="panel canvas-panel">
       <div className="panel-header">
-        <span className="panel-title">{dims === 1 ? 'Graph' : dims === 2 ? 'Surface & contours' : 'Canvas'}</span>
-        {surfaceObject && (
+        <span className="panel-title">{layout.canvasTitle}</span>
+        {options.length > 1 && (
           <div className="seg">
-            {(['3d', 'contour', 'split'] as View[]).map((v) => (
-              <button key={v} className={view === v ? 'active' : ''} onClick={() => setView(v)}>
-                {v === '3d' ? '3D' : v === 'contour' ? 'Contour' : 'Both'}
+            {options.map((o) => (
+              <button key={o.id} className={active.id === o.id ? 'active' : ''} onClick={() => setChoice(o.id)}>
+                {o.label}
               </button>
             ))}
           </div>

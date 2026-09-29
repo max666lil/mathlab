@@ -2,7 +2,7 @@
  * Concept explanations for the gradient lab. Each formula term is a live handle on the scene
  * (see LiveFormula); numbers update while you drag. Symbols use the same colours as the views.
  */
-import { useWs, usePres, useTopics, useEmphasis } from '../hooks';
+import { useWs, usePres, useTopics, useEmphasis, useAnalysis } from '../hooks';
 import { LiveFormula, part } from './LiveFormula';
 import { Tex } from '../Tex';
 import { localAnalysis, LocalAnalysis, DirectionInfo } from '../../plugins/core-calculus/analysis';
@@ -157,9 +157,53 @@ function LocalExplain({ a }: { a: LocalAnalysis }) {
   );
 }
 
+/**
+ * f: ℝ → ℝ — the derivative as the slope of the tangent line. Numbers come from the analyzer's facts
+ * (f(a), f′(a), a), so the explanation always describes the object that is being analysed.
+ */
+function TangentExplain1D() {
+  const an = useAnalysis();
+  const plan = an.plan();
+  if (!plan) return null;
+  const fact = (id: string) => {
+    const spec = plan.facts.find((x) => x.id === id);
+    const v = spec ? an.fact(plan, spec).value : undefined;
+    return v?.kind === 'scalar' ? (v as { value: number }).value : undefined;
+  };
+  const a = fact('a');
+  const fa = fact('value-at');
+  const m = fact('slope-at');
+  if (a === undefined || fa === undefined || m === undefined) return <div className="empty">Add a point a to see the explanation.</div>;
+  const f = symbolLatex(plan.object);
+  const tangent = ['role:tangent'];
+  const trend = Math.abs(m) < 1e-9 ? 'horizontal: a critical point candidate' : m > 0 ? `rising: ${plan.object} is increasing at a` : `falling: ${plan.object} is decreasing at a`;
+  return (
+    <div className="explain">
+      <div className="explain-title">The derivative is the slope of the tangent line</div>
+      <LiveFormula
+        tex={`L(x) = ${part(0, `${f}(a)`)} + ${part(1, col('tangent', `${f}'(a)`))}\\,(x - a)`}
+        parts={[{ keys: ['role:point'] }, { keys: tangent, isolate: true }]}
+      />
+      <LiveFormula
+        tex={`= ${part(0, N(fa))} ${m < 0 ? '-' : '+'} ${part(1, N(Math.abs(m)))}\\,(x ${a < 0 ? '+' : '-'} ${N(Math.abs(a))})`}
+        parts={[{ keys: ['role:point'] }, { keys: tangent, isolate: true }]}
+      />
+      <p>
+        <Tex tex={`${f}'(a) = \\lim_{h\\to 0} \\frac{${f}(a+h) - ${f}(a)}{h}`} /> is the limit of secant slopes. The tangent line is the best
+        linear approximation of <Tex tex={f} /> near <Tex tex="a" />.
+      </p>
+      <p>
+        Here <Tex tex={`${f}'(${N(a)}) = ${N(m)}`} />, so the tangent is {trend}. Drag the slider for <Tex tex="a" /> (or play it) and watch the
+        slope change sign at the critical points.
+      </p>
+    </div>
+  );
+}
+
 /** Explanations by topic (shown from an analysis card's "Why?"). */
 export function Explanation({ topic }: { topic: string }) {
   const ws = useWs();
+  if (topic === 'tangent-1d') return <TangentExplain1D />;
   useTopics('values', 'view', 'selection', 'animation');
   const a = localAnalysis(ws);
   if (!a) return <div className="empty">Add a point to see the explanation.</div>;

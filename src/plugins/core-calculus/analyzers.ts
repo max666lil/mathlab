@@ -2,7 +2,21 @@
  * Analyzers of the calculus plugin: recognise functions of one and two variables (and point sets)
  * and plan their analysis as facts — ordinary MLL expressions over the analysis builtins.
  */
-import { registerAnalyzer, AnalysisPlan, FactSpec, SectionSpec } from '../../runtime/analysis';
+import { registerAnalyzer, AnalysisPlan, FactSpec, SectionSpec, WorkspaceLayout } from '../../runtime/analysis';
+
+/** f: ℝ → ℝ — one large graph. */
+const GRAPH_LAYOUT: WorkspaceLayout = { canvasTitle: 'Graph', views: [{ id: 'graph', label: 'Graph', renderer: 'plane' }], defaultView: 'graph' };
+
+/** f: ℝ² → ℝ — the surface, its contour map, or both side by side. */
+const SURFACE_LAYOUT: WorkspaceLayout = {
+  canvasTitle: 'Surface & contours',
+  views: [
+    { id: '3d', label: '3D', renderer: 'scene' },
+    { id: 'contour', label: 'Contour', renderer: 'plane' },
+  ],
+  combos: [{ id: 'both', label: 'Both', views: ['3d', 'contour'] }],
+  defaultView: '3d',
+};
 import type { Workspace } from '../../runtime/workspace';
 import type { FunctionValue, MathValue, PointValue, VectorValue } from '../../math-core/values';
 import { valueLatex } from '../../math-core/values';
@@ -55,7 +69,7 @@ registerAnalyzer({
       { id: 'taylor', title: 'Taylor polynomial' },
       { id: 'integral', title: 'Antiderivative' },
       a
-        ? { id: 'at', title: `At ${x} = ${a}`, defaultOpen: true }
+        ? { id: 'at', title: `At ${x} = ${a}`, defaultOpen: true, why: 'tangent-1d' }
         : { id: 'at', title: 'At a point', actions: [{ label: `＋ Add a point ${freshName(ws, 'a')}`, rows: [`${freshName(ws, 'a')} = slider(-5, 5, 1)`] }] },
     ];
     const facts: FactSpec[] = [
@@ -77,12 +91,13 @@ registerAnalyzer({
     ];
     if (a)
       facts.push(
+        { id: 'a', title: a, expr: a, tier: 1, section: 'at', hidden: true },
         { id: 'value-at', title: `${f}(${a})`, expr: `${f}(${a})`, tier: 1, section: 'at' },
         { id: 'slope-at', title: `${f}′(${a})`, expr: `${f}'(${a})`, tier: 1, section: 'at' },
         { id: 'tangent-at', title: 'Tangent line', expr: `tangent ${f} at ${a}`, tier: 1, section: 'at', pinName: 'L', visual: 'auto' },
       );
     return {
-      object: f, typeLabel: 'function ℝ → ℝ', title: valueLatex(fv), sections, facts,
+      object: f, typeLabel: 'function ℝ → ℝ', layout: GRAPH_LAYOUT, title: valueLatex(fv), sections, facts,
       relations: [{ kind: 'derivative-of', between: [`fact:derivative`, f], text: `${f}′ is the slope of ${f}` }], diagnostics: [],
     };
   },
@@ -141,7 +156,7 @@ registerAnalyzer({
       sections.push({ id: 'at', title: 'At a point', actions: [{ label: `＋ Add a point ${pName}`, rows: [`${pName} = point(1, 1) draggable`] }] });
     }
     return {
-      object: f, typeLabel: 'function ℝ² → ℝ', title: valueLatex(fv), sections, facts,
+      object: f, typeLabel: 'function ℝ² → ℝ', layout: SURFACE_LAYOUT, title: valueLatex(fv), sections, facts,
       relations: [
         { kind: 'perpendicular', between: ['role:gradient', 'role:level'], text: '∇f is perpendicular to the level curve' },
         { kind: 'tangent', between: ['role:tangent', f], text: 'the tangent plane is the best linear approximation at P' },
@@ -159,7 +174,7 @@ registerAnalyzer({
   plan(name, value): AnalysisPlan {
     const n = (value as unknown as { points: unknown[] }).points.length;
     return {
-      object: name, typeLabel: `set of ${n} point${n === 1 ? '' : 's'}`, title: `${symbolLatex(name)} = ${valueLatex(value)}`,
+      object: name, typeLabel: `set of ${n} point${n === 1 ? '' : 's'}`, layout: { canvasTitle: 'Points', views: [{ id: 'plane', label: 'Plane', renderer: 'plane' }], defaultView: 'plane' }, title: `${symbolLatex(name)} = ${valueLatex(value)}`,
       sections: [{ id: 'points', title: 'Points', defaultOpen: true }],
       facts: [
         { id: 'set', title: name, expr: name, tier: 0, section: 'points', visual: 'always' },

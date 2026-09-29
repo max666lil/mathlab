@@ -37,6 +37,12 @@ export const examples: Example[] = [
     cells: ['f(x) = x^3 - 3x'],
   },
   {
+    id: 'tangent',
+    title: 'Derivative & tangent line at a point',
+    course: 'Calculus I',
+    cells: ['f(x) = sin(x) + x/3', 'a = slider(-5, 5, -2.744)', "f'(a)"],
+  },
+  {
     id: 'rational',
     title: 'Rational function — asymptotes',
     course: 'Calculus I',

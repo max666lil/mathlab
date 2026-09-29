@@ -45,9 +45,36 @@ export interface Relation {
   text: string;
 }
 
+/** A canvas view the workspace can show, and which renderer draws it. */
+export interface CanvasView {
+  id: string;
+  label: string;
+  renderer: 'plane' | 'scene';
+}
+
+/**
+ * The workspace layout an analyzer asks for. The UI never decides this from the object itself:
+ * f(x) → one 2D graph, f(x, y) → 3D / contour / both, later F(x, y) → field view, X ~ … → probability views.
+ */
+export interface WorkspaceLayout {
+  canvasTitle: string;
+  views: CanvasView[];
+  /** named combinations shown side by side, e.g. "Both" = 3D + contour */
+  combos?: { id: string; label: string; views: string[] }[];
+  defaultView: string;
+}
+
+/** Layout when nothing is being analysed: a plain coordinate plane. */
+export const DEFAULT_LAYOUT: WorkspaceLayout = {
+  canvasTitle: 'Canvas',
+  views: [{ id: 'plane', label: 'Plane', renderer: 'plane' }],
+  defaultView: 'plane',
+};
+
 export interface AnalysisPlan {
   object: string;
   typeLabel: string;
+  layout: WorkspaceLayout;
   /** LaTeX headline */
   title: string;
   sections: SectionSpec[];
