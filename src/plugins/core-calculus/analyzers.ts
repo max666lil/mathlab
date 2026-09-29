@@ -14,7 +14,7 @@ const SURFACE_LAYOUT: WorkspaceLayout = {
     { id: '3d', label: '3D', renderer: 'scene' },
     { id: 'contour', label: 'Contour', renderer: 'plane' },
   ],
-  combos: [{ id: 'both', label: 'Both', views: ['3d', 'contour'] }],
+  combos: [{ id: 'split', label: 'Split', views: ['3d', 'contour'] }],
   defaultView: '3d',
 };
 import type { Workspace } from '../../runtime/workspace';
@@ -61,7 +61,7 @@ registerAnalyzer({
     const x = fv.params[0];
     const a = firstSlider(ws);
     const sections: SectionSpec[] = [
-      { id: 'overview', title: 'Formula, domain & derivative', defaultOpen: true },
+      { id: 'overview', title: 'Summary', summary: true },
       { id: 'zeros', title: 'Zeros & intercepts' },
       { id: 'critical', title: 'Critical points & extrema' },
       { id: 'shape', title: 'Monotonicity & concavity' },
@@ -69,7 +69,7 @@ registerAnalyzer({
       { id: 'taylor', title: 'Taylor polynomial' },
       { id: 'integral', title: 'Antiderivative' },
       a
-        ? { id: 'at', title: `At ${x} = ${a}`, defaultOpen: true, why: 'tangent-1d' }
+        ? { id: 'at', title: `At ${x} = ${a}`, why: 'tangent-1d' }
         : { id: 'at', title: 'At a point', actions: [{ label: `＋ Add a point ${freshName(ws, 'a')}`, rows: [`${freshName(ws, 'a')} = slider(-5, 5, 1)`] }] },
     ];
     const facts: FactSpec[] = [
@@ -113,45 +113,43 @@ registerAnalyzer({
     const P = firstPoint(ws, 2);
     const u = firstDirection(ws);
     const pName = freshName(ws, 'P');
+    const theta = freshName(ws, 'θ');
     const sections: SectionSpec[] = [
-      { id: 'overview', title: 'Domain, gradient & Hessian', defaultOpen: true },
+      { id: 'overview', title: 'Summary', summary: true },
       { id: 'critical', title: 'Critical points' },
     ];
+    // canvas by default: the surface (and its contours) and the points — everything else is on demand
     const facts: FactSpec[] = [
       { id: 'surface', title: 'Surface', expr: `surface(${f})`, tier: 0, section: 'overview', visual: 'always', hidden: true },
       { id: 'contours', title: 'Contours', expr: `contours(${f})`, tier: 0, section: 'overview', visual: 'always', hidden: true },
       { id: 'domain', title: 'Domain', expr: `domain(${f})`, tier: 0, section: 'overview', pinName: 'Dom' },
-      { id: 'gradient', title: `∇${f}`, expr: `gradient ${f}`, tier: 0, section: 'overview', pinName: 'g' },
-      { id: 'hessian', title: `H${f}`, expr: `hessian ${f}`, tier: 0, section: 'overview', pinName: 'H' },
+      { id: 'gradient', title: 'Gradient', expr: `gradient ${f}`, tier: 0, section: 'overview', pinName: 'g', visual: 'toggle' },
+      { id: 'hessian', title: 'Hessian', expr: `hessian ${f}`, tier: 0, section: 'overview', pinName: 'H' },
       { id: 'critical', title: 'Critical points', expr: `critical ${f}`, tier: 1, section: 'critical', pinName: 'C', visual: 'auto' },
     ];
     if (P) {
-      const Pl = symbolLatex(P);
       sections.push(
-        {
-          id: 'at', title: `At ${P}`, defaultOpen: true, why: 'gradient',
-          actions: u ? [] : [{ label: '＋ Add a direction u', rows: [`${freshName(ws, 'θ')} = slider(0, 2π, 0.6)`, `${freshName(ws, 'u')} = <cos ${freshName(ws, 'θ')}, sin ${freshName(ws, 'θ')}>`] }],
-        },
-        { id: 'slices', title: `Cross-sections through ${P}` },
-        { id: 'curvature', title: `Curvature at ${P}` },
+        { id: 'at', title: `At ${P}`, why: 'gradient', actions: u ? [] : [{ label: '＋ Add a direction u', rows: [`${theta} = slider(0, 2π, 0.6)`, `${freshName(ws, 'u')} = <cos ${theta}, sin ${theta}>`] }] },
+        { id: 'slices', title: `Cross-sections through ${P}`, drawer: 'slices' },
+        { id: 'curvature', title: `Curvature at ${P}`, why: 'local' },
         { id: 'path', title: `Steepest path from ${P}` },
       );
       facts.push(
         { id: 'value', title: `${f}(${P})`, expr: `${f}(${P})`, tier: 1, section: 'at' },
         { id: 'gradP', title: `∇${f}(${P})`, expr: `grad ${f} at ${P}`, tier: 1, section: 'at', pinName: 'gP', visual: 'auto' },
         { id: 'slope', title: `‖∇${f}(${P})‖`, expr: `norm(grad ${f} at ${P})`, tier: 1, section: 'at' },
+        ...(u ? [{ id: 'directional', title: `D_${u}${f}(${P})`, expr: `directional ${f} at ${P} toward ${u}`, tier: 1 as const, section: 'at', pinName: 'D', visual: 'auto' as const, visualTypes: ['arrow'] }] : []),
         { id: 'level', title: 'Level curve', expr: `level ${f} at ${P}`, tier: 1, section: 'at', visual: 'auto' },
-        { id: 'tangent', title: 'Tangent plane', expr: `tangent ${f} at ${P}`, tier: 1, section: 'at', pinName: 'T', visual: 'toggle' },
-        ...(u ? [{ id: 'directional', title: `D_${u}${f}(${P})`, expr: `directional ${f} at ${P} toward ${u}`, tier: 1 as const, section: 'at', pinName: 'D', visual: 'auto' as const }] : []),
+        { id: 'tangent', title: 'Tangent plane', expr: `tangent ${f} at ${P}`, tier: 1, section: 'at', pinName: 'T', visual: 'auto' },
         { id: 'sliceX', title: `${f}(${P}.x, y)`, expr: `slice(${f}, x = ${P}.x)`, tier: 1, section: 'slices', visual: 'auto' },
         { id: 'sliceY', title: `${f}(x, ${P}.y)`, expr: `slice(${f}, y = ${P}.y)`, tier: 1, section: 'slices', visual: 'auto' },
-        { id: 'hessianP', title: `H${f}(${P})`, expr: `hessian ${f} at ${P}`, tier: 1, section: 'curvature', pinName: 'HP' },
+        ...(u ? [{ id: 'sliceU', title: `along ${u}`, expr: `slice(${f}, ${P}, ${u})`, tier: 1 as const, section: 'slices', visual: 'auto' as const }] : []),
+        { id: 'hessianP', title: `H(${P})`, expr: `hessian ${f} at ${P}`, tier: 1, section: 'curvature', pinName: 'HP' },
         { id: 'eigen', title: 'Principal curvatures', expr: `eigenvalues(hessian ${f} at ${P})`, tier: 1, section: 'curvature' },
         { id: 'axes', title: 'Principal directions', expr: `hessian_axes(${f}, ${P})`, tier: 1, section: 'curvature', visual: 'auto' },
-        { id: 'quadratic', title: 'Quadratic approximation', expr: `quadratic(${f}, ${P})`, tier: 1, section: 'curvature', visual: 'toggle' },
+        { id: 'quadratic', title: 'Quadratic approximation', expr: `quadratic(${f}, ${P})`, tier: 1, section: 'curvature', visual: 'auto' },
         { id: 'path', title: 'Steepest ascent / descent', expr: `gradient_path(${f}, ${P})`, tier: 1, section: 'path', visual: 'auto' },
       );
-      void Pl;
     } else {
       sections.push({ id: 'at', title: 'At a point', actions: [{ label: `＋ Add a point ${pName}`, rows: [`${pName} = point(1, 1) draggable`] }] });
     }
@@ -165,7 +163,6 @@ registerAnalyzer({
     };
   },
 });
-
 // ------------------------------------------------------------------ point sets (analyze C)
 
 registerAnalyzer({

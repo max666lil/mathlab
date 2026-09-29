@@ -27,6 +27,8 @@ export interface FactSpec {
   visual?: 'always' | 'auto' | 'toggle';
   /** drawn but not listed as a row (e.g. the surface itself) */
   hidden?: boolean;
+  /** only these visual types of the value are drawn (e.g. the arrow of a directional derivative, not its slice) */
+  visualTypes?: string[];
 }
 
 export interface SectionSpec {
@@ -35,6 +37,10 @@ export interface SectionSpec {
   defaultOpen?: boolean;
   /** key of an explanation the UI can show ("Why?") */
   why?: string;
+  /** always-visible compact summary (no header, not collapsible) */
+  summary?: boolean;
+  /** opening the section also opens this contextual drawer below the canvas */
+  drawer?: 'slices';
   /** rows to insert into the worksheet to unlock more analysis (e.g. add a point) */
   actions?: { label: string; rows: string[] }[];
 }
@@ -117,6 +123,8 @@ export class AnalysisService {
   private cache = new Map<string, CacheEntry>();
   private listeners = new Set<() => void>();
   private queue = new Set<string>();
+  /** contextual drawer below the canvas (cross-sections, explanations); null = closed */
+  drawer: { kind: 'slices' } | { kind: 'why'; topic: string } | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   version = 0;
 
@@ -129,6 +137,7 @@ export class AnalysisService {
         doc = ws.doc;
         this.open.clear();
         this.toggled.clear();
+        this.drawer = null;
       }
     });
   }
@@ -158,6 +167,13 @@ export class AnalysisService {
 
   setSectionOpen(plan: AnalysisPlan, id: string, open: boolean) {
     this.open.set(`${plan.object}:${id}`, open);
+    const section = plan.sections.find((s) => s.id === id);
+    if (section?.drawer === 'slices') this.drawer = open ? { kind: 'slices' } : this.drawer?.kind === 'slices' ? null : this.drawer;
+    this.emit();
+  }
+
+  setDrawer(d: AnalysisService['drawer']) {
+    this.drawer = d;
     this.emit();
   }
 
@@ -257,7 +273,8 @@ export class AnalysisService {
       if (!visible && spec.tier === 1 && !open) continue;
       const st = this.fact(plan, spec);
       if (st.status !== 'ready' || !st.value) continue;
-      out.push({ id: `auto:${plan.object}:${spec.id}`, value: st.value, keys: [plan.object, `fact:${spec.id}`], visible, primary: plan.object });
+      const value = spec.visualTypes && st.value.visuals ? { ...st.value, visuals: st.value.visuals.filter((v) => spec.visualTypes!.includes(v.vtype)) } : st.value;
+      out.push({ id: `auto:${plan.object}:${spec.id}`, value, keys: [plan.object, `fact:${spec.id}`], visible, primary: plan.object });
     }
     return out;
   }

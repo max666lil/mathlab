@@ -310,3 +310,29 @@ select { max-width: 360px; }
 .cell-editor .cm-editor.cm-focused { box-shadow: 0 0 0 3px var(--accent-soft); }
 /* while a row is being edited its action buttons must not cover the text */
 .notebook .cell:focus-within .cell-actions { display: none; }
+/* ================= density pass: summary rows, drawer ================= */
+.summary { display: flex; flex-direction: column; gap: 1px; margin-bottom: 10px; }
+.fact { display: grid; grid-template-columns: minmax(64px, auto) 1fr auto; align-items: center; column-gap: 10px; padding: 3px 6px; border-radius: 6px; }
+.fact-title { font-size: 11.5px; color: var(--dim); white-space: nowrap; }
+.fact-value { font-size: 13.5px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; padding: 1px 0; min-width: 0; }
+.fact-value::-webkit-scrollbar { display: none; }
+.fact-tools { display: flex; gap: 3px; align-items: center; }
+.fact .hover-only { visibility: hidden; }
+.fact:hover .hover-only { visibility: visible; }
+.small { font-size: 11px; }
+.card { background: none; border: none; border-top: 1px solid var(--border); border-radius: 0; margin: 0; }
+.card-head { padding: 7px 4px; font-weight: 500; }
+.card.open .card-head { font-weight: 600; }
+.card-body { padding: 0 0 10px 0; gap: 2px; }
+.analysis-foot { border-top: 1px solid var(--border); padding-top: 8px; }
+
+.canvas-panel { display: flex; flex-direction: column; }
+.drawer { flex: none; height: 38%; min-height: 170px; border-top: 1px solid var(--border); background: var(--panel); display: flex; flex-direction: column; }
+.drawer-head { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-bottom: 1px solid var(--border); }
+.drawer-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: var(--dim); }
+.drawer-head .close { margin-left: auto; background: none; border: none; color: var(--dim); cursor: pointer; }
+.drawer-tabs { display: flex; gap: 2px; padding: 3px 8px; }
+.drawer-tabs button { background: none; border: none; color: var(--dim); font-size: 11.5px; padding: 2px 8px; border-radius: 5px; cursor: pointer; display: inline-flex; gap: 5px; align-items: center; }
+.drawer-tabs button.active { color: var(--text); background: var(--accent-soft); }
+.drawer-canvas { position: relative; flex: 1; min-height: 0; }
+.drawer-scroll { flex: 1; overflow: auto; padding: 10px 14px; }

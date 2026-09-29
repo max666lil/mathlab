@@ -55,10 +55,17 @@ describe('analysis engine', () => {
   it('analysis visuals appear without show, and hide removes them', () => {
     const a = setup('f(x,y) = x^2 + 2y^2', 'P = point(1, 1) draggable');
     a.an.flushNow();
-    const kinds = a.ws.sceneItems().filter((i) => i.visible).map((i) => i.visual.vtype);
-    expect(kinds).toContain('surface');
-    expect(kinds).toContain('contours');
-    expect(kinds).toContain('arrow');
+    const visible = () => a.ws.sceneItems().filter((i) => i.visible).map((i) => i.visual.vtype);
+    // default canvas: surface (+ contours) and the point — nothing else
+    expect(visible().sort()).toEqual(['contours', 'point', 'surface']);
+    // opening "At P" reveals ∇f(P), the level curve and the tangent plane
+    const plan = a.an.plan()!;
+    a.an.setSectionOpen(plan, 'at', true);
+    a.an.flushNow();
+    expect(visible()).toEqual(expect.arrayContaining(['arrow', 'level', 'plane']));
+    expect(a.an.drawer).toBeNull();
+    a.an.setSectionOpen(plan, 'slices', true);
+    expect(a.an.drawer).toEqual({ kind: 'slices' });
     const b = setup('f(x,y) = x^2 + 2y^2', 'hide contours');
     expect(b.ws.sceneItems().map((i) => i.visual.vtype)).not.toContain('contours');
     expect(b.ws.sceneItems().map((i) => i.visual.vtype)).toContain('surface');
@@ -71,7 +78,7 @@ describe('analysis engine', () => {
     expect(one.sections.find((s) => s.id === 'at')!.why).toBe('tangent-1d');
     const two = setup('f(x,y) = x^2 - y^2').an.plan()!;
     expect(two.layout.views.map((v) => v.renderer)).toEqual(['scene', 'plane']);
-    expect(two.layout.combos!.map((c) => c.id)).toEqual(['both']);
+    expect(two.layout.combos!.map((c) => c.id)).toEqual(['split']);
     // editing f(x,y) into f(x) switches the workspace
     const { ws, an } = setup('f(x,y) = x^2 - y^2');
     ws.setCellSource(ws.cells[0].id, 'f(x) = x^2', true);
@@ -83,6 +90,7 @@ describe('analysis engine', () => {
   it('1-D facts at a are live objects', () => {
     const { ws, an } = setup('f(x) = sin(x) + x/3', 'a = slider(-5, 5, -2.744)');
     const plan = an.plan()!;
+    an.setSectionOpen(plan, 'at', true);
     an.flushNow();
     const slope = an.fact(plan, plan.facts.find((x) => x.id === 'slope-at')!).value as any;
     expect(slope.value).toBeCloseTo(Math.cos(-2.744) + 1 / 3, 10);
