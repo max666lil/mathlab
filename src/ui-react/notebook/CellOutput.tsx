@@ -34,12 +34,15 @@ function literal(e: Expr): boolean {
 
 function outputLatex(info: StatementInfo, v: MathValue, math: boolean): string {
   const name = info.name ? symbolLatex(info.name) : undefined;
+  const st = info.stmt;
   if (v.kind === 'function') {
     const f = v as FunctionValue;
-    const body = valueLatex(f);
+    const plusC = f.role === 'antiderivative' ? ' + C' : '';
+    // a command such as integrate x^2 reads  ∫ x² dx = x³/3 + C
+    if (!name && st.kind === 'expr' && st.value.type === 'call' && f.expr) return `${toLatex(st.value)} = ${toLatex(f.expr)}${plusC}`;
+    const body = valueLatex(f) + plusC;
     return name && f.label !== name ? `${name} = ${body}` : body;
   }
-  const st = info.stmt;
   const expr = st.kind === 'assign' || st.kind === 'expr' ? st.value : undefined;
   // math mode: show the definition itself (∇f(P)), code mode: how it was obtained numerically
   const middle = math && expr && !literal(expr) ? toLatex(expr) : v.derivation;

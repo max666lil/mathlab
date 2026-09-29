@@ -14,7 +14,7 @@ const P = (s: string) => parseExpression(s);
 
 describe('CAS core', () => {
   it('antiderivatives are verified', () => {
-    for (const s of ['x^2', '3x^2 + 2x + 1', 'sin(x)', 'exp(2x)', '1/x', 'cos(3x + 1)', 'x*exp(x^2)', '1/(1 + x^2)', '2x/(x^2 + 1)', 'sin(x)*cos(x)', '(2x + 1)^5']) {
+    for (const s of ['(x^2 + 1)/(x - 1)', '(2x^3 - x)/(2x + 4)', 'x^2', '3x^2 + 2x + 1', 'sin(x)', 'exp(2x)', '1/x', 'cos(3x + 1)', 'x*exp(x^2)', '1/(1 + x^2)', '2x/(x^2 + 1)', 'sin(x)*cos(x)', '(2x + 1)^5']) {
       expect(antiderivative(P(s), 'x'), s).not.toBeNull();
     }
     expect(toText(antiderivative(P('x^2'), 'x')!)).toBe('x^3/3');

@@ -3,19 +3,22 @@ import { Tex } from './Tex';
 import { allBuiltins } from '../math-core/builtins';
 
 const SYNTAX: [string, string][] = [
-  ['f(x,y) = x^2 + 2y^2', 'define a function (implicit multiplication, x², π, θ allowed)'],
-  ['P = point(1, 1) draggable', 'a point you can drag in the 2D and 3D views'],
-  ['a = slider(-5, 5, 1)   or   a ∈ [-5, 5]', 'a parameter with a slider'],
-  ['u = <cos θ, sin θ>', 'a vector'],
-  ['g = grad(f) at P   ·   ∇f(P)   ·   grad f at P', 'evaluate the gradient at P'],
-  ["f'(x),  f_x,  f_xy", 'derivative / partial derivative notation'],
-  ['D = g · u', 'dot product (also ×, norm, normalize, det, ...)'],
-  ['show surface(f), contours(f)', 'add objects to the views'],
-  ['show slice(f, x = P.x)   ·   slice(f, P, u)', 'cross-sections'],
-  ['show quadratic(f, P) hidden', 'create hidden (toggle it from the chips)'],
-  ['animate θ from 0 to 2π', 'animation (play button in the output)'],
-  ['\\theta ⇥', 'type \\theta, \\pi, \\nabla ... for Greek letters'],
-  ['1 2 3 4', 'switch concept mode: Surface, Gradient, Directional derivative, Local geometry'],
+  ['f(x) = x^3 - 3x   ·   f(x,y) = x^2 + 2y^2', 'define a function — it is analysed automatically (Analysis panel)'],
+  ['P = point(1, 1) draggable   ·   a = slider(-5, 5, 1)', 'points you can drag, parameters with sliders'],
+  ['derivative f   ·   derivative f wrt y order 2', 'derivatives (exact)'],
+  ['integrate f   ·   integrate x^2 from 0 to 1', 'antiderivative (verified) or definite integral'],
+  ['limit sin(x)/x as x -> 0   ·   … as x -> 0+   ·   … as x -> ∞', 'limits (exact by continuity, otherwise numeric evidence)'],
+  ['solve x^2 - x - 1 = 0   ·   solve(x + y = 3, x - y = 1)', 'equations'],
+  ['taylor exp(x) at 0 order 4', 'Taylor polynomials'],
+  ['critical f · zeros f · extrema f · inflections f', 'point sets — they are objects: C = critical f, P = first(C), C[2]'],
+  ['domain f · monotonicity f · concavity f · asymptotes f', 'more analysis results'],
+  ['grad f at P · hessian f at P · tangent f at P', 'local analysis'],
+  ['directional f at P toward (3,-2)', 'directional derivative, with its geometry'],
+  ['eigenvalues H · norm v · normalize v · det A', 'linear algebra helpers'],
+  ['show derivative f · hide contours · show level f = 3', 'representation control (basics are shown automatically)'],
+  ['compare f with taylor f at 0 order 4', 'overlay two functions and their difference'],
+  ['analyze C', 'analyse another object in the Analysis panel'],
+  ['\\theta ⇥', 'type \\theta, \\pi, \\nabla … for symbols · Enter = next row'],
 ];
 
 export function HelpDialog({ onClose }: { onClose(): void }) {

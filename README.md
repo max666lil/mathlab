@@ -1,35 +1,34 @@
-# MathLab
+# MathLab — interactive mathematical analysis workbench
 
-An interactive laboratory for first- and second-year university mathematics. Every object is
-explorable at the same time as an equation, as geometry, as numbers and as an animation, and all
-views stay linked.
-
-This is the first vertical slice: a reactive math language, a notebook, and linked 2D/3D views,
-built around the **gradient / tangent-plane lab**:
+Define mathematical objects, and MathLab recognises them, analyses them, and lets you keep working
+with the results — symbolically, numerically and geometrically.
 
 ```
-f(x,y) = x^2 + 2y^2
-P = point(1, 1) draggable
-θ = slider(0, 2π, 0.6)
-u = <cos θ, sin θ>
-g = grad(f) at P
-H = hessian(f) at P
-D = g · u
-show surface(f), contours(f)
-show g, arrow(P, u)
-show tangent_plane(f, P), level(f, P)
-show slice(f, x = P.x), slice(f, y = P.y), slice(f, P, u)
-show hessian_axes(f, P), gradient_path(f, P)
-show quadratic(f, P) hidden
-animate θ from 0 to 2π
+f(x,y) = x^3 - 3x + y^2        ← recognised as a function ℝ² → ℝ, analysed automatically
+C = critical f                 ← a typed point set: {(−1, 0) saddle, (1, 0) local min}
+Q = first(C)
+H = hessian f at Q
+eigenvalues H
+P = point(1, 0.5) draggable    ← drag it: every dependent result and visual updates
+directional f at P toward (3,-2)
+limit sin(x)/x as x -> 0
+integrate x^2 from 0 to 1
 ```
 
-You can drag P in the contour map, on the 3D surface, or along a cross-section. You can also drag
-the tip of `u`, which solves for θ. Everything that depends on P or θ updates on the same frame:
-f(P), ∇f(P), H(P), D_u f, the tangent plane, the level curve, the slices, the principal
-directions and the steepest path. Dragging also rewrites the definition in the notebook, and
-editing the text moves the objects.
+The screen has three areas — **Worksheet** (one statement per row, rendered as mathematics; click to
+edit) · **Canvas** (the view that fits the object: graph, 3D surface, contour map) · **Analysis**
+(cards that compute only when opened). There is no mode selector: the object decides.
 
+Principles:
+- **The Analysis panel is only a presentation of the mathematics.** Every analysis fact is an ordinary
+  expression (`critical(f)`, `domain(f)`, …) evaluated with the same builtins you can type, so any row
+  can be pinned into the worksheet as a named object and used again.
+- **Certainty is always shown**: `exact` (symbolic, or verified symbolically), `numeric` (iterative method
+  with a residual check), `evidence` (sampled/scanned — not a proof). Numeric values that match a closed
+  form are shown as "≈ 1 − √2", still labelled numeric.
+- **Lazy analysis**: type, formula, domain and derivatives appear at once; roots, critical points,
+  asymptotes, Taylor polynomials, integrals… are computed when their card is opened.
+- **`show` / `hide` / `compare` stay available** as the programmable representation layer.
 ## Running
 
 ```bash
@@ -110,13 +109,14 @@ registered visuals. None of this changes the core runtime.
 In the editor, type `\theta`, `\pi` or `\nabla` for Unicode symbols. Edits apply as you type;
 Shift+Enter moves to the next cell.
 
-## Concept modes and linked highlighting
+## Analysis engine and linked highlighting
 
-The same scene can be read through four concept modes — **Surface**, **Gradient**, **Directional
-derivative**, **Local geometry** (keys 1–4) — plus **All**. Modes never change the mathematics:
-they only decide which objects are in focus, which stay as faint context, the camera shot and the
-annotations (`visualization/presentation.ts`, modes registered in `plugins/core-calculus/modes.ts`).
-Transitions fade objects in and out, grow arrows from their base point and move the camera.
+`src/runtime/analysis.ts` holds the analyzer registry: an analyzer recognises a value and returns a
+plan of *facts* (MLL expressions), relations and sections; `AnalysisService` evaluates facts lazily and
+caches them by the identity of the objects they reference. Analyzers for f(x), f(x, y) and point sets live
+in `plugins/core-calculus/analyzers.ts`; the analysis builtins in `analysis-builtins.ts`. Later phases add
+analyzers (3-D scalar fields, vector fields, distributions, optimisation problems, sequences) to the same
+registry.
 
 Every scene item carries the keys of the objects it represents (`u`, `role:gradient`, …). Hovering
 or selecting an object anywhere — an arrow in 2D or 3D, a notebook row, a value, a term of an
@@ -142,14 +142,13 @@ registerDrawer2D('my-visual', { layer: 3, draw: (a) => { /* canvas drawing */ } 
 
 ## Status and next steps
 
-Done in this slice: the parser and symbolic core, the reactive graph, the notebook with
-two-way source sync, linked 2D/3D/slice views, camera shots and the flatten morph, the Hessian
-and quadratic approximation, the steepest paths, and the local analysis and explanation panel.
+Phase 1 (done): workbench shell, object recognition, lazy analysis of f(x) and f(x, y), CAS commands
+(derivative, integrate, limit, solve, taylor, critical/zeros/extrema/inflections, domain, monotonicity,
+concavity, asymptotes, tangent, directional), typed results with certainty, `show`/`hide`/`compare`.
 
-Next:
-- **Probability engine**, following the design above, then the `X ~ Normal(0,1)`, `Y = X²`
-  flagship.
-- A secant → tangent derivative demo, a local-approximation "microscope" that re-samples when
-  zoomed, and a Lagrange-multiplier scene.
-- Vector-field lab (3D fields, curl paddle wheel, flux) and linear-algebra grid transforms.
-- An AI tutor that drives the workspace API (show / highlight / camera shot / animate).
+Next phases, each adding analyzers and value kinds to the same registries:
+2. Constrained optimisation (`maximize f subject to g = c`, Lagrange geometry) and f(x, y, z)
+   (level surfaces).
+3. Probability & statistics (`X ~ Normal(0, 1)`, `Y = X^2`, pdf/cdf/samples, sampling distributions).
+4. Vector fields, div/curl, line and surface integrals, flux.
+5. Sequences and series.

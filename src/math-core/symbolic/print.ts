@@ -22,9 +22,10 @@ export function formatNumber(x: number, digits = 4): string {
 /** Recognise simple fractions p/q with q ≤ 12 (for LaTeX display). */
 export function asFraction(x: number): [number, number] | null {
   if (Number.isInteger(x)) return null;
-  for (let q = 2; q <= 12; q++) {
+  for (let q = 2; q <= 720; q++) {
     const p = Math.round(x * q);
-    if (Math.abs(p / q - x) < 1e-12) return [p, q];
+    if (Math.abs(p) > 1e6) return null;
+    if (Math.abs(p / q - x) < 1e-12 * Math.max(1, Math.abs(x))) return [p, q];
   }
   return null;
 }
@@ -249,6 +250,47 @@ export function functionNameLatex(name: string): string {
   return `\\operatorname{${name.replace(/_/g, '\\_')}}`;
 }
 
+/** Typesetting of command calls with keyword clauses (limit … as x -> a, integrate … from a to b …). */
+type CommandLatex = (arg: string, kw: Record<string, string>, raw: Extract<Expr, { type: 'call' }>) => string;
+const commandLatex = new Map<string, CommandLatex>();
+export function registerCommandLatex(name: string, fn: CommandLatex) {
+  commandLatex.set(name, fn);
+}
+
+/** The variable of an anonymous expression (x, y, z or t), for dx in integrals and d/dx. */
+function liftVar(e: Expr | undefined): string {
+  const names = new Set<string>();
+  const walk = (n: Expr) => {
+    if (n.type === 'sym') names.add(n.name);
+    if (n.type === 'call') n.args.forEach(walk);
+    else if (n.type === 'bin' || n.type === 'eq') {
+      walk(n.left);
+      walk(n.right);
+    } else if (n.type === 'neg') walk(n.arg);
+    else if (n.type === 'tuple' || n.type === 'vec' || n.type === 'list') n.items.forEach(walk);
+  };
+  if (e) walk(e);
+  return ['x', 'y', 'z', 't'].find((v) => names.has(v)) ?? 'x';
+}
+
+registerCommandLatex('limit', (a, kw) => `\\lim_{${kw.wrt ?? 'x'} \\to ${kw.approach ?? '?'}${kw.side === '\\mathrm{right}' ? '^{+}' : kw.side === '\\mathrm{left}' ? '^{-}' : ''}} ${a}`);
+registerCommandLatex('integrate', (a, kw, raw) => {
+  const v = kw.wrt ?? liftVar(raw.args[0]);
+  return kw.from !== undefined ? `\\int_{${kw.from}}^{${kw.to}} ${a}\\,d${v}` : `\\int ${a}\\,d${v}`;
+});
+registerCommandLatex('derivative', (a, kw, raw) => {
+  const v = kw.wrt ?? liftVar(raw.args[0]);
+  const n = kw.order && kw.order !== '1' ? `^{${kw.order}}` : '';
+  return `\\frac{d${n}}{d${v}${n}}\\left[${a}\\right]`;
+});
+registerCommandLatex('taylor', (a, kw) => `T_{${kw.order ?? 'n'}}\\left[${a}\\right]_{${kw.at ?? '0'}}`);
+registerCommandLatex('directional', (a, kw) => `D_{${kw.toward ?? 'u'}}\\,${a}\\left(${kw.at ?? 'P'}\\right)`);
+registerCommandLatex('tangent', (a, kw) => `\\text{tangent to } ${a}${kw.at ? ` \\text{ at } ${kw.at}` : ''}`);
+registerCommandLatex('solve', (a) => `\\text{solve } ${a}`);
+registerCommandLatex('level', (a, kw) => `\\text{level } ${a}${kw.at ? ` \\text{ at } ${kw.at}` : ''}`);
+for (const n of ['critical', 'zeros', 'extrema', 'inflections', 'domain', 'monotonicity', 'concavity', 'asymptotes', 'analyze'])
+  registerCommandLatex(n, (a) => `\\text{${n} } ${a}`);
+
 export function toLatex(e: Expr, digits = 4): string {
   const L = (x: Expr) => toLatex(x, digits);
   const p = (x: Expr, min: number) => {
@@ -269,6 +311,14 @@ export function toLatex(e: Expr, digits = 4): string {
       return `${L(e.left)} = ${L(e.right)}`;
     case 'call': {
       const name = e.callee.type === 'sym' ? e.callee.name : undefined;
+      const cmd = name ? commandLatex.get(name) : undefined;
+      if (cmd && e.args.length === 1) {
+        const kw: Record<string, string> = {};
+        for (const [k, v] of e.kwargs ?? []) kw[k] = L(v);
+        const a = e.args[0];
+        const arg = a.type === 'sym' || a.type === 'num' || a.type === 'call' ? L(a) : `\\left(${L(a)}\\right)`;
+        return cmd(arg, kw, e);
+      }
       if (name === 'sqrt' && e.args.length === 1) return `\\sqrt{${L(e.args[0])}}`;
       if (name === 'abs' && e.args.length === 1) return `\\left|${L(e.args[0])}\\right|`;
       if (name === 'exp' && e.args.length === 1) return `e^{${L(e.args[0])}}`;

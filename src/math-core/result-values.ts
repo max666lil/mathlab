@@ -89,7 +89,7 @@ function pointLatex(p: SetPoint, exact: boolean): string {
   const recognised = p.coords.some((c) => recognize(c) && !Number.isInteger(c));
   if (exact || !recognised) return body;
   const dec = p.coords.length === 1 ? numberLatex(p.coords[0], 4) : `\\left(${p.coords.map((c) => numberLatex(c, 4)).join(', ')}\\right)`;
-  return `${dec} \\approx ${body}`;
+  return dec === body ? body : `${dec} \\approx ${body}`;
 }
 
 const lines = (items: string[]) => (items.length <= 1 ? (items[0] ?? '') : `\\begin{array}{l} ${items.join(' \\\\ ')} \\end{array}`);

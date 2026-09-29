@@ -332,7 +332,7 @@ const integrate: Builtin = {
     const F = memo(`anti|${f.key}`, () => antiderivative(e, x));
     if (!aV || !bV) {
       if (!F) throw new EvalError('no elementary antiderivative found — give bounds for a numeric value: integrate f from a to b');
-      return { ...ctx.makeFunction(F, [x], { label: `\\int ${f.label ?? 'f'}` }), certainty: 'exact', evidence: 'antiderivative verified by differentiation (+ C)', derivation: `\\int ${f.label ?? 'f'}\\,d${x}` };
+      return { ...ctx.makeFunction(F, [x], { label: `\\int ${f.label ?? 'f'}` }), certainty: 'exact', evidence: 'antiderivative verified by differentiation (+ C)', derivation: `\\int ${f.label ?? 'f'}\\,d${x}`, role: 'antiderivative' };
     }
     const a = expectNumber(aV);
     const b = expectNumber(bV);
@@ -407,7 +407,8 @@ const taylor: Builtin = {
       const base: Expr = a === 0 ? sym(x) : { type: 'bin', op: '-', left: sym(x), right: num(a) };
       terms.push(k === 0 ? num(c) : { type: 'bin', op: '*', left: num(c), right: k === 1 ? base : { type: 'bin', op: '^', left: base, right: num(k) } });
     }
-    const poly = simplify(terms.length ? terms.reduce((p, q) => ({ type: 'bin', op: '+', left: p, right: q })) : num(0));
+    // keep ascending powers: 1 + x + x²/2 + … (simplifying the whole sum would move the constant last)
+    const poly = terms.length ? terms.map(simplify).reduce((p, q) => ({ type: 'bin', op: '+', left: p, right: q })) : num(0);
     return { ...ctx.makeFunction(poly, [x], { label: `T_{${n}}${f.label ?? 'f'}` }), certainty: 'exact', evidence: `coefficients f⁽ᵏ⁾(${rn(a)})/k! from symbolic derivatives`, role: 'taylor' };
   },
 };

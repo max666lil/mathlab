@@ -8,6 +8,7 @@
 import { Expr } from './ast';
 import { NumericEnv } from './compile';
 import { toLatex, formatNumber, numberLatex, symbolLatex } from './symbolic/print';
+import { recognize } from './recognize';
 
 /**
  * How trustworthy a result is:
@@ -169,7 +170,12 @@ const sup = (n: number) => (n === 1 ? '' : (SUP[n] ?? `^${n}`));
 
 registerValueKind({
   kind: 'scalar',
-  latex: (v) => numberLatex((v as ScalarValue).value),
+  // exact results show their closed form (1/3, √2); numeric ones stay decimal
+  latex: (v) => {
+    const x = (v as ScalarValue).value;
+    const r = v.certainty === 'exact' && !Number.isInteger(x) ? recognize(x) : null;
+    return r ? r.latex : numberLatex(x);
+  },
   typeLabel: (v) => ((v as ScalarValue).slider ? 'slider ∈ ℝ' : 'scalar ∈ ℝ'),
 });
 registerValueKind({

@@ -6,7 +6,7 @@
 import { Expr, num, sym, call, add, mul, div, pow, dependsOn } from '../ast';
 import { diff } from './diff';
 import { simplify } from './simplify';
-import { expand } from './expand';
+import { expand, polyCoeffs } from './expand';
 import { toText } from './print';
 import { compileScalar } from '../compile';
 
@@ -142,8 +142,32 @@ function integrateTerm(t: Expr, x: string): Expr | null {
 }
 
 /** Verified antiderivative of e with respect to x, or null. */
+/** P(x)/(a x + b) → Q(x) + R/(a x + b) by synthetic division (rational functions with a linear denominator). */
+function divideByLinear(e: Expr, x: string): Expr | null {
+  const fs = factors(simplify(e));
+  const i = fs.findIndex((f) => f.type === 'bin' && f.op === '^' && f.right.type === 'num' && f.right.value === -1 && polyCoeffs(f.left, x)?.length === 2);
+  if (i < 0) return null;
+  const den = (fs[i] as Extract<Expr, { type: 'bin' }>).left;
+  const [c0, c1] = polyCoeffs(den, x)!;
+  const P = polyCoeffs(prod(fs.filter((_, j) => j !== i)), x);
+  if (!P || P.length < 2) return null;
+  // synthetic division of P by (x − r), r = −c0/c1
+  const r = -c0 / c1;
+  const q: number[] = new Array(P.length - 1).fill(0);
+  let carry = 0;
+  for (let k = P.length - 1; k >= 1; k--) {
+    carry = P[k] + carry * (k === P.length - 1 ? 0 : r);
+    q[k - 1] = carry;
+  }
+  const rem = P[0] + carry * r;
+  const terms: Expr[] = q.map((c, k) => mul(num(c / c1), k === 0 ? num(1) : pow(sym(x), num(k))));
+  terms.push(mul(num(rem), pow(den, num(-1))));
+  return simplify(terms.reduce((a, b) => add(a, b)));
+}
+
 export function antiderivative(e: Expr, x: string): Expr | null {
-  const candidates = [simplify(e), expand(e)];
+  const division = divideByLinear(e, x);
+  const candidates = [simplify(e), expand(e), ...(division ? [division] : [])];
   for (const cand of candidates) {
     const parts = terms(cand).map((t) => integrateTerm(t, x));
     if (parts.some((p) => !p)) continue;

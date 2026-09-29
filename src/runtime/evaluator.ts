@@ -273,7 +273,14 @@ export class Evaluator implements EvalContext {
         kw.values[k] = mode === 'raw' ? undefined : mode === 'function' ? this.toFunction(v) : this.evaluate(v);
       }
       try {
-        return b.apply(args, this, e.args, kw);
+        const r = b.apply(args, this, e.args, kw);
+        // a builtin that does not judge its own result inherits the weakest certainty of its inputs
+        if (!r.certainty) {
+          const order = ['heuristic', 'numeric', 'exact'] as const;
+          const cs = [...args, ...Object.values(kw.values)].map((a) => a?.certainty).filter(Boolean) as (typeof order)[number][];
+          if (cs.length) return { ...r, certainty: cs.reduce((w, c) => (order.indexOf(c) < order.indexOf(w) ? c : w)) };
+        }
+        return r;
       } catch (err) {
         if (err instanceof EvalError && !err.span) err.span = e.span;
         throw err;
