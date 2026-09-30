@@ -102,7 +102,13 @@ export const examples: Example[] = [
     id: 'singular3',
     title: 'Singular 3×3 — space collapses onto a plane',
     course: 'Linear Algebra',
-    cells: ['B = [[1,2,3],[4,5,6],[7,8,9]]'],
+    cells: ['B = [[1,0,1],[0,1,1],[1,1,2]]'],
+  },
+  {
+    id: 'shear3',
+    title: '3×3 transformation — shear and stretch in space',
+    course: 'Linear Algebra',
+    cells: ['M = [[1,1,0],[0,1,0],[0,0,2]]', 'v = <1, 1, 1>'],
   },
   {
     id: 'la-system',

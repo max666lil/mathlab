@@ -57,6 +57,7 @@ interface TimelineSpec {
   signature: string;
   duration?: number;
   loop?: boolean;
+  captions?: string[];
 }
 
 /** ▶ / ⏸, a scrubber and the stop labels (I → A, I → B → AB …) of an animation the layout offers. */
@@ -84,7 +85,11 @@ function TransportBar({ tl }: { tl: TimelineSpec }) {
       </div>
     );
   const toggle = () => (playing ? pres.pauseTimeline(tl.key) : pres.playTimeline(tl.key, { from: t >= end - 1e-6 ? 0 : t, to: end, duration: tl.duration }));
+  const step = Math.min(end - 1, Math.max(0, Math.ceil(t - 1e-6) - 1));
+  const caption = tl.captions?.[step];
   return (
+    <div className="transport-wrap">
+      {caption && <div className="transport-caption">{caption}</div>}
     <div className="transport">
       <button className="play" onClick={toggle} title={playing ? 'Pause' : 'Play the transformation'}>
         {playing ? '⏸' : '▶'}
@@ -97,6 +102,7 @@ function TransportBar({ tl }: { tl: TimelineSpec }) {
           </button>
         ))}
       </div>
+    </div>
     </div>
   );
 }
@@ -137,8 +143,8 @@ export function CanvasPanel() {
   const timelines = new Map<string, TimelineSpec>();
   if (layout.timeline) timelines.set(layout.timeline.key, layout.timeline);
   for (const it of ws.sceneItems()) {
-    const p = it.visual.props as { timeline?: string; stops?: string[]; stages?: unknown; loop?: boolean };
-    if (it.visible && p.timeline && p.stops && !timelines.has(p.timeline)) timelines.set(p.timeline, { key: p.timeline, stops: p.stops, signature: JSON.stringify(p.stages ?? ''), loop: p.loop });
+    const p = it.visual.props as { timeline?: string; stops?: string[]; stages?: unknown; loop?: boolean; captions?: string[] };
+    if (it.visible && p.timeline && p.stops && !timelines.has(p.timeline)) timelines.set(p.timeline, { key: p.timeline, stops: p.stops, signature: JSON.stringify(p.stages ?? ''), loop: p.loop, captions: p.captions });
   }
   // a stepped decomposition (P⁻¹ → D → P …) takes over from the plain I → A bar of the same matrix
   const stepped = new Set(ws.sceneItems().filter((i) => i.visible && typeof i.visual.props.base === 'string').map((i) => `lin:${i.visual.props.base}`));

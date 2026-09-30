@@ -35,6 +35,43 @@ export interface LinTransProps {
   vectors: TrackedVector[];
   /** det of the full map (area / volume factor) */
   det: number;
+  /** one sentence per step, shown above the transport bar: what to watch */
+  captions?: string[];
+}
+
+const fmt = (x: number) => (Math.abs(x - Math.round(x)) < 1e-9 ? String(Math.round(x)) : x.toFixed(2));
+
+function rankOf(M: number[][]): number {
+  const A = M.map((r) => r.slice());
+  let rank = 0;
+  const n = A[0].length;
+  for (let c = 0; c < n && rank < A.length; c++) {
+    let p = rank;
+    for (let r = rank + 1; r < A.length; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+    if (Math.abs(A[p][c]) < 1e-9) continue;
+    [A[rank], A[p]] = [A[p], A[rank]];
+    for (let r = 0; r < A.length; r++) if (r !== rank) {
+      const f = A[r][c] / A[rank][c];
+      A[r] = A[r].map((x, j) => x - f * A[rank][j]);
+    }
+    rank++;
+  }
+  return rank;
+}
+
+/** What to watch while a matrix acts on the plane / space. */
+export function captionFor(M: number[][], name: string): string {
+  const n = M.length;
+  const d = n === 2 ? det2(M) : n === 3 ? M[0][0] * (M[1][1] * M[2][2] - M[1][2] * M[2][1]) - M[0][1] * (M[1][0] * M[2][2] - M[1][2] * M[2][0]) + M[0][2] * (M[1][0] * M[2][1] - M[1][1] * M[2][0]) : 1;
+  const basis = n === 2 ? 'î and ĵ' : 'î, ĵ and k̂';
+  const cell = n === 2 ? 'unit square' : 'unit cube';
+  const measure = n === 2 ? 'area' : 'volume';
+  if (Math.abs(d) < 1e-9) {
+    const r = rankOf(M);
+    const onto = r === 0 ? 'a point' : r === 1 ? 'a line' : 'a plane';
+    return `${basis} move to the columns of ${name}. det ${name} = 0: everything is flattened onto ${onto} (rank ${r}) — the null space collapses to 0.`;
+  }
+  return `${basis} move to the columns of ${name}; the ${cell}'s ${measure} is multiplied by |det ${name}| = ${fmt(Math.abs(d))}${d < 0 ? ', and orientation flips' : ''}.`;
 }
 
 export const identity = (n: number) => Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => (i === j ? 1 : 0)));

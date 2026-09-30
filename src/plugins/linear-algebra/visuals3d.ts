@@ -147,7 +147,7 @@ class EigenLines3D implements Visual3D {
       }
       this.lines[li].material.linewidth = selected ? 2.4 : 1.6;
       this.lines[li].set([-u.x * R, -u.y * R, -u.z * R, u.x * R, u.y * R, u.z * R]);
-      for (const s of [-1.5, 1.5]) {
+      for (const s of [-1, 1]) {
         if (!this.arrows[ai]) {
           this.arrows[ai] = new Arrow3D(item.color);
           this.object.add(this.arrows[ai].group);
@@ -156,12 +156,14 @@ class EigenLines3D implements Visual3D {
         this.arrows[ai].set(O, V3(apply(M, [u.x * s, u.y * s, u.z * s])), ctx.map.size * 0.004);
         ai++;
       }
-      this.labels[li].set(`λ = ${formatNumber(l, 3)}`, item.color, false);
-      this.labels[li].sprite.position.copy(V3(apply(M, [u.x * 1.5, u.y * 1.5, u.z * 1.5]))).multiplyScalar(1.12);
+      // label at the far end of the line (λ = 0 is the null space, which labels itself)
+      this.labels[li].set(Math.abs(l) < 1e-9 ? '' : `λ = ${formatNumber(l, 3)}`, item.color, false);
+      this.labels[li].sprite.visible = Math.abs(l) >= 1e-9;
+      this.labels[li].sprite.position.copy(u.clone().multiplyScalar(R * 0.92));
       li++;
     });
     this.lines.forEach((x, i) => (x.line.visible = i < li));
-    this.labels.forEach((x, i) => (x.sprite.visible = i < li));
+    this.labels.forEach((x, i) => (x.sprite.visible = x.sprite.visible && i < li));
     this.arrows.forEach((x, i) => (x.group.visible = i < ai));
   }
   dispose() {

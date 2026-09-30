@@ -72,7 +72,7 @@ export interface WorkspaceLayout {
    * An animation the canvas offers a transport bar for (▶, scrubber with stop labels). It auto-plays
    * when `signature` changes, e.g. the I → A morph of a matrix whose entries were edited.
    */
-  timeline?: { key: string; stops: string[]; signature: string; duration?: number };
+  timeline?: { key: string; stops: string[]; signature: string; duration?: number; captions?: string[] };
   /** entries of the ⋯ menu that make sense for this object */
   menu?: { shots?: boolean; flatten?: boolean };
 }

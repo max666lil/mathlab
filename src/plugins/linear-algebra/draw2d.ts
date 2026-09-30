@@ -181,7 +181,7 @@ registerDrawer2D('eigenlines', {
           drawArrow(ctx, view.sx(0), view.sy(0), view.sx(w[0]), view.sy(w[1]), withAlpha(color, 0.85), 2, 9);
         }
         const tip = apply(M, [(b[0] / l) * 2, (b[1] / l) * 2]);
-        drawLabel(ctx, `λ = ${formatNumber(pair.re, 3)}`, view.sx(tip[0]) + 8, view.sy(tip[1]) - 8, color, theme, 13);
+        if (Math.abs(pair.re) > 1e-9) drawLabel(ctx, `λ = ${formatNumber(pair.re, 3)}`, view.sx(tip[0]) + 8, view.sy(tip[1]) - 8, color, theme, 13);
       }
     }
   },

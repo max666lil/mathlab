@@ -4,7 +4,7 @@ import { MathValue, MatrixValue, VectorValue, VisualValue, FunctionValue } from 
 import { linearMatrixOf } from './builtins';
 import { det } from '../../math-core/linalg';
 import { visual, ROLE_COLORS } from '../../visualization/scene-model';
-import { LinTransProps, TrackedVector, embed } from './lintrans';
+import { LinTransProps, TrackedVector, embed, captionFor } from './lintrans';
 import type { EigenValue, SubspaceValue, FactorizationValue } from './values';
 
 Object.assign(ROLE_COLORS, {
@@ -65,6 +65,13 @@ export const transformationBuiltin: Builtin = {
       sourceId: mats.length === 1 ? mats[0].id : undefined,
       vectors: vectors.map((v) => ({ ...v, comps: pad(v.comps) })),
       det: det(stages[stages.length - 1]),
+      captions:
+        mats.length === 1
+          ? [captionFor(sq[0], names[0])]
+          : sq.map((_, k) => {
+              const i = sq.length - 1 - k;
+              return k === 0 ? `First ${names[i]}: ${captionFor(sq[i], names[i])}` : `Then ${names[i]} acts on the result — together ${stops[k + 1]}.`;
+            }),
     };
     return visual('lintrans', props as unknown as Record<string, unknown>, `transformation ${names.join('')}`, 'lintrans');
   },
@@ -111,8 +118,15 @@ export function factorizationVisual(v: MathValue, name?: string): VisualValue[] 
     stages.push(acc);
   }
   const stops = ['I', ...steps.map(([s], k) => (k === steps.length - 1 ? owner : steps.slice(0, k + 1).map(([x]) => x).reverse().join('')))];
+  const CAPTIONS: Record<string, string[]> = {
+    diagonalization: ['P⁻¹: change to eigen-coordinates — the eigenvectors become the axes.', 'D: stretch along each axis by its eigenvalue.', 'P: change back — the eigenvectors return, stretched.'],
+    'orthogonal diagonalization': ['Qᵀ: rotate the orthonormal eigenvectors onto the axes.', 'D: stretch along the axes by the eigenvalues.', 'Q: rotate back.'],
+    SVD: ['Vᵀ: a rotation.', `Σ: stretch along the axes by the singular values ${((f as unknown as { sigma?: number[] }).sigma ?? []).map((s) => s.toFixed(2)).join(', ')}.`, 'U: another rotation — every matrix is rotate · stretch · rotate.'],
+    QR: ['R: upper triangular — shears and scales.', 'Q: a rotation (or reflection) with orthonormal columns.'],
+  };
   const props: LinTransProps & { base: string } = {
     stages, stops, n, name: owner, vectors: [], det: det(stages[stages.length - 1]),
+    captions: CAPTIONS[f.what],
     timeline: `lin:${owner}:${f.what}`,
     base: owner,
   };

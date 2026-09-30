@@ -12,6 +12,7 @@ import { valueLatex } from '../../math-core/values';
 import { symbolLatex } from '../../math-core/symbolic/print';
 import { registerRelation } from '../../visualization/presentation';
 import { isSymmetric } from './eigen';
+import { embed, captionFor } from './lintrans';
 
 registerRelation('role:eigen', ['role:lintrans']);
 registerRelation('role:nullspace', ['role:lintrans']);
@@ -28,7 +29,8 @@ function firstVector(ws: Workspace, n: number): string | undefined {
 export function matrixLayout(name: string, rows: number[][]): WorkspaceLayout {
   const m = rows.length;
   const n = rows[0]?.length ?? 0;
-  const timeline = { key: `lin:${name}`, stops: ['I', name], signature: JSON.stringify(rows) };
+  const sq = Math.max(m, n) <= 3 ? embed(rows) : rows;
+  const timeline = { key: `lin:${name}`, stops: ['I', name], signature: JSON.stringify(rows), captions: Math.max(m, n) <= 3 ? [captionFor(sq, name)] : undefined };
   if (m === 2 && n === 2)
     return {
       canvasTitle: `Transformation ${name}`,
