@@ -205,7 +205,14 @@ Inequality constraints / KKT conditions, more than two equality constraints.
 - **Certainty**: exact when bounds and antiderivatives are symbolic; numeric (adaptive cubature with an
   error estimate) otherwise; sampled region boundaries are evidence.
 
-# 3c — Vector fields, divergence, curl, Laplacian
+# 3c — Vector fields, divergence, curl, Laplacian ✅ shipped
+
+Shipped in `src/plugins/vector-calculus/` (tests: `tests/vector.test.ts`): `div`, `curl`, `laplacian`,
+`jacobian`, `conservative` (curl test + circulation around holes), `potential` (verified),
+`equilibria` (classified by the Jacobian's eigenvalues), `∇·F`, `∇×F`, `∇²f`; the vector-field analyzer
+(arrows; Flow: particles + streamlines; At P: flux box, paddle wheel, Jacobian; Potential; Equilibria);
+∇²f and the mean-value circle for scalar fields; 2-D and 3-D visuals. Not yet: line / surface integrals
+(3d), 3-D scalar fields (3a).
 
 - **Objects**: VectorField (2-D / 3-D; a vector-valued function that is *not* linear — linear ones are
   analysed as linear maps in Phase 2), Potential, FlowLine.

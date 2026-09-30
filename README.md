@@ -105,6 +105,9 @@ registered visuals. None of this changes the core runtime.
 | `g · u`, `norm`, `normalize`, `cross` | vectors |
 | `A = [[2,1],[1,2]]`, `A v`, `A^-1`, `Aᵀ`, `det A`, `rank A`, `rref A`, `eigen A`, `diagonalize A` | matrices — analysed and animated as linear maps (exact for rational entries) |
 | `nullspace A`, `span(u, v)`, `solve(A, b)`, `project v onto W`, `leastsquares(A, b)`, `svd A` | subspaces, systems, projections, decompositions |
+| `F(x,y) = <-y, x>`, `div F`, `curl F`, `∇·F`, `∇×F`, `laplacian f`, `potential F`, `equilibria F` | vector fields (angle brackets), with flow, flux box and paddle wheel |
+| `x^2 + y^2 = 9`, `y < x^2`, `R = x^2 + y^2 <= 1`, `c(t) = (cos t, sin 2t)`, `r = 1 + cos(θ)` | implicit curves, regions, parametric and polar curves |
+| `10!`, `nCr(5, 2)`, `gcd`, `lcm`, `mean([…])`, `median`, `stdev` | calculator functions |
 | `show surface(f), contours(f, 20)` | add to the views (`hidden` to create switched off) |
 | `slice(f, x = P.x)`, `slice(f, P, u)` | vertical cross-sections |
 | `tangent_plane`, `level`, `hessian_axes`, `gradient_path`, `quadratic`, `arrow` | visual objects |
@@ -148,6 +151,10 @@ registerDrawer2D('my-visual', { layer: 3, draw: (a) => { /* canvas drawing */ } 
 
 **Phase 1 is done**: workbench shell, object recognition, lazy analysis of f(x) and f(x, y), CAS commands,
 typed results with certainty, `show` / `hide` / `compare`, analyzer-declared layouts.
+
+**Phase 3c (vector fields) is done** — div, curl, Laplacian, potentials, equilibria, animated flow — plus a
+graphing-calculator layer (implicit curves, regions, parametric / polar curves, several graphs at once,
+scroll-to-zoom 3-D domains).
 
 **Phase 2 (linear algebra) is done**: exact matrix computation, subspaces, systems, projections,
 decompositions, and 3Blue1Brown-style animated transformations in 2-D and 3-D (`plugins/linear-algebra`).
