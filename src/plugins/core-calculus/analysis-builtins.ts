@@ -261,7 +261,7 @@ export function critical2D(ctx: EvalContext, f: FunctionValue): PointSetValue {
           evidence = 'constant singular Hessian: critical set is a line or empty (not enumerated)';
         }
       } else {
-        const seeds = [...gridSeeds([[-4, 4], [-4, 4]], 8), ...gridSeeds([[-12, 12], [-12, 12]], 6)];
+        const seeds = [...gridSeeds([[-1.5, 1.5], [-1.5, 1.5]], 7), ...gridSeeds([[-4, 4], [-4, 4]], 8), ...gridSeeds([[-12, 12], [-12, 12]], 6)];
         const r = newtonSystem((p) => G(p[0], p[1]), seeds, (p) => HH(p[0], p[1]));
         sols = r.solutions.filter((p) => p.every((c) => Math.abs(c) <= 20));
         evidence = `Newton's method from ${r.seeds} starting points in [−12, 12]²; each point has ‖∇f‖ < 10⁻⁹. Points outside the search box may be missed.`;
@@ -338,18 +338,43 @@ const integrate: Builtin = {
     const b = expectNumber(bV);
     const fn = compileScalar(e, [x]);
     const derivation = `\\int_{${rn(a)}}^{${rn(b)}} ${f.label ?? 'f'}\\,d${x}`;
-    if (F && Number.isFinite(a) && Number.isFinite(b)) {
-      let continuous = true;
-      for (let i = 0; i <= 400; i++) if (!Number.isFinite(fn(a + ((b - a) * i) / 400))) continuous = false;
-      if (continuous) {
-        const Fn = compileScalar(F, [x]);
-        const v = Fn(b) - Fn(a);
-        if (Number.isFinite(v)) return scalar(v, { certainty: 'exact', evidence: 'fundamental theorem of calculus with a verified antiderivative', derivation });
+    // points in [a, b] where the integrand is undefined (zeros of denominators, log arguments …)
+    const lo = Math.min(a, b);
+    const hi = Math.max(a, b);
+    const singular: number[] = [];
+    if (Number.isFinite(lo) && Number.isFinite(hi)) {
+      for (const c of domainConditions(e, [x])) {
+        if (c.rel !== '≠') continue;
+        const g = compileScalar(c.expr, [x]);
+        for (const r of roots1D(g, lo - 1e-9, hi + 1e-9).roots) if (r >= lo - 1e-9 && r <= hi + 1e-9) singular.push(r);
+        for (const t of [lo, hi]) if (Math.abs(g(t)) < 1e-12) singular.push(t);
+      }
+      for (let i = 0; i <= 2000; i++) {
+        const t = lo + ((hi - lo) * i) / 2000;
+        if (!Number.isFinite(fn(t)) && !singular.some((s) => Math.abs(s - t) < 1e-9)) singular.push(t);
       }
     }
-    const q = integrateNumeric(fn, a, b);
-    if (!q.ok) throw new EvalError('the integral does not converge numerically (singularity?)');
-    return scalar(q.value, { certainty: 'numeric', evidence: `adaptive Gauss–Kronrod quadrature, error estimate ${q.error.toExponential(1)}`, derivation });
+    const cuts = [...new Set(singular.map((s) => +s.toPrecision(12)))].sort((p, q) => p - q);
+    if (F && Number.isFinite(a) && Number.isFinite(b) && !cuts.length) {
+      const Fn = compileScalar(F, [x]);
+      const v = Fn(b) - Fn(a);
+      if (Number.isFinite(v)) return scalar(v, { certainty: 'exact', evidence: 'fundamental theorem of calculus with a verified antiderivative (integrand continuous on the interval)', derivation });
+    }
+    // improper integral: integrate between the singular points, each piece must converge
+    const knots = [lo, ...cuts.filter((c) => c > lo && c < hi), hi];
+    let total = 0;
+    let error = 0;
+    for (let i = 0; i + 1 < knots.length; i++) {
+      const q = integrateNumeric(fn, knots[i], knots[i + 1]);
+      if (!q.ok || Math.abs(q.value) > 1e12) {
+        const where = cuts.length ? ` (singularity at ${symbolLatex(x)} = ${cuts.map((c) => +c.toPrecision(6)).join(', ')})` : '';
+        throw new EvalError(`the integral diverges or does not converge numerically${where}`);
+      }
+      total += q.value;
+      error += q.error;
+    }
+    const value = a <= b ? total : -total;
+    return scalar(value, { certainty: 'numeric', evidence: `adaptive Gauss–Kronrod quadrature${cuts.length ? ' (improper: split at the singular points)' : ''}, error estimate ${error.toExponential(1)}`, derivation });
   },
 };
 
@@ -422,7 +447,13 @@ const solve: Builtin = {
     const vars = [...new Set(fns.flatMap((g) => g.params))];
     if (vars.length === 1 && eqs.length === 1) {
       const g = fns[0];
-      const r = rootsOf(bindEnv(g.expr!, g.env), g.params[0]);
+      const e1 = bindEnv(g.expr!, g.env);
+      const r = rootsOf(e1, g.params[0]);
+      // an identity (x = x, (x+1)^2 = x^2 + 2x + 1): every real number is a solution
+      const G = compileScalar(e1, g.params);
+      const identity = r.evidence === 'identically zero' || [-7.3, -2.1, -0.4, 0.6, 1.7, 3.9, 11.2].every((t) => Math.abs(G(t)) < 1e-10);
+      if (identity)
+        return { kind: 'intervals', what: 'solutions', intervals: [{ a: -Infinity, b: Infinity, closedA: false, closedB: false }], certainty: r.evidence === 'identically zero' ? 'exact' : 'heuristic', evidence: 'the equation holds for every x' } as IntervalsValue;
       return { kind: 'pointset', what: 'solutions', dim: 1, points: r.roots.map((c) => ({ coords: [c] })), certainty: r.certainty, evidence: r.evidence } as PointSetValue;
     }
     if (vars.length === 2 && eqs.length === 2) {

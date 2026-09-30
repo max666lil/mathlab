@@ -47,13 +47,19 @@ export function integrateNumeric(f: F1, a: number, b: number, tol = 1e-10): Quad
   let total = 0;
   let err = 0;
   let ok = true;
+  // a global budget keeps a divergent or overflowing integrand from freezing the page
+  let budget = 6000;
   const stack: [number, number, number][] = [[a, b, 0]];
   while (stack.length) {
     const [x0, x1, depth] = stack.pop()!;
+    if (--budget < 0) {
+      ok = false;
+      break;
+    }
     const [v, e] = gk(f, x0, x1);
     if (!Number.isFinite(v)) {
       ok = false;
-      if (depth > 40) continue;
+      if (depth > 30) continue;
     }
     if (Number.isFinite(v) && (e <= Math.max(tol * Math.abs(v), tol * (x1 - x0) / (b - a)) || depth > 40)) {
       total += v;
@@ -64,5 +70,5 @@ export function integrateNumeric(f: F1, a: number, b: number, tol = 1e-10): Quad
       stack.push([x0, m, depth + 1], [m, x1, depth + 1]);
     }
   }
-  return { value: total, error: err, ok: ok && Number.isFinite(total) };
+  return { value: total, error: err, ok: ok && Number.isFinite(total) && err <= 1e-6 * Math.max(1, Math.abs(total)) };
 }

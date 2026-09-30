@@ -107,6 +107,19 @@ export function roots1D(f: F1, a: number, b: number, samples = 4000): RootScan {
   for (let i = 0; i < samples; i++) {
     const y0 = ys[i];
     const y1 = ys[i + 1];
+    if (Number.isFinite(y0) !== Number.isFinite(y1)) {
+      // edge of the domain (sqrt(1 − x²) at x = ±1): bisect to the boundary and test it
+      let [u, w] = Number.isFinite(y0) ? [xs[i], xs[i + 1]] : [xs[i + 1], xs[i]];
+      for (let k = 0; k < 60; k++) {
+        const m = (u + w) / 2;
+        if (Number.isFinite(f(m))) u = m;
+        else w = m;
+      }
+      const edge = Math.abs(u - Math.round(u)) < 1e-9 ? Math.round(u) : u;
+      if (Math.abs(f(edge)) < 1e-6) add(edge);
+      else if (Math.abs(f(u)) < 1e-6) add(u);
+      continue;
+    }
     if (!Number.isFinite(y0) || !Number.isFinite(y1)) continue;
     if (y0 === 0) add(xs[i]);
     else if (y0 * y1 < 0) add(brent(f, xs[i], xs[i + 1]));
@@ -156,13 +169,26 @@ export function newtonSystem(F: (p: number[]) => number[], seeds: number[][], J?
     let p = seed.slice();
     let r = F(p);
     let ok = false;
-    for (let it = 0; it < 60; it++) {
+    // a seed that starts where F is already negligible (far out on exp(−x²−y²)) proves nothing
+    const flatStart = norm(r) < 1e-6;
+    let lastStep = Infinity;
+    let jitters = 0;
+    for (let it = 0; it < 80; it++) {
       if (!r.every(Number.isFinite)) break;
-      if (norm(r) < 1e-12) {
+      const d = solve(jac(p), r.map((v) => -v));
+      // a singular Jacobian at a symmetric seed (e.g. on the diagonal): nudge off it and retry
+      if (!d && norm(r) >= 1e-9 && jitters < 3) {
+        jitters++;
+        p = p.map((x, i) => x + (i % 2 ? -7.3e-3 : 1.1e-2) * (1 + Math.abs(x)));
+        r = F(p);
+        continue;
+      }
+      // converged only when the residual is tiny AND the Newton step is tiny (or F is exactly 0);
+      // a singular Jacobian at a tiny residual counts only if Newton got there from a real residual
+      if (norm(r) === 0 || (norm(r) < 1e-9 && (d ? norm(d) < 1e-7 * (1 + norm(p)) : !flatStart && lastStep < 1e-6 * (1 + norm(p))))) {
         ok = true;
         break;
       }
-      const d = solve(jac(p), r.map((v) => -v));
       if (!d) break;
       let step = 1;
       let improved = false;
@@ -170,6 +196,7 @@ export function newtonSystem(F: (p: number[]) => number[], seeds: number[][], J?
         const q = p.map((x, i) => x + step * d[i]);
         const rq = F(q);
         if (rq.every(Number.isFinite) && norm(rq) < norm(r)) {
+          lastStep = step * norm(d);
           p = q;
           r = rq;
           improved = true;
@@ -178,12 +205,16 @@ export function newtonSystem(F: (p: number[]) => number[], seeds: number[][], J?
       }
       if (!improved) break;
     }
-    if (!ok && norm(r) < 1e-9) ok = true;
     if (!ok) continue;
-    p = p.map((x) => (Math.abs(x) < 1e-12 ? 0 : x));
-    if (!solutions.some((s) => s.every((x, i) => Math.abs(x - p[i]) < 1e-6 * (1 + Math.abs(x))))) {
+    // clean round-off; degenerate roots converge slowly, so merge nearby solutions generously
+    p = p.map((x) => (Math.abs(x) < 1e-6 ? 0 : Math.abs(x - Math.round(x)) < 1e-9 ? Math.round(x) : x));
+    const k = solutions.findIndex((s) => s.every((x, i) => Math.abs(x - p[i]) < 1e-4 * (1 + Math.abs(x))));
+    if (k < 0) {
       solutions.push(p);
       residuals.push(norm(r));
+    } else if (norm(r) < residuals[k]) {
+      solutions[k] = p;
+      residuals[k] = norm(r);
     }
   }
   return { solutions, residuals, seeds: seeds.length };

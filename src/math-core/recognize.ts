@@ -13,7 +13,8 @@ const SQUAREFREE = [2, 3, 5, 6, 7, 10, 11, 13, 14, 15, 17, 19, 21, 22, 23, 26, 2
 function rational(x: number, maxQ: number): [number, number] | null {
   for (let q = 1; q <= maxQ; q++) {
     const p = Math.round(x * q);
-    if (Math.abs(p / q - x) <= 1e-10 * Math.max(1, Math.abs(x))) return [p, q];
+    // p = 0 would "recognise" a tiny non-zero number as 0 (or print 0√30)
+    if (p !== 0 && Math.abs(p / q - x) <= 1e-10 * Math.max(1, Math.abs(x))) return [p, q];
   }
   return null;
 }

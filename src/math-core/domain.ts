@@ -5,7 +5,7 @@
 import { Expr, children, dependsOn } from './ast';
 import { toLatex } from './symbolic/print';
 import { simplify } from './symbolic/simplify';
-import { compileScalar } from './compile';
+import { compileScalar, oddRootExponent } from './compile';
 import { roots1D } from './numeric/roots';
 
 export interface DomainCondition {
@@ -56,12 +56,16 @@ export function domainConditions(e: Expr, vars: string[]): DomainCondition[] {
       }
     }
     if (n.type === 'bin' && n.op === '/') push(n.right, '≠');
-    if (n.type === 'bin' && n.op === '^' && n.right.type === 'num') {
-      const p = n.right.value;
-      if (p < 0) push(n.left, '≠');
-      if (!Number.isInteger(p)) {
-        // x^(1/3) is real for all x when the denominator is odd — keep it simple: require base ≥ 0
-        push(n.left, p < 0 ? '>' : '≥');
+    if (n.type === 'bin' && n.op === '^') {
+      const odd = oddRootExponent(n.right);
+      const p = n.right.type === 'num' ? n.right.value : odd?.value;
+      if (p !== undefined) {
+        if (p < 0) push(n.left, '≠');
+        // x^(1/3), x^(2/3) are real for every x (odd root); other fractional powers need a non-negative base
+        if (!Number.isInteger(p) && !odd) push(n.left, p < 0 ? '>' : '≥');
+      } else if (vars.some((v) => dependsOn(n.right, v))) {
+        // x^x, 2^x … with a variable exponent: real powers need a positive base (unless it is a constant > 0)
+        if (vars.some((v) => dependsOn(n.left, v))) push(n.left, '>');
       }
     }
     if (n.type === 'neg' && n.arg.type === 'num') return;
@@ -91,7 +95,8 @@ export interface DomainScan {
 export function scanDomain1D(f: (x: number) => number, conds: DomainCondition[], x: string, window: [number, number] = [-100, 100]): DomainScan {
   const [lo, hi] = window;
   const N = 20000;
-  const ok = (t: number) => Number.isFinite(f(t));
+  // overflow (exp(1/x) near 0⁺) is still defined; NaN is not
+  const ok = (t: number) => !Number.isNaN(f(t));
   const xs: number[] = [];
   for (let i = 0; i <= N; i++) xs.push(lo + ((hi - lo) * i) / N);
   const valid = xs.map(ok);
@@ -139,12 +144,24 @@ export function scanDomain1D(f: (x: number) => number, conds: DomainCondition[],
     split.push({ a, b: iv.b, closedA: ca, closedB: iv.closedB });
   }
   const clean = (v: number) => (Math.abs(v - Math.round(v)) < 1e-9 ? Math.round(v) : v);
+  // an end point where a condition becomes an equality: '≥' / 'between' include it, '>' / '≠' exclude it
+  const endIncluded = (t: number) => {
+    for (const c of conds) {
+      try {
+        const g = compileScalar(c.expr, [x])(t);
+        if (c.rel === 'between' ? Math.abs(Math.abs(g) - 1) < 1e-7 : Math.abs(g) < 1e-7) return c.rel === '≥' || c.rel === 'between';
+      } catch {
+        /* condition in other variables */
+      }
+    }
+    return Number.isFinite(f(t));
+  };
   // decide open/closed at the cleaned end point (bisection stops just inside the domain)
   return {
     intervals: split.map((i) => {
       const a = clean(i.a);
       const b = clean(i.b);
-      return { a, b, closedA: i.closedA && Number.isFinite(a) && ok(a), closedB: i.closedB && Number.isFinite(b) && ok(b) };
+      return { a, b, closedA: i.closedA && Number.isFinite(a) && endIncluded(a), closedB: i.closedB && Number.isFinite(b) && endIncluded(b) };
     }),
     window,
   };

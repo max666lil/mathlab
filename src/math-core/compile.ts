@@ -56,6 +56,12 @@ function gen(e: Expr, params: string[], env: NumericEnv, fns: Map<string, (...a:
           return `(${g(e.left)}${e.op}${g(e.right)})`;
         case '^': {
           if (e.right.type === 'num' && e.right.value === 2) return `((t=${g(e.left)})*t)`;
+          // x^(1/3), x^(2/3): real odd roots are defined for negative x (as in calculus courses)
+          const odd = oddRootExponent(e.right);
+          if (odd) {
+            const b = g(e.left);
+            return odd.p % 2 === 0 ? `Math.pow(Math.abs(${b}),${odd.value})` : `(Math.sign(${b})*Math.pow(Math.abs(${b}),${odd.value}))`;
+          }
           return `Math.pow(${g(e.left)},${g(e.right)})`;
         }
         default:
@@ -91,4 +97,34 @@ export function compile(expr: Expr, params: string[], env: NumericEnv = {}): Com
 
 export function compileScalar(expr: Expr, params: string[], env: NumericEnv = {}): CompiledScalar {
   return compile(expr, params, env) as CompiledScalar;
+}
+
+/** A constant non-integer exponent p/q with q odd (e.g. 1/3, 2/3, −1/5), or null. */
+export function oddRootExponent(e: Expr): { p: number; q: number; value: number } | null {
+  const val = constValue(e);
+  if (val === null || Number.isInteger(val)) return null;
+  for (let q = 3; q <= 99; q += 2) {
+    const p = Math.round(val * q);
+    if (Math.abs(p / q - val) < 1e-12) return { p, q, value: val };
+  }
+  return null;
+}
+
+function constValue(e: Expr): number | null {
+  switch (e.type) {
+    case 'num':
+      return e.value;
+    case 'neg': {
+      const a = constValue(e.arg);
+      return a === null ? null : -a;
+    }
+    case 'bin': {
+      const a = constValue(e.left);
+      const b = constValue(e.right);
+      if (a === null || b === null) return null;
+      return e.op === '+' ? a + b : e.op === '-' ? a - b : e.op === '*' ? a * b : e.op === '/' ? a / b : null;
+    }
+    default:
+      return null;
+  }
 }
