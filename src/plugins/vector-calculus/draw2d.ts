@@ -186,8 +186,9 @@ registerDrawer2D('meancircle', {
     ctx.arc(x0, y0, rp, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
-    const cmp = Math.abs(avg - f0) < 1e-9 ? 'average = f(P): harmonic here' : avg > f0 ? 'average > f(P): ∇²f > 0' : 'average < f(P): ∇²f < 0';
-    drawLabel(ctx, `avg on circle − f(P) = ${formatNumber(avg - f0, 3)}  ≈ r²/4 · ∇²f = ${formatNumber((r * r * L) / 4, 3)}`, x0 + rp + 8, y0 - 4, VC_COLORS.mean, theme, 13);
-    drawLabel(ctx, cmp, x0 + rp + 8, y0 + 14, VC_COLORS.mean, theme, 12);
+    const cmp = Math.abs(avg - f0) < 1e-9 ? 'avg = f(P): harmonic' : avg > f0 ? 'avg > f(P): ∇²f > 0' : 'avg < f(P): ∇²f < 0';
+    drawLabel(ctx, cmp, x0 + rp + 8, y0 - 4, VC_COLORS.mean, theme, 13);
+    drawLabel(ctx, `avg − f(P) = ${formatNumber(avg - f0, 3)} ≈ r²∇²f/4`, x0 + rp + 8, y0 + 13, VC_COLORS.mean, theme, 11);
+    void L;
   },
 });

@@ -10,7 +10,7 @@ import { diff } from '../../math-core/symbolic/diff';
 import { simplify } from '../../math-core/symbolic/simplify';
 import { expand, polyCoeffs, quadraticRoots } from '../../math-core/symbolic/expand';
 import { antiderivative } from '../../math-core/symbolic/integrate';
-import { symbolLatex } from '../../math-core/symbolic/print';
+import { symbolLatex, toLatex } from '../../math-core/symbolic/print';
 import { compileScalar, NumericEnv } from '../../math-core/compile';
 import { roots1D, newtonSystem, gridSeeds } from '../../math-core/numeric/roots';
 import { limitAt, limitInf, NumericLimit } from '../../math-core/numeric/limits';
@@ -327,6 +327,11 @@ export function affineLatex(c0: number, terms: [number, string, number][]): stri
   return parts.join(' ');
 }
 
+/** How an (anonymous) function is named in a derivation: its label, or its formula — never a made-up "f". */
+function fnTex(f: FunctionValue): string {
+  if (f.label) return f.label;
+  return f.expr ? `\\left(${toLatex(f.expr)}\\right)` : 'f';
+}
 function pointArg(v: MathValue | undefined, what: string): number[] {
   if (!v) throw new EvalError(`${what}: say where, e.g. "at P"`);
   if (v.kind === 'scalar') return [expectNumber(v)];
@@ -363,12 +368,12 @@ const integrate: Builtin = {
     const F = memo(`anti|${f.key}`, () => antiderivative(e, x));
     if (!aV || !bV) {
       if (!F) throw new EvalError('no elementary antiderivative found — give bounds for a numeric value: integrate f from a to b');
-      return { ...ctx.makeFunction(F, [x], { label: `\\int ${f.label ?? 'f'}` }), certainty: 'exact', evidence: 'antiderivative verified by differentiation (+ C)', derivation: `\\int ${f.label ?? 'f'}\\,d${x}`, role: 'antiderivative' };
+      return { ...ctx.makeFunction(F, [x], { label: `\\int ${fnTex(f)}` }), certainty: 'exact', evidence: 'antiderivative verified by differentiation (+ C)', derivation: `\\int ${fnTex(f)}\\,d${x}`, role: 'antiderivative' };
     }
     const a = expectNumber(aV);
     const b = expectNumber(bV);
     const fn = compileScalar(e, [x]);
-    const derivation = `\\int_{${rn(a)}}^{${rn(b)}} ${f.label ?? 'f'}\\,d${x}`;
+    const derivation = `\\int_{${rn(a)}}^{${rn(b)}} ${fnTex(f)}\\,d${x}`;
     // points in [a, b] where the integrand is undefined (zeros of denominators, log arguments …)
     const lo = Math.min(a, b);
     const hi = Math.max(a, b);
@@ -419,7 +424,7 @@ const limit: Builtin = {
     const a = expectNumber(aV);
     const side = kw.raw.side?.type === 'sym' ? (kw.raw.side.name as 'left' | 'right') : 'both';
     const F = compileScalar(e, [x]);
-    const derivation = `\\lim_{${symbolLatex(x)} \\to ${Number.isFinite(a) ? rn(a) : a > 0 ? '\\infty' : '-\\infty'}${side === 'right' ? '^+' : side === 'left' ? '^-' : ''}} ${f.label ?? 'f'}`;
+    const derivation = `\\lim_{${symbolLatex(x)} \\to ${Number.isFinite(a) ? rn(a) : a > 0 ? '\\infty' : '-\\infty'}${side === 'right' ? '^+' : side === 'left' ? '^-' : ''}} ${fnTex(f)}`;
     if (!Number.isFinite(a)) return { ...toLimit(limitInf(F, a > 0 ? 1 : -1)), derivation };
     // continuity: elementary functions are continuous on the interior of their domain
     const conds = domainConditions(e, [x]);
@@ -444,7 +449,7 @@ const taylor: Builtin = {
       if (n > 2) throw new EvalError('for two variables, order ≤ 2');
       const p = at ? pointArg(at, 'taylor') : [0, 0];
       const d = localData(ctx, f, p);
-      return { ...ctx.makeFunction(taylorExpr(d, f.params, n === 1 ? 1 : 2), f.params, { label: `T_{${n}}${f.label ?? 'f'}` }), certainty: 'exact', evidence: 'derivatives computed symbolically', role: 'taylor' };
+      return { ...ctx.makeFunction(taylorExpr(d, f.params, n === 1 ? 1 : 2), f.params, { label: `T_{${n}}${fnTex(f)}` }), certainty: 'exact', evidence: 'derivatives computed symbolically', role: 'taylor' };
     }
     const { x, e } = oneVar(f, 'taylor');
     const a = at ? pointArg(at, 'taylor')[0] : 0;
@@ -465,7 +470,7 @@ const taylor: Builtin = {
     }
     // keep ascending powers: 1 + x + x²/2 + … (simplifying the whole sum would move the constant last)
     const poly = terms.length ? terms.map(simplify).reduce((p, q) => ({ type: 'bin', op: '+', left: p, right: q })) : num(0);
-    return { ...ctx.makeFunction(poly, [x], { label: `T_{${n}}${f.label ?? 'f'}` }), certainty: 'exact', evidence: `coefficients f⁽ᵏ⁾(${rn(a)})/k! from symbolic derivatives`, role: 'taylor' };
+    return { ...ctx.makeFunction(poly, [x], { label: `T_{${n}}${fnTex(f)}` }), certainty: 'exact', evidence: `coefficients f⁽ᵏ⁾(${rn(a)})/k! from symbolic derivatives`, role: 'taylor' };
   },
 };
 const solve: Builtin = {

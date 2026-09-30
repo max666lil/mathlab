@@ -469,12 +469,34 @@ export class SceneView {
     if (this.ws.focus) this.ws.setWindow3d(this.ws.focus, { xr, yr });
   }
 
-  /** Scroll over a surface: zoom the domain (Desmos-like), not the camera. */
+  /** Is the pointer over the plot box (the coordinate system), or over the empty space around it? */
+  private overPlot(e: { clientX: number; clientY: number }): boolean {
+    this.raycaster.setFromCamera(this.ndc(e as PointerEvent), this.camera);
+    const m = this.map;
+    const box = new THREE.Box3(new THREE.Vector3(m.xr[0], m.yr[0], m.floorZ), new THREE.Vector3(m.xr[1], m.yr[1], m.floorZ + m.boxH));
+    return this.raycaster.ray.intersectsBox(box);
+  }
+
+  /**
+   * Scroll over a surface graph. Over the plot box: zoom the coordinate system (the domain, Desmos-like;
+   * the surface is re-sampled). Over the empty space around it: move the camera closer / further.
+   * One gesture never does both.
+   */
   private onWheel = (e: WheelEvent) => {
     if (!this.frame.surface || this.frame.euclid) return;
     e.preventDefault();
     e.stopImmediatePropagation();
     const k = Math.exp(Math.max(-60, Math.min(60, e.deltaY)) * 0.004);
+    if (!this.overPlot(e)) {
+      const off = this.camera.position.clone().sub(this.controls.target);
+      const d = off.length() * k;
+      const size = this.map.size;
+      if (d < size * 0.25 || d > size * 25) return;
+      this.camera.position.copy(this.controls.target).add(off.multiplyScalar(k));
+      this.controls.update();
+      this.needsRender = true;
+      return;
+    }
     const { xr, yr } = this.domain();
     const [cx, cy] = [(xr[0] + xr[1]) / 2, (yr[0] + yr[1]) / 2];
     const hw = ((xr[1] - xr[0]) / 2) * k;
@@ -555,6 +577,7 @@ export class SceneView {
     const objs: THREE.Object3D[] = [];
     for (const { v } of this.visuals.values()) v.handles?.forEach((h) => objs.push(h.object));
     this.renderer.domElement.style.cursor = this.raycaster.intersectObjects(objs, true).length ? 'move' : 'grab';
+    if (this.frame.surface && !this.frame.euclid) this.renderer.domElement.title = this.overPlot(e) ? 'Scroll: zoom the coordinates · right-drag: pan' : 'Scroll: move the camera closer / further';
   };
 
   private onUp = (e: PointerEvent) => {
@@ -686,5 +709,5 @@ export class SceneView {
 
 /** How much further back the camera stands in narrow panes so the whole box fits horizontally. */
 function fitFactor(aspect: number): number {
-  return Math.max(1, 1.35 / Math.max(0.2, aspect));
+  return Math.max(1, 1.05 / Math.max(0.2, aspect));
 }
