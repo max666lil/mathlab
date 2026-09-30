@@ -16,7 +16,7 @@ import { eigenOf, isSymmetric } from './eigen';
 import { orthonormalize, qrOf, svdOf } from './decomp';
 import { visual } from '../../visualization/scene-model';
 import {
-  SubspaceValue, EigenValue, FactorizationValue, subspace, affine, eigenvaluesList, eigenvectorsList,
+  SubspaceValue, EigenValue, FactorizationValue, subspace, affine, eigenvaluesList, eigenvectorsList, lambdaLatex,
 } from './values';
 
 // ------------------------------------------------------------------ inputs
@@ -75,7 +75,8 @@ export function onField<U>(m: Mx, f: Solver<U>): U {
 }
 
 const toNums = <T>(F: Field<T>, A: T[][]) => A.map((r) => r.map((x) => clean(F.num(x))));
-const clean = (x: number) => (Math.abs(x) < 1e-12 ? 0 : x);
+// only floating-point dust (and −0) is cleaned; exact results can legitimately be tiny (1/(4·10¹²))
+const clean = (x: number) => (Math.abs(x) < 1e-15 || Object.is(x, -0) ? 0 : x);
 const L = (x: number, c: Certainty) => entryLatex(x, c === 'exact');
 
 // ------------------------------------------------------------------ core computations (shared with analyzers)
@@ -118,16 +119,25 @@ export function eigenValueOf(m: Mx): EigenValue {
 
 function diagonalizability(e: EigenValue): { ok: boolean; reason: string } {
   const complexPair = e.pairs.find((p) => p.im !== 0);
-  if (complexPair) return { ok: false, reason: `\\text{complex eigenvalues } ${entryLatex(complexPair.re, false) === '0' ? '' : entryLatex(complexPair.re, complexPair.certainty === 'exact')} \\pm ${entryLatex(Math.abs(complexPair.im), complexPair.certainty === 'exact')}i` };
+  if (complexPair) return { ok: false, reason: `\\text{complex eigenvalues } ${lambdaLatex(complexPair, complexPair.certainty === 'exact')}` };
   const short = e.pairs.find((p) => p.geo < p.alg);
   if (short) return { ok: false, reason: `\\lambda = ${entryLatex(short.re, short.certainty === 'exact')}:\\ \\text{geo. mult. } ${short.geo} < \\text{alg. mult. } ${short.alg}` };
   return { ok: true, reason: `${e.n}\\ \\text{independent eigenvectors}` };
 }
 
+/** The diagonalizability obstacle in plain text (for error messages). */
+function plainReason(e: EigenValue): string {
+  const c = e.pairs.find((p) => p.im !== 0);
+  const num = (x: number) => +x.toPrecision(4);
+  if (c) return `complex eigenvalues ${num(c.re) === 0 ? '' : `${num(c.re)} `}± ${num(Math.abs(c.im))}i`;
+  const s = e.pairs.find((p) => p.geo < p.alg);
+  return s ? `λ = ${num(s.re)} has only ${s.geo} independent eigenvector${s.geo === 1 ? '' : 's'} but multiplicity ${s.alg}` : 'not enough eigenvectors';
+}
+
 export function diagonalizationOf(m: Mx): FactorizationValue {
   const e = eigenValueOf(m);
   const d = diagonalizability(e);
-  if (!d.ok) throw new EvalError(`not diagonalizable over ℝ — ${d.reason.replace(/\\text\{([^}]*)\}/g, '$1').replace(/\\/g, '')}`);
+  if (!d.ok) throw new EvalError(`not diagonalizable over ℝ — ${plainReason(e)}`);
   const cols: number[][] = [];
   const lambdas: number[] = [];
   for (const p of e.pairs) for (const b of p.basis) {
@@ -197,7 +207,7 @@ export const linearAlgebraBuiltins: Builtin[] = [
   }),
   unary('inverse', 'Inverse matrix A⁻¹ (exact for rational matrices).', (m, raw) => {
     const inv = inverseOf(m);
-    if (!inv) throw new EvalError(`${nameOf(raw)} is not invertible: det = 0 (rank ${rankOf(m)} < ${m.rows.length})`);
+    if (!inv) throw new EvalError(`${raw.length ? nameOf(raw) : 'the matrix'} is not invertible: det = 0 (rank ${rankOf(m)} < ${m.rows.length})`);
     return matrixV(inv, { certainty: m.certainty, role: 'inverse' });
   }),
   unary('transpose', 'Transpose Aᵀ.', (m) => matrixV(m.rows[0].map((_, j) => m.rows.map((r) => r[j])), { certainty: m.certainty })),
@@ -294,6 +304,7 @@ export const linearAlgebraBuiltins: Builtin[] = [
     if (!v || !target) throw new EvalError('project v onto W');
     const x = vectorsOf([v]);
     const { vs, certainty } = vectorsOf([target]);
+    if (vs.length && vs[0].length !== x.vs[0].length) throw new EvalError(`dimension mismatch: v is in ℝ${x.vs[0].length}, W is in ℝ${vs[0].length}`);
     const m = mxOf(columnsMatrix(vs), weakest([certainty, x.certainty]));
     const pivots = onField(m, (F, A) => alg.rref(F, A).pivots);
     const B = mxOf(columnsMatrix(pivots.map((j) => vs[j])), m.certainty);
@@ -312,6 +323,7 @@ export const linearAlgebraBuiltins: Builtin[] = [
   fn('leastsquares', 2, 2, 'leastsquares(A, b)', 'Least-squares solution of A x ≈ b (normal equations AᵀA x = Aᵀb).', ([a, b]) => {
     const m = expectMx(a);
     const bv = vectorsOf([b]);
+    if (bv.vs[0].length !== m.rows.length) throw new EvalError(`b must have ${m.rows.length} entries (one per row of A)`);
     const At = m.rows[0].map((_, j) => m.rows.map((r) => r[j]));
     const AtA = At.map((r) => At.map((s) => r.reduce((t, x, i) => t + x * s[i], 0)));
     const Atb = At.map((r) => r.reduce((t, x, i) => t + x * bv.vs[0][i], 0));

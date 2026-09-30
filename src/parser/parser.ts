@@ -272,7 +272,8 @@ export class ExprParser {
       if (kws && !(nx.kind === 'op' && nx.text === '(' && !nx.spaced) && (this.startsPrimary(nx) || (nx.kind === 'op' && ['-', '|', '<', '[', '('].includes(nx.text))))
         return this.parseCommand(s, kws);
       // prefix application: sin x, grad f
-      if (this.opts.isPrefixFunction?.(t.text) && !(nx.kind === 'op' && nx.text === '(') && this.startsPrimary(nx)) {
+      const literalArg = nx.kind === 'op' && (nx.text === '[' || nx.text === '<') && nx.spaced;
+      if (this.opts.isPrefixFunction?.(t.text) && !(nx.kind === 'op' && nx.text === '(') && (this.startsPrimary(nx) || literalArg)) {
         this.noImplicitFn++;
         let arg: Expr;
         try {

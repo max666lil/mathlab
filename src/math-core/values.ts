@@ -190,6 +190,7 @@ registerValueKind({
   // exact results show their closed form (1/3, √2); numeric ones stay decimal
   latex: (v) => {
     const x = (v as ScalarValue).value;
+    if (Number.isNaN(x)) return '\\text{undefined}';
     const r = v.certainty === 'exact' && !Number.isInteger(x) ? recognize(x) : null;
     return r ? r.latex : numberLatex(x);
   },

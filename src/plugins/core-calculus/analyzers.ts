@@ -4,6 +4,7 @@
  */
 import { registerAnalyzer, AnalysisPlan, FactSpec, SectionSpec, WorkspaceLayout } from '../../runtime/analysis';
 
+
 /** f: ℝ → ℝ — one large graph. */
 const GRAPH_LAYOUT: WorkspaceLayout = { canvasTitle: 'Graph', views: [{ id: 'graph', label: 'Graph', renderer: 'plane' }], defaultView: 'graph' };
 
@@ -61,6 +62,10 @@ registerAnalyzer({
     const fv = value as FunctionValue;
     const x = fv.params[0];
     const a = firstSlider(ws);
+    // Taylor centre: 0 unless f is undefined there (ln x, 1/x, √x …)
+    const ev = fv.eval as (t: number) => number;
+    // 0 must be an interior point of the domain (not √x at 0, not ln x, 1/x, sin x / x)
+    const centre = a ?? ([0, -1e-6, 1e-6].every((t) => Number.isFinite(ev(t))) ? '0' : '1');
     const sections: SectionSpec[] = [
       { id: 'overview', title: 'Summary', summary: true },
       { id: 'zeros', title: 'Zeros & intercepts' },
@@ -87,7 +92,7 @@ registerAnalyzer({
       { id: 'asymptotes', title: 'Asymptotes', expr: `asymptotes ${f}`, tier: 1, section: 'asymptotes', pinName: 'A', visual: 'auto' },
       { id: 'limit+', title: `${x} → +∞`, expr: `limit ${f} as ${x} -> ∞`, tier: 1, section: 'asymptotes' },
       { id: 'limit-', title: `${x} → −∞`, expr: `limit ${f} as ${x} -> -∞`, tier: 1, section: 'asymptotes' },
-      { id: 'taylor', title: `T₄ at ${a ?? 0}`, expr: `taylor ${f} at ${a ?? 0} order 4`, tier: 1, section: 'taylor', pinName: 'T', visual: 'auto' },
+      { id: 'taylor', title: `T₄ at ${centre}`, expr: `taylor ${f} at ${centre} order 4`, tier: 1, section: 'taylor', pinName: 'T', visual: 'auto' },
       { id: 'integral', title: `∫ ${f} d${x}`, expr: `integrate ${f}`, tier: 1, section: 'integral', pinName: 'F' },
     ];
     // like a graphing calculator: every other function of one variable is drawn too, with intersections on demand

@@ -96,3 +96,60 @@ describe('solve and domains', () => {
     expect(last('f(x) = sqrt(x - 0.3)', 'zeros f').value.points.map((p: any) => +p.coords[0].toFixed(9))).toEqual([0.3]);
   });
 });
+
+describe('linear algebra tolerances and checks', () => {
+  it('scale-relative tolerances and tiny exact entries', () => {
+    expect(last('A = [[1e-10, 0], [0, 1e-10]]', 'rank A').value.value).toBe(2);
+    const inv = last('A = [[1000000, 2], [3, 4000000]]', 'inverse A').value.rows;
+    expect(inv[0][1]).toBeLessThan(0);
+    expect(last('A = [[1000000, 2], [3, 4000000]]', 'diagonalizable A').value.value).toBe(true);
+    const e = last('A = [[1000000, 2], [3, 4000000]]', 'eigen A').value;
+    for (const p of e.pairs) {
+      const v = p.basis[0];
+      const Av = [1e6 * v[0] + 2 * v[1], 3 * v[0] + 4e6 * v[1]];
+      expect(Math.hypot(Av[0] - p.re * v[0], Av[1] - p.re * v[1])).toBeLessThan(1e-3 * Math.hypot(...Av));
+    }
+  });
+  it('dimension mismatches are errors, not NaN', () => {
+    expect(last('W = span(<1,0,0>)', 'project <1,2> onto W').error).toMatch(/dimension/);
+    expect(last('leastsquares([[1,1],[1,2]], <1,2,3>)').error).toMatch(/entries/);
+    expect(last('B = [[1,2],[2,4]]', 'B^-1').error).not.toMatch(/A is/);
+  });
+  it('negation keeps exactness', () => {
+    expect(last('A = [[1,2],[3,4]]', '-A').value.certainty).toBe('exact');
+  });
+});
+
+describe('language and analysis details', () => {
+  it('arity, implicit products, prefix literals', () => {
+    expect(last('log(8, 2)').error).toMatch(/argument/);
+    expect(last('f(x) = x(x + 1)', 'f(2)').value.value).toBe(6);
+    expect(last('a = 2', 'b = 3', 'c = ab').value.value).toBe(6);
+    expect(last('r = 2', 'A = π r^2').value.value).toBeCloseTo(4 * Math.PI, 12);
+    expect(last('det [[1,2],[3,4]]').value.value).toBe(-2);
+    expect(last('rank <1, 2>').error ?? '').not.toMatch(/Unexpected/);
+  });
+  it('corners and points outside the domain', () => {
+    expect(last('f(x) = abs(x)', 'tangent f at 0').error).toMatch(/not differentiable/);
+    expect(last('f(x,y) = sqrt(1 - x^2 - y^2)', 'P = point(1, 1)', 'tangent f at P').error).toMatch(/outside the domain/);
+    expect(valueLatex(last('f(x) = sin(x)/x', 'f(0)').value)).toBe('\\text{undefined}');
+  });
+  it('analyze on a plain number does not blank the workspace', () => {
+    const ws = new Workspace(['f(x) = x^2', 'a = 3', 'analyze a']);
+    expect(ws.focus).toBe('f');
+  });
+  it('monotonicity without critical points; constant and linear functions', () => {
+    const m = (e: string) => valueLatex(last(`f(x) = ${e}`, 'monotonicity f').value);
+    expect(m('x^(1/3)')).toContain('increasing');
+    expect(m('5')).toContain('constant');
+    expect(m('x')).toContain('increasing');
+  });
+  it('Taylor centre avoids points outside the domain; readable labels', () => {
+    const ws = new Workspace(['f(x) = ln(x)']);
+    const an = new AnalysisService(ws);
+    expect(an.plan()!.facts.find((f) => f.id === 'taylor')!.expr).toContain('at 1');
+    expect(last('f(x,y) = x y', 'P = point(1, 1)', 'tangent f at P').value.latex).toBe('z = 1 + (x - 1) + (y - 1)');
+    expect(last('f(x) = x^5', 'derivative f order 4').value.label).toBe('f^{(4)}');
+    expect(last('derivative exp(x)').value.expr.type).not.toBe('bin');
+  });
+});

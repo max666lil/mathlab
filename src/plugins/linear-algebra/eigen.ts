@@ -229,8 +229,44 @@ export function eigenOf(rows: number[][], exact: boolean): EigenResult {
 
 function numericNull(rows: number[][], lambda: number): number[][] {
   const B = rows.map((r, i) => r.map((x, j) => (i === j ? x - lambda : x)));
-  const F = numericField(1e-7 * Math.max(1, ...rows.flat().map(Math.abs)));
-  return nullspace(F, B).map(scaleMax);
+  const scale = Math.max(1e-300, ...B.flat().map(Math.abs));
+  const basis = nullspace(numericField(1e-8 * scale), B).map(scaleMax);
+  if (basis.length) return basis;
+  // λ is an eigenvalue, so an eigenvector exists: inverse iteration finds it where row reduction is too strict
+  const n = rows.length;
+  let v = Array.from({ length: n }, (_, i) => 1 / (i + 1.3));
+  const shifted = B.map((r, i) => r.map((x, j) => (i === j ? x + 1e-10 * scale : x)));
+  for (let it = 0; it < 30; it++) {
+    const w = solveDense(shifted, v);
+    if (!w) break;
+    const l = Math.hypot(...w);
+    if (!Number.isFinite(l) || l === 0) break;
+    v = w.map((x) => x / l);
+  }
+  const k = v.reduce((best, x, i) => (Math.abs(x) > Math.abs(v[best]) ? i : best), 0);
+  return [scaleMax(v.map((x) => x / v[k]))];
+}
+
+function solveDense(A: number[][], b: number[]): number[] | null {
+  const n = A.length;
+  const M = A.map((r, i) => [...r, b[i]]);
+  for (let c = 0; c < n; c++) {
+    let p = c;
+    for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    if (M[p][c] === 0) return null;
+    [M[c], M[p]] = [M[p], M[c]];
+    for (let r = c + 1; r < n; r++) {
+      const f = M[r][c] / M[c][c];
+      for (let j = c; j <= n; j++) M[r][j] -= f * M[c][j];
+    }
+  }
+  const x = new Array(n).fill(0);
+  for (let i = n - 1; i >= 0; i--) {
+    let s = M[i][n];
+    for (let j = i + 1; j < n; j++) s -= M[i][j] * x[j];
+    x[i] = s / M[i][i];
+  }
+  return x;
 }
 
 /** Real eigenvalues descending, then complex ones (positive imaginary part first). */

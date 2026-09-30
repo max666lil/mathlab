@@ -49,6 +49,7 @@ export function simplify(e: Expr): Expr {
           if (Number.isInteger(v)) return num(v);
         }
         if ((name === 'ln' || name === 'log') && a.type === 'call' && a.callee.type === 'sym' && a.callee.name === 'exp') return a.args[0];
+        if ((name === 'ln' || name === 'log') && a.type === 'sym' && a.name === 'e') return { type: 'num', value: 1 };
         if (name === 'exp' && a.type === 'call' && a.callee.type === 'sym' && (a.callee.name === 'ln' || a.callee.name === 'log')) return a.args[0];
       }
       return { type: 'call', callee: e.callee, args };

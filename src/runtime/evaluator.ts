@@ -174,11 +174,11 @@ export class Evaluator implements EvalContext {
       case 'scalar':
         return scalar(-(v as ScalarValue).value);
       case 'vector':
-        return vector((v as VectorValue).comps.map((x) => -x), (v as VectorValue).anchor);
+        return vector((v as VectorValue).comps.map((x) => -x), (v as VectorValue).anchor, { certainty: v.certainty });
       case 'point':
         return point((v as PointValue).coords.map((x) => -x));
       case 'matrix':
-        return matrixV((v as MatrixValue).rows.map((r) => r.map((x) => -x)));
+        return matrixV((v as MatrixValue).rows.map((r) => r.map((x) => -x)), { certainty: v.certainty });
       case 'function':
         return this.functionOp('*', scalar(-1), v, e);
     }
@@ -393,6 +393,8 @@ export class Evaluator implements EvalContext {
     }
     const sf = getScalarFunction(name);
     if (sf) {
+      const [lo, hi] = typeof sf.arity === 'number' ? [sf.arity, sf.arity] : sf.arity;
+      if (e.args.length < lo || e.args.length > hi) throw spanErr(`${name} takes ${lo === hi ? lo : `${lo}–${hi}`} argument${hi === 1 ? '' : 's'}`, e);
       const args = e.args.map((a) => this.evaluate(a));
       if (args.some((a) => a.kind === 'function')) {
         const fs = args.filter((a) => a.kind === 'function') as FunctionValue[];
@@ -464,7 +466,9 @@ export class Evaluator implements EvalContext {
   /** Evaluate, but lift expressions with free x, y, z, t to anonymous functions. */
   evaluateOrLift(e: Expr): MathValue {
     const free = [...liftCandidates(e)].filter((n) => !this.lookup(n) && !getBuiltin(n) && !getScalarFunction(n));
-    const liftable = free.length > 0 && free.every((n) => LIFT_VARS.includes(n) || [...n].every((c) => LIFT_VARS.includes(c) || this.lookup(c)));
+    // lift only when a real free variable remains (ab with a, b defined is a product, not a function)
+    const hasVar = free.some((n) => LIFT_VARS.includes(n) || [...n].some((c) => LIFT_VARS.includes(c) && !this.lookup(c)));
+    const liftable = hasVar && free.every((n) => LIFT_VARS.includes(n) || [...n].every((c) => LIFT_VARS.includes(c) || this.lookup(c)));
     return liftable ? this.toFunction(e) : this.evaluate(e);
   }
 
@@ -510,7 +514,11 @@ export class Evaluator implements EvalContext {
     }
     if (n.type === 'call' && n.callee.type === 'sym') {
       const name = n.callee.name;
-      if (params.includes(name)) throw spanErr(`'${name}' is a variable, not a function`, n);
+      // x(x + 1) inside a body: implicit multiplication by the variable
+      if (params.includes(name)) {
+        if (n.args.length === 1) return bin('*', n.callee, n.args[0]);
+        throw spanErr(`'${name}' is a variable, not a function`, n);
+      }
       const v = this.scope.lookup(name) ?? this.derivedName(name);
       if (v?.kind === 'function') {
         const f = v as FunctionValue;

@@ -199,7 +199,7 @@ export class Workspace {
         const v = this.value(id);
         if (v?.kind === 'focus') {
           const t = (v as unknown as { target: string }).target;
-          if (this.value(t)) return t;
+          if (this.value(t) && this.isAnalyzable(t)) return t;
         }
       }
       return undefined;

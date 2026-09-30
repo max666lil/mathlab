@@ -64,9 +64,10 @@ export function numericField(tol: number): Field<number> {
 
 /** Tolerance scaled to the size of the entries. */
 export function tolFor(rows: number[][]): number {
+  // relative to the size of the entries: [[1e-10, 0], [0, 1e-10]] is invertible
   let m = 0;
   for (const r of rows) for (const x of r) m = Math.max(m, Math.abs(x));
-  return 1e-9 * Math.max(1, m) * Math.max(1, rows.length);
+  return 1e-11 * m * Math.max(1, rows.length);
 }
 
 /** Rational matrix, or null when some entry is not a (small-denominator) rational. */

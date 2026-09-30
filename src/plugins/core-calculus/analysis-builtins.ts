@@ -3,7 +3,7 @@
  * exactly these (`critical(f)`, `domain(f)`, …); users can type the same commands and keep the
  * results as named objects. Every result carries a certainty label and evidence.
  */
-import { Expr, num, sym, mapExpr, freeSymbols } from '../../math-core/ast';
+import { Expr, num, sym, mapExpr, freeSymbols, children } from '../../math-core/ast';
 import { Builtin, EvalContext, EvalError, expectCoords, expectFunction, expectNumber, expectVector } from '../../math-core/builtins';
 import { FunctionValue, MathValue, scalar, Certainty } from '../../math-core/values';
 import { diff } from '../../math-core/symbolic/diff';
@@ -163,13 +163,31 @@ function signIntervals(f: FunctionValue, d: Expr, breaks: number[], labels: [str
   const dom = domain1D(f).intervals ?? [];
   const D = compileScalar(d, [x]);
   const out: Interval[] = [];
+  // points inside the domain where the derivative itself is undefined (x^(1/3) at 0) also split intervals
+  const undefinedAt: number[] = [];
+  for (const c of domainConditions(d, [x])) {
+    if (c.rel !== '≠' && c.rel !== '>') continue;
+    try {
+      undefinedAt.push(...roots1D(compileScalar(c.expr, [x]), WINDOW_1D[0], WINDOW_1D[1], 4000).roots);
+    } catch {
+      /* ignore */
+    }
+  }
+  const allBreaks = [...breaks, ...undefinedAt];
+  const constant = [-3.7, -1.3, 0.4, 1.9, 5.2].every((t) => !Number.isFinite(D(t)) || Math.abs(D(t)) < 1e-12) && [-3.7, -1.3, 0.4, 1.9, 5.2].some((t) => Number.isFinite(D(t)));
   for (const iv of dom) {
-    const cuts = [iv.a, ...breaks.filter((b) => b > iv.a && b < iv.b).sort((p, q) => p - q), iv.b];
+    const cuts = [iv.a, ...allBreaks.filter((b) => b > iv.a && b < iv.b).sort((p, q) => p - q), iv.b];
     for (let i = 0; i + 1 < cuts.length; i++) {
       const a = cuts[i];
       const b = cuts[i + 1];
-      const mid = Number.isFinite(a) && Number.isFinite(b) ? (a + b) / 2 : Number.isFinite(a) ? a + Math.max(1, Math.abs(a)) : Number.isFinite(b) ? b - Math.max(1, Math.abs(b)) : 0;
-      const s = signAt(D, mid);
+      if (constant) {
+        out.push({ a, b, closedA: false, closedB: false, label: what === 'monotonicity' ? 'constant' : 'linear (no concavity)' });
+        continue;
+      }
+      // majority sign over a few interior samples (a single midpoint can land on a point where the derivative is undefined)
+      const probes = Number.isFinite(a) && Number.isFinite(b) ? [0.21, 0.5, 0.79].map((u) => a + (b - a) * u) : Number.isFinite(a) ? [1, 3.3, 11].map((u) => a + u * Math.max(1, Math.abs(a))) : Number.isFinite(b) ? [1, 3.3, 11].map((u) => b - u * Math.max(1, Math.abs(b))) : [-2.3, -0.7, 0.9, 2.6];
+      const sum = probes.reduce((acc, t) => acc + signAt(D, t), 0);
+      const s = Math.sign(sum);
       if (!s) continue;
       const label = s > 0 ? labels[0] : labels[1];
       const prev = out[out.length - 1];
@@ -296,6 +314,19 @@ function toLimit(n: NumericLimit): LimitValue {
   return { kind: 'limit', result: n.kind, value: n.value, left: side(n.left), right: side(n.right), certainty: 'heuristic', evidence: `numeric evidence: ${n.evidence}` } as LimitValue;
 }
 
+/** c₀ + Σ cᵢ(vᵢ − aᵢ) typeset without "+ 1(x − 1)", "+ 0(y − 2)" or "(x − 0)". */
+export function affineLatex(c0: number, terms: [number, string, number][]): string {
+  const parts: string[] = [];
+  if (Math.abs(c0) > 1e-12 || terms.every(([c]) => Math.abs(c) < 1e-12)) parts.push(rn(c0));
+  for (const [c, v, a] of terms) {
+    if (Math.abs(c) < 1e-12) continue;
+    const factor = Math.abs(a) < 1e-12 ? v : `(${v} ${a < 0 ? '+' : '-'} ${rn(Math.abs(a))})`;
+    const mag = Math.abs(Math.abs(c) - 1) < 1e-12 ? '' : rn(Math.abs(c));
+    parts.push(`${parts.length ? (c < 0 ? '- ' : '+ ') : c < 0 ? '-' : ''}${mag}${factor}`);
+  }
+  return parts.join(' ');
+}
+
 function pointArg(v: MathValue | undefined, what: string): number[] {
   if (!v) throw new EvalError(`${what}: say where, e.g. "at P"`);
   if (v.kind === 'scalar') return [expectNumber(v)];
@@ -317,7 +348,7 @@ const derivative: Builtin = {
     let e = f.expr;
     for (let i = 0; i < n; i++) e = diff(e, v);
     const name = f.label ?? 'f';
-    const label = f.params.length === 1 ? `${name}${"'".repeat(Math.min(n, 3))}${n > 3 ? `^{(${n})}` : ''}` : `\\partial_{${symbolLatex(v)}}${n > 1 ? `^{${n}}` : ''} ${name}`;
+    const label = f.params.length === 1 ? (n > 3 ? `${name}^{(${n})}` : `${name}${"'".repeat(n)}`) : `\\partial_{${symbolLatex(v)}}${n > 1 ? `^{${n}}` : ''} ${name}`;
     return { ...ctx.makeFunction(e, f.params, { label, base: f, env: f.env }), certainty: 'exact', evidence: 'symbolic differentiation' };
   },
 };
@@ -500,14 +531,25 @@ const tangent: Builtin = {
     const p = pointArg(kw.values.at ?? pv, 'tangent');
     if (f.params.length === 2) {
       const d = localData(ctx, f, p);
+      if (!Number.isFinite(d.f0) || !d.g.every(Number.isFinite)) throw new EvalError(`${f.label ?? 'f'} is not defined / differentiable at (${p.map(rn).join(', ')}) — the point is outside the domain`);
       return {
         kind: 'plane', point: [p[0], p[1], d.f0], normal: [-d.g[0], -d.g[1], 1], role: 'tangent', certainty: 'exact', evidence: 'gradient computed symbolically',
-        latex: `z = ${rn(d.f0)} ${d.g[0] < 0 ? '-' : '+'} ${rn(Math.abs(d.g[0]))}(x ${p[0] < 0 ? '+' : '-'} ${rn(Math.abs(p[0]))}) ${d.g[1] < 0 ? '-' : '+'} ${rn(Math.abs(d.g[1]))}(y ${p[1] < 0 ? '+' : '-'} ${rn(Math.abs(p[1]))})`,
+        latex: `z = ${affineLatex(d.f0, [[d.g[0], 'x', p[0]], [d.g[1], 'y', p[1]]])}`,
       } as MathValue;
     }
     const { x, e } = oneVar(f, 'tangent');
     const a = p[0];
     const F = compileScalar(e, [x]);
+    // |u| has a corner where u = 0 changes sign: the formula derivative (sgn) would wrongly give a slope there
+    const kink = (n: Expr): boolean => {
+      if (n.type === 'call' && n.callee.type === 'sym' && n.callee.name === 'abs' && n.args[0]) {
+        const u = compileScalar(n.args[0], [x]);
+        const du = compileScalar(dfn(n.args[0], x), [x]);
+        if (Math.abs(u(a)) < 1e-12 && Math.abs(du(a)) > 1e-12) return true;
+      }
+      return children(n).some(kink);
+    };
+    if (kink(e)) throw new EvalError(`${f.label ?? 'f'} is not differentiable at ${rn(a)} (corner of |…|)`);
     const m = compileScalar(dfn(e, x), [x])(a);
     if (!Number.isFinite(F(a)) || !Number.isFinite(m)) throw new EvalError(`${f.label ?? 'f'} is not differentiable at ${rn(a)}`);
     const line = simplify({ type: 'bin', op: '+', left: num(F(a)), right: { type: 'bin', op: '*', left: num(m), right: { type: 'bin', op: '-', left: sym(x), right: num(a) } } });

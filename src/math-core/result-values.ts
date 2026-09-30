@@ -115,7 +115,12 @@ registerValueKind({
     const items = s.points.map((p) => `${s.dim === 1 && s.what !== 'solutions' ? 'x = ' : ''}${pointLatex(p, s.certainty === 'exact')}${p.type ? `\\ \\text{(${p.type})}` : ''}`);
     return lines(items);
   },
-  typeLabel: (v) => `${(v as unknown as PointSetValue).points.length} ${(v as unknown as PointSetValue).what}`,
+  typeLabel: (v) => {
+    const s = v as unknown as PointSetValue;
+    const n = s.points.length;
+    const one: Record<string, string> = { equilibria: 'equilibrium', 'critical points': 'critical point', 'inflection points': 'inflection point', 'local extrema': 'local extremum' };
+    return `${n} ${n === 1 ? (one[s.what] ?? s.what.replace(/s$/, '')) : s.what}`;
+  },
 });
 
 registerValueKind({
@@ -160,7 +165,11 @@ registerValueKind({
     const parts = [
       ...a.vertical.map((x) => `x = ${rn(x)}`),
       ...a.horizontal.map((h) => `y = ${rn(h.value)}\\ (x \\to ${h.side > 0 ? '+' : '-'}\\infty)`),
-      ...a.oblique.map((o) => `y = ${rn(o.m)}x ${o.b < 0 ? '-' : '+'} ${rn(Math.abs(o.b))}\\ (x \\to ${o.side > 0 ? '+' : '-'}\\infty)`),
+      ...a.oblique.map((o) => {
+        const m = Math.abs(o.m - 1) < 1e-12 ? '' : Math.abs(o.m + 1) < 1e-12 ? '-' : rn(o.m);
+        const b = Math.abs(o.b) < 1e-12 ? '' : ` ${o.b < 0 ? '-' : '+'} ${rn(Math.abs(o.b))}`;
+        return `y = ${m}x${b}\\ (x \\to ${o.side > 0 ? '+' : '-'}\\infty)`;
+      }),
     ];
     return parts.length ? lines(parts) : '\\text{none found}';
   },

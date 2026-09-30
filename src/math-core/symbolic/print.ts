@@ -21,7 +21,8 @@ export function formatNumber(x: number, digits = 4): string {
 
 /** Recognise simple fractions p/q with q ≤ 12 (for LaTeX display). */
 export function asFraction(x: number): [number, number] | null {
-  if (Number.isInteger(x)) return null;
+  // near-integers (round-off) are integers, never 4/2
+  if (Number.isInteger(x) || Math.abs(x - Math.round(x)) < 1e-12 * Math.max(1, Math.abs(x))) return null;
   for (let q = 2; q <= 720; q++) {
     const p = Math.round(x * q);
     if (Math.abs(p) > 1e6) return null;
