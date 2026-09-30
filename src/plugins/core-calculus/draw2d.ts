@@ -21,11 +21,27 @@ function viewGrid(a: Draw2DArgs, fn: FunctionValue, n = 150): Grid {
   return sampleGrid(fn, [q(x0), q(x1)], [q(y0), q(y1)], n);
 }
 
-/** Display range for colours / levels: the frame grid when fn is the primary surface. */
+/**
+ * Display range for colours / levels: what is visible right now, so zooming and panning the contour
+ * map keeps a full colour scale and evenly spread contours (robust to poles: 2nd–98th percentile).
+ */
 function displayRange(a: Draw2DArgs, fn: FunctionValue): [number, number] {
-  if (a.frame.surface && a.frame.surface.key === fn.key) return [a.frame.zLo, a.frame.zHi];
-  const g = sampleGrid(fn, a.frame.xr, a.frame.yr, 80);
-  return [g.lo, g.hi];
+  const g = viewGrid(a, fn, 90);
+  const key = `range|${g.key}`;
+  const hit = a.cache.get(key) as [number, number] | undefined;
+  if (hit) return hit;
+  const vals: number[] = [];
+  for (const z of g.z) if (Number.isFinite(z)) vals.push(z);
+  vals.sort((p, q) => p - q);
+  let lo = vals.length ? vals[Math.floor(vals.length * 0.02)] : -1;
+  let hi = vals.length ? vals[Math.min(vals.length - 1, Math.floor(vals.length * 0.98))] : 1;
+  if (!(hi - lo > 1e-12)) {
+    lo -= 1;
+    hi += 1;
+  }
+  const r: [number, number] = [lo, hi];
+  a.cache.set(key, r);
+  return r;
 }
 
 // ---------------------------------------------------------------- heat map

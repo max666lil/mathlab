@@ -108,14 +108,14 @@ class SurfaceVisual implements Visual3D {
       for (let i = 0; i < n; i++) {
         const a = j * W + i;
         if (Number.isNaN(g.z[a] + g.z[a + 1])) continue;
-        wl.push(pos[a * 3], pos[a * 3 + 1], pos[a * 3 + 2] + 0.002, pos[a * 3 + 3], pos[a * 3 + 4], pos[a * 3 + 5] + 0.002);
+        wl.push(pos[a * 3], pos[a * 3 + 1], pos[a * 3 + 2] + 2 * m.eps, pos[a * 3 + 3], pos[a * 3 + 4], pos[a * 3 + 5] + 2 * m.eps);
       }
     for (let i = 0; i <= n; i += every)
       for (let j = 0; j < n; j++) {
         const a = j * W + i;
         const b = a + W;
         if (Number.isNaN(g.z[a] + g.z[b])) continue;
-        wl.push(pos[a * 3], pos[a * 3 + 1], pos[a * 3 + 2] + 0.002, pos[b * 3], pos[b * 3 + 1], pos[b * 3 + 2] + 0.002);
+        wl.push(pos[a * 3], pos[a * 3 + 1], pos[a * 3 + 2] + 2 * m.eps, pos[b * 3], pos[b * 3 + 1], pos[b * 3 + 2] + 2 * m.eps);
       }
     const wg = new THREE.BufferGeometry();
     wg.setAttribute('position', new THREE.Float32BufferAttribute(wl, 3));
@@ -155,10 +155,10 @@ class ContoursVisual implements Visual3D {
     const f: number[] = [];
     const fc: number[] = [];
     const rgb: [number, number, number] = [0, 0, 0];
-    const fz = m.floorZ + 0.003;
+    const fz = m.floorZ + 3 * m.eps;
     for (const level of niceLevels(lo, hi, count)) {
       const seg = cachedLevelSet(g, level);
-      const zw = m.z(level) + 0.004;
+      const zw = m.z(level) + 4 * m.eps;
       colormap((level - lo) / (hi - lo), rgb);
       srgb(Math.min(1, rgb[0] * 1.15), Math.min(1, rgb[1] * 1.15), Math.min(1, rgb[2] * 1.15));
       for (let k = 0; k < seg.length; k += 4) {
@@ -216,11 +216,11 @@ class PointVisual implements Visual3D {
     this.sphere.scale.setScalar(r);
     this.halo.position.copy(this.sphere.position);
     this.halo.scale.setScalar(r * (selected ? 2.6 : 1.9));
-    this.floorDot.position.set(x, y, m.floorZ + 0.004);
+    this.floorDot.position.set(x, y, m.floorZ + 4 * m.eps);
     this.floorDot.scale.setScalar(r * 0.7);
     this.stem.geometry.setFromPoints([new THREE.Vector3(x, y, top), new THREE.Vector3(x, y, m.floorZ)]);
     this.stem.computeLineDistances();
-    this.stem.visible = top - m.floorZ > 1e-3;
+    this.stem.visible = top - m.floorZ > m.eps;
     this.label.set(plainLabel(item.visual.label), ctx.theme.name === 'dark' ? '#ffffff' : '#1b1e28');
     this.label.sprite.position.set(x, y, top + r * 2.6);
     this.handles = inputId ? [{ object: this.sphere, nodeId: inputId, drag: (px, py) => ctx.ws.setPoint(inputId, [px, py]) }] : [];
@@ -263,7 +263,7 @@ class ArrowVisual implements Visual3D {
     }
     this.object.visible = true;
     const [x0, y0] = anchor;
-    const fz = m.floorZ + 0.006;
+    const fz = m.floorZ + 6 * m.eps;
     this.floor.set(new THREE.Vector3(x0, y0, fz), new THREE.Vector3(x0 + vec[0], y0 + vec[1], fz), r);
     // lift onto the tangent plane of the primary surface: rise = ∇f(anchor) · v
     const z0 = ctx.surfaceZ(x0, y0);
@@ -388,8 +388,8 @@ class LevelVisual implements Visual3D {
     }
     const grid = sampleGrid(fn, ctx.frame.xr, ctx.frame.yr, 140);
     const seg = cachedLevelSet(grid, value);
-    const zw = m.z(value) + 0.005;
-    const fz = m.floorZ + 0.005;
+    const zw = m.z(value) + 5 * m.eps;
+    const fz = m.floorZ + 5 * m.eps;
     const up = new Float32Array((seg.length / 4) * 6);
     const fl = new Float32Array((seg.length / 4) * 6);
     for (let k = 0, o = 0; k < seg.length; k += 4, o += 6) {
@@ -460,7 +460,7 @@ class SliceVisual implements Visual3D {
     for (let k = 0; k < t.length; k++) {
       if (!Number.isFinite(z[k])) continue;
       const [x, y] = at(t[k]);
-      pts.push(x, y, m.z(z[k]) + 0.004);
+      pts.push(x, y, m.z(z[k]) + 4 * m.eps);
     }
     this.curve.set(pts);
     if (s.marker !== undefined) {
@@ -504,7 +504,7 @@ class HessianAxesVisual implements Visual3D {
         const t = -R + (2 * R * i) / 40;
         const x = at[0] + t * e.vector[0];
         const y = at[1] + t * e.vector[1];
-        pts.push(x, y, m.z(f(x, y)) + 0.006);
+        pts.push(x, y, m.z(f(x, y)) + 6 * m.eps);
       }
       this.curves[k].material.color.set(item.color);
       this.curves[k].set(pts);
@@ -548,8 +548,8 @@ class PathVisual implements Visual3D {
         this.floors[k] = new FatLine(ctx.lineMaterial(item.color, 1.5, { dashed: k > 0, opacity: 0.7 }));
         this.object.add(this.lines[k].line, this.floors[k].line);
       }
-      this.lines[k].set(p.flatMap(([x, y]) => [x, y, m.z(f(x, y)) + 0.008]));
-      this.floors[k].set(p.flatMap(([x, y]) => [x, y, m.floorZ + 0.004]));
+      this.lines[k].set(p.flatMap(([x, y]) => [x, y, m.z(f(x, y)) + 8 * m.eps]));
+      this.floors[k].set(p.flatMap(([x, y]) => [x, y, m.floorZ + 4 * m.eps]));
       this.lines[k].line.visible = m.flatten > 0.02 && p.length > 1;
     });
   }

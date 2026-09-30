@@ -43,6 +43,10 @@ export class WorldMap {
   get gap() {
     return this.euclid ? 0 : this.boxH * 0.14;
   }
+  /** a tiny lift (against z-fighting) that scales with the scene: 0.001 at the default 6-unit box */
+  get eps() {
+    return this.size / 6000;
+  }
   /** world units per math unit of height */
   get zScale() {
     return this.euclid ? this.flatten : ((this.boxH - this.gap) / (this.zHi - this.zLo || 1)) * this.flatten;

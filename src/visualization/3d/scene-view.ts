@@ -141,8 +141,16 @@ export class SceneView {
     this.renderer.setSize(this.width, this.height, false);
     this.renderer.domElement.style.width = `${this.width}px`;
     this.renderer.domElement.style.height = `${this.height}px`;
+    // keep the framing when the pane changes shape (switching to Split, dragging a separator)
+    const before = fitFactor(this.camera.aspect);
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
+    const k = fitFactor(this.camera.aspect) / before;
+    if (this.initialShot && Math.abs(k - 1) > 1e-3) {
+      const off = this.camera.position.clone().sub(this.controls.target).multiplyScalar(k);
+      this.camera.position.copy(this.controls.target).add(off);
+      this.controls.update();
+    }
     for (const m of this.lineMats) m.resolution.set(this.width, this.height);
     this.needsRender = true;
   }
@@ -193,7 +201,15 @@ export class SceneView {
     this.controls.enableZoom = !domainNav;
     this.controls.enablePan = !domainNav;
     this.map.update(this.frame);
-    const pad = 1e-3;
+    // near / far planes follow the size of the scene (a zoomed-out domain must not be cut off far away)
+    const near = this.map.size * 0.002;
+    const far = this.map.size * 60;
+    if (Math.abs(this.camera.far - far) > 1e-9 || Math.abs(this.camera.near - near) > 1e-9) {
+      this.camera.near = near;
+      this.camera.far = far;
+      this.camera.updateProjectionMatrix();
+    }
+    const pad = this.map.eps;
     // Euclidean scenes (linear maps) are not clipped to a graph box
     this.clip[0].constant = this.map.euclid ? 1e6 : this.map.topZ + pad + (this.map.flatten < 1 ? 0 : this.map.boxH * 0.02);
     this.clip[1].constant = this.map.euclid ? 1e6 : -(this.map.floorZ - pad);
@@ -257,12 +273,12 @@ export class SceneView {
     const m = this.map;
     const [x0, x1] = m.xr;
     const [y0, y1] = m.yr;
-    const fz = m.floorZ - 0.002;
+    const fz = m.floorZ - 2 * m.eps;
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(x1 - x0, y1 - y0),
       new THREE.MeshBasicMaterial({ color: theme.floor, transparent: true, opacity: 0.9, depthWrite: false }),
     );
-    floor.position.set((x0 + x1) / 2, (y0 + y1) / 2, fz - 0.002);
+    floor.position.set((x0 + x1) / 2, (y0 + y1) / 2, fz - 2 * m.eps);
     floor.renderOrder = -2;
     this.staticGroup.add(floor);
     const step = niceStep((x1 - x0) / 12);
@@ -275,8 +291,8 @@ export class SceneView {
     this.staticGroup.add(new THREE.LineSegments(gridGeom, new THREE.LineBasicMaterial({ color: gridColor, transparent: true, opacity: 0.8 })));
     // axes through the origin on the floor, if inside the domain
     const axes: number[] = [];
-    if (y0 <= 0 && y1 >= 0) axes.push(x0, 0, fz + 0.001, x1, 0, fz + 0.001);
-    if (x0 <= 0 && x1 >= 0) axes.push(0, y0, fz + 0.001, 0, y1, fz + 0.001);
+    if (y0 <= 0 && y1 >= 0) axes.push(x0, 0, fz + m.eps, x1, 0, fz + m.eps);
+    if (x0 <= 0 && x1 >= 0) axes.push(0, y0, fz + m.eps, 0, y1, fz + m.eps);
     const axGeom = new THREE.BufferGeometry();
     axGeom.setAttribute('position', new THREE.Float32BufferAttribute(axes, 3));
     this.staticGroup.add(new THREE.LineSegments(axGeom, new THREE.LineBasicMaterial({ color: theme.name === 'dark' ? 0x6b7390 : 0x8a90a6 })));
@@ -369,7 +385,8 @@ export class SceneView {
     const m = this.map;
     const [cx, cy] = m.center;
     const mid = new THREE.Vector3(cx, cy, (m.floorZ + m.topZ) / 2);
-    const R = m.size * 2.05;
+    // back off in narrow panes (split view) so the whole box fits horizontally
+    const R = m.size * 2.3 * fitFactor(this.camera.aspect);
     const fz = this.focus();
     const pz = fz ? (this.ctx().surfaceZ(fz.p[0], fz.p[1]) ?? m.zLo) : 0;
     const P = fz ? m.v(fz.p[0], fz.p[1], pz) : mid.clone();
@@ -427,7 +444,7 @@ export class SceneView {
     const m = this.map;
     for (const h of hits) {
       const { x, y, z } = h.point;
-      if (x >= m.xr[0] && x <= m.xr[1] && y >= m.yr[0] && y <= m.yr[1] && z <= m.topZ + 1e-3 && z >= m.floorZ - 1e-3) return [x, y];
+      if (x >= m.xr[0] && x <= m.xr[1] && y >= m.yr[0] && y <= m.yr[1] && z <= m.topZ + m.eps && z >= m.floorZ - m.eps) return [x, y];
     }
     const floor = new THREE.Plane(new THREE.Vector3(0, 0, 1), -m.floorZ);
     const p = new THREE.Vector3();
@@ -667,4 +684,7 @@ export class SceneView {
   }
 }
 
-
+/** How much further back the camera stands in narrow panes so the whole box fits horizontally. */
+function fitFactor(aspect: number): number {
+  return Math.max(1, 1.35 / Math.max(0.2, aspect));
+}
