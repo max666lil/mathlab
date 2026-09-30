@@ -133,7 +133,16 @@ export class AnalysisService {
   private listeners = new Set<() => void>();
   private queue = new Set<string>();
   /** contextual drawer below the canvas (cross-sections, explanations); null = closed */
-  drawer: { kind: 'slices' } | { kind: 'why'; topic: string } | null = null;
+  private openDrawer: { kind: 'slices' } | { kind: 'why'; topic: string } | null = null;
+  /** the object the drawer belongs to: it closes when the analysis moves to another object */
+  private drawerFor: string | null = null;
+  get drawer(): { kind: 'slices' } | { kind: 'why'; topic: string } | null {
+    return this.drawerFor === this.ws.focus ? this.openDrawer : null;
+  }
+  set drawer(d: { kind: 'slices' } | { kind: 'why'; topic: string } | null) {
+    this.openDrawer = d;
+    this.drawerFor = this.ws.focus;
+  }
   private timer: ReturnType<typeof setTimeout> | null = null;
   version = 0;
 

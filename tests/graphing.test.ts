@@ -35,6 +35,7 @@ describe('graphing calculator layer', () => {
   });
   it('parametric and polar curves are drawn', () => {
     const ws = new Workspace(['c(t) = (cos(t), sin(2t))', 'r = 1 + cos(θ)', '(cos(t), sin(t))']);
+    new AnalysisService(ws); // the focused curve c is drawn by its analysis
     expect(value(ws, 1).role).toBe('polar');
     expect(ws.sceneItems().map((i) => i.visual.vtype)).toEqual(['curve', 'curve', 'curve']);
   });

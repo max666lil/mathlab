@@ -11,6 +11,8 @@ import { symbolLatex } from '../../math-core/symbolic/print';
 import { registerRelation } from '../../visualization/presentation';
 import { freshName } from '../core-calculus/analyzers';
 import { isField } from './math';
+import { isCurveFn } from './curves';
+import { curveRange } from '../../math-core/ranges';
 
 
 registerRelation('role:flux', ['role:field']);
@@ -70,6 +72,64 @@ registerAnalyzer({
           ? { canvasTitle: `Vector field ${F}`, views: [{ id: 'plane', label: '2D', renderer: 'plane' }], defaultView: 'plane' }
           : { canvasTitle: `Vector field ${F}`, views: [{ id: 'space', label: '3D', renderer: 'scene' }], defaultView: 'space' },
       title: f.label && !f.label.startsWith('\\nabla') ? valueLatex(value) : `${symbolLatex(F)} = ${valueLatex(value)}`,
+      sections,
+      facts,
+      relations: [],
+      diagnostics: [],
+    };
+  },
+});
+
+// ------------------------------------------------------------------ curves r(t)
+
+/** A slider meant as a parameter value on the curve (t0, t₀, s0, τ). */
+function paramSlider(ws: Workspace): string | undefined {
+  return ws.statements().find((s) => s.name && s.input?.kind === 'slider' && /^(t0|t_0|s0|τ|a)$/.test(s.name))?.name;
+}
+
+registerAnalyzer({
+  id: 'curve',
+  focusOnEdit: true,
+  recognizes: (v) => isCurveFn(v),
+  plan(C, value, ws): AnalysisPlan {
+    const f = value as FunctionValue;
+    const n = (f.expr as { items: unknown[] }).items.length;
+    const [a, b] = curveRange(f);
+    const t = f.params[0];
+    const t0 = paramSlider(ws);
+    const fmt = (x: number) => (Math.abs(x - 2 * Math.PI) < 1e-9 ? '2π' : Math.abs(x - Math.PI) < 1e-9 ? 'π' : String(+x.toFixed(4)));
+    const sections: SectionSpec[] = [
+      { id: 'overview', title: 'Summary', summary: true },
+      { id: 'motion', title: 'Motion along the curve' },
+      t0
+        ? { id: 'at', title: `At ${t} = ${t0}` }
+        : { id: 'at', title: 'At a parameter value', actions: [{ label: `＋ Add a parameter value t0`, rows: [`t0 = slider(${fmt(a)}, ${fmt(b)}, ${fmt((a + b) / 2)})`] }] },
+    ];
+    const facts: FactSpec[] = [
+      { id: 'self', title: C, expr: C, tier: 0, section: 'overview', visual: 'always', hidden: true },
+      { id: 'closed', title: 'Closed', expr: `closed(${C})`, tier: 0, section: 'overview' },
+      { id: 'length', title: 'Length', expr: `length(${C})`, tier: 0, section: 'overview', pinName: 'L' },
+      { id: 'velocity', title: "Velocity r′(t)", expr: `velocity(${C})`, tier: 1, section: 'motion', pinName: 'v' },
+      { id: 'motion', title: 'Moving point', expr: `motion(${C})`, tier: 1, section: 'motion', visual: 'auto' },
+    ];
+    if (t0)
+      facts.push(
+        { id: 'point', title: `${C}(${t0})`, expr: `${C}(${t0})`, tier: 1, section: 'at', pinName: 'Pt' },
+        { id: 'tangent', title: 'Unit tangent', expr: `tangent ${C} at ${t0}`, tier: 1, section: 'at', pinName: 'T', visual: 'auto' },
+        { id: 'curvature', title: 'Curvature κ', expr: `curvature ${C} at ${t0}`, tier: 1, section: 'at', pinName: 'κ', visual: 'auto' },
+      );
+    if (n === 2) {
+      sections.push({ id: 'area', title: 'Area inside' });
+      facts.push({ id: 'area', title: 'Enclosed area', expr: `area(${C})`, tier: 1, section: 'area', pinName: 'A' });
+    }
+    return {
+      object: C,
+      typeLabel: `curve in ℝ${n === 2 ? '²' : '³'} · ${t} ∈ [${fmt(a)}, ${fmt(b)}]`,
+      layout:
+        n === 2
+          ? { canvasTitle: `Curve ${C}`, views: [{ id: 'plane', label: '2D', renderer: 'plane' }], defaultView: 'plane' }
+          : { canvasTitle: `Curve ${C}`, views: [{ id: 'space', label: '3D', renderer: 'scene' }], defaultView: 'space' },
+      title: valueLatex(value),
       sections,
       facts,
       relations: [],

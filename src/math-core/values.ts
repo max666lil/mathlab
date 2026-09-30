@@ -65,6 +65,8 @@ export interface FunctionValue extends Base {
   key: string;
   /** For derived functions (∇f, Hf): the scalar field they came from. */
   base?: FunctionValue;
+  /** parameter ranges of curves / surfaces: `for t in [0, 2π]` */
+  ranges?: Record<string, [number, number]>;
 }
 export interface PlaneValue extends Base {
   kind: 'plane';

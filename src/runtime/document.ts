@@ -59,7 +59,7 @@ export function isPrefixFunction(n: string) {
 function statementExprs(st: Statement): Expr[] {
   switch (st.kind) {
     case 'funcdef':
-      return [st.body];
+      return [st.body, ...(st.ranges ?? []).flatMap(([, a, b]) => [a, b])];
     case 'assign':
       return [st.value];
     case 'show':
@@ -250,7 +250,17 @@ export function evaluateStatement(info: StatementInfo, ev: Evaluator, firstByNam
       if (!info.name) throw new EvalError(`'${st.name}' is already defined`, st.nameSpan);
       // r(θ) = …: a polar curve
       const polar = st.name === 'r' && st.params.length === 1 && st.params[0] === 'θ';
-      return ev.makeFunction(st.body, st.params, { label: symbolLatex(st.name), role: polar ? 'polar' : undefined });
+      const fn = ev.makeFunction(st.body, st.params, { label: symbolLatex(st.name), role: polar ? 'polar' : undefined });
+      if (!st.ranges) return fn;
+      // parameter ranges (curves, surfaces): evaluated like any expression, so sliders can drive them
+      const ranges: Record<string, [number, number]> = {};
+      for (const [v, a, b] of st.ranges) {
+        const lo = ev.num(ev.evaluate(a), a);
+        const hi = ev.num(ev.evaluate(b), b);
+        if (!(hi > lo)) throw new EvalError(`the range of ${v} must be increasing`, spanOf(a));
+        ranges[v] = [lo, hi];
+      }
+      return { ...fn, ranges, key: `${fn.key}|${JSON.stringify(ranges)}` };
     }
     case 'assign': {
       if (!info.name) throw new EvalError(`'${st.name}' is already defined${firstByName.has(st.name) ? ' above' : ''}`, st.nameSpan);

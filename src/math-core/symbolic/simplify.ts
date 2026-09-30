@@ -107,6 +107,18 @@ export function addList(items: Expr[]): Expr {
     if (g) g.coef += c;
     else groups.set(k, { coef: c, rest });
   }
+  // Pythagorean identity: a·sin²u + b·cos²u = m + (a−m)·sin²u + (b−m)·cos²u with m the common part
+  for (const g of groups.values()) {
+    const r = g.rest;
+    if (!(r.type === 'bin' && r.op === '^' && r.right.type === 'num' && r.right.value === 2 && r.left.type === 'call' && r.left.callee.type === 'sym' && r.left.callee.name === 'sin')) continue;
+    const cosKey = key({ type: 'bin', op: '^', left: { type: 'call', callee: { type: 'sym', name: 'cos' }, args: r.left.args }, right: num(2) });
+    const h = groups.get(cosKey);
+    if (!h || Math.sign(h.coef) !== Math.sign(g.coef)) continue;
+    const m = Math.abs(g.coef) < Math.abs(h.coef) ? g.coef : h.coef;
+    constant += m;
+    g.coef -= m;
+    h.coef -= m;
+  }
   const terms: Expr[] = [];
   for (const { coef, rest } of groups.values()) {
     if (Math.abs(coef) < 1e-14) continue;

@@ -8,6 +8,7 @@ import { FunctionValue, MathValue, ListValue, ScalarValue, scalar } from '../../
 import { registerScalarFunction } from '../../math-core/scalar-functions';
 import { visual } from '../../visualization/scene-model';
 import { registerFrameHint } from '../../visualization/sampling';
+import { curveRange } from '../../math-core/ranges';
 
 export interface RelationValue {
   kind: 'relation';
@@ -107,6 +108,7 @@ export const CURVE_RANGE: [number, number] = [0, 2 * Math.PI];
 
 function curveExtent(fn: FunctionValue, polar: boolean): { r: number; dim: number } {
   const g = fn.eval as (t: number) => number | number[];
+  const CURVE_RANGE = curveRange(fn);
   let m = 1;
   let dim = 2;
   for (let i = 0; i <= 200; i++) {

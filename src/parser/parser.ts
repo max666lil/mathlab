@@ -23,7 +23,7 @@ interface StatementBase {
 }
 
 export type Statement =
-  | (StatementBase & { kind: 'funcdef'; name: string; nameSpan: Span; params: string[]; body: Expr; typeHint?: string })
+  | (StatementBase & { kind: 'funcdef'; name: string; nameSpan: Span; params: string[]; body: Expr; typeHint?: string; ranges?: [string, Expr, Expr][] })
   | (StatementBase & { kind: 'assign'; name: string; nameSpan: Span; value: Expr; typeHint?: string })
   | (StatementBase & { kind: 'show'; items: Expr[] })
   | (StatementBase & { kind: 'animate'; name: string; from: Expr; to: Expr; duration?: Expr })
@@ -558,15 +558,31 @@ function parseCoreStatement(toks: Token[], span: Span, modifiers: string[], opts
   const lhs = p.parseExpr(BP.eq);
   if (p.isOp('=')) {
     p.next();
-    let rhs = p.parseExpr(0);
+    let rhs = p.withStops(['for'], () => p.parseExpr(0));
     // R = x^2 + y^2 <= 1: a named region
     const relR = parseRelation(p);
     if (relR) rhs = { type: 'eq', left: rhs, right: relR.rhs, rel: relR.rel, span: { from: spanOf(rhs).from, to: spanOf(relR.rhs).to } };
+    // C(t) = (cos t, sin t) for t in [0, 2π]; S(u,v) = … for u in [0, 2π], v in [0, π]
+    const ranges: [string, Expr, Expr][] = [];
+    if (p.isIdent('for')) {
+      p.next();
+      for (;;) {
+        const v = p.expectIdent();
+        p.expectIdent('in');
+        const iv = p.parseExpr(0);
+        if (iv.type !== 'list' || iv.items.length !== 2) throw new MathSyntaxError('Expected an interval [a, b]', spanOf(iv).from, spanOf(iv).to);
+        ranges.push([v.text, iv.items[0], iv.items[1]]);
+        if (!p.isOp(',')) break;
+        p.next();
+      }
+    }
     p.expectEnd();
     if (lhs.type === 'sym') return { kind: 'assign', name: lhs.name, nameSpan: spanOf(lhs), value: rhs, typeHint, span, modifiers };
     if (lhs.type === 'call' && lhs.callee.type === 'sym' && lhs.args.every((a) => a.type === 'sym')) {
       const params = lhs.args.map((a) => (a as Extract<Expr, { type: 'sym' }>).name);
-      return { kind: 'funcdef', name: lhs.callee.name, nameSpan: spanOf(lhs.callee), params, body: rhs, typeHint, span, modifiers };
+      const bad = ranges.find(([v]) => !params.includes(v));
+      if (bad) throw new MathSyntaxError(`'${bad[0]}' is not a parameter of ${lhs.callee.name}`, spanOf(lhs).from, spanOf(lhs).to);
+      return { kind: 'funcdef', name: lhs.callee.name, nameSpan: spanOf(lhs.callee), params, body: rhs, typeHint, span, modifiers, ...(ranges.length ? { ranges } : {}) };
     }
     // x^2 + y^2 = 1: an implicit curve
     return { kind: 'expr', value: { type: 'eq', left: lhs, right: rhs, span: { from: spanOf(lhs).from, to: spanOf(rhs).to } }, span, modifiers };

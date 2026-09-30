@@ -7,7 +7,7 @@ import { sampleGrid, cachedLevelSet } from '../../visualization/sampling';
 import { withAlpha, hexToRgb } from '../../visualization/colormap';
 import type { FunctionValue } from '../../math-core/values';
 import { strokeSegments } from './draw-util';
-import { CURVE_RANGE } from './graphing';
+import { curveRange } from '../../math-core/ranges';
 
 function viewGrid(a: Draw2DArgs, fn: FunctionValue, n: number) {
   const q = (v: number) => +v.toPrecision(6);
@@ -73,6 +73,7 @@ registerDrawer2D('region', {
 /** Sample a parametric / polar curve on the default parameter range. */
 export function curvePoints(fn: FunctionValue, polar: boolean, n = 1200): (number[] | null)[] {
   const g = fn.eval as (t: number) => number | number[];
+  const CURVE_RANGE = curveRange(fn);
   const out: (number[] | null)[] = [];
   for (let i = 0; i <= n; i++) {
     const t = CURVE_RANGE[0] + ((CURVE_RANGE[1] - CURVE_RANGE[0]) * i) / n;
@@ -109,6 +110,23 @@ registerDrawer2D('curve', {
       last = [x, y];
     }
     ctx.stroke();
+    // orientation: arrowheads in the direction of increasing parameter
+    ctx.fillStyle = a.item.color;
+    for (const frac of [0.2, 0.45, 0.7]) {
+      const i = Math.floor(frac * (pts.length - 2));
+      const p = pts[i];
+      const q = pts[i + 2];
+      if (!p || !q) continue;
+      const x0 = view.sx(p[0]), y0 = view.sy(p[1]), x1 = view.sx(q[0]), y1 = view.sy(q[1]);
+      if (Math.hypot(x1 - x0, y1 - y0) < 0.5) continue;
+      const ang = Math.atan2(y1 - y0, x1 - x0);
+      const s = a.selected ? 9 : 7;
+      ctx.beginPath();
+      ctx.moveTo(x1 + s * Math.cos(ang), y1 + s * Math.sin(ang));
+      ctx.lineTo(x1 + s * Math.cos(ang + 2.5), y1 + s * Math.sin(ang + 2.5));
+      ctx.lineTo(x1 + s * Math.cos(ang - 2.5), y1 + s * Math.sin(ang - 2.5));
+      ctx.fill();
+    }
     a.hits.push({ itemId: a.item.id, pts: pts.filter((p): p is number[] => !!p).flatMap((p) => [p[0], p[1]]) });
   },
 });
