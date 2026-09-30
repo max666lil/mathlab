@@ -9,7 +9,7 @@ import { CONSTANTS, getScalarFunction } from '../math-core/scalar-functions';
 import { getBuiltin, argMode, EvalContext, EvalError, KwArgs } from '../math-core/builtins';
 import { diff } from '../math-core/symbolic/diff';
 import { simplify } from '../math-core/symbolic/simplify';
-import { toText } from '../math-core/symbolic/print';
+import { toText, toLatex } from '../math-core/symbolic/print';
 import {
   MathValue, FunctionValue, ScalarValue, PointValue, VectorValue, MatrixValue,
   scalar, point, vector, matrixV, valueMember,
@@ -133,6 +133,26 @@ export class Evaluator implements EvalContext {
       }
     };
     return items.every(rationalExpr) && values.every(isRational) ? { certainty: 'exact' } : {};
+  }
+
+  /**
+   * A statement-level equation or inequality in x, y: an implicit curve (x² + y² = 1) or a region
+   * (y < x²). With no free variables it is simply true or false.
+   */
+  relation(e: Extract<Expr, { type: 'eq' }>): MathValue {
+    const d: Expr = { type: 'bin', op: '-', left: e.left, right: e.right };
+    const free = [...liftCandidates(d)].filter((n) => !this.lookup(n) && !getBuiltin(n) && !getScalarFunction(n));
+    const vars = new Set(free.flatMap((n) => (LIFT_VARS.includes(n) ? [n] : [...n].filter((c) => LIFT_VARS.includes(c) && !this.lookup(c)))));
+    if (vars.has('z')) throw spanErr('Implicit surfaces in x, y, z arrive with 3-D scalar fields (Phase 3a)', e);
+    if (vars.has('t')) throw spanErr(`'t' is a parameter — for a curve write (x(t), y(t))`, e);
+    if (!vars.size) {
+      const a = this.num(this.evaluate(e.left), e.left);
+      const b = this.num(this.evaluate(e.right), e.right);
+      const ok = e.rel === '<' ? a < b : e.rel === '>' ? a > b : e.rel === '<=' ? a <= b : e.rel === '>=' ? a >= b : Math.abs(a - b) <= 1e-12 * Math.max(1, Math.abs(a), Math.abs(b));
+      return { kind: 'bool', value: ok };
+    }
+    const fn = this.makeFunction(d, ['x', 'y']);
+    return { kind: 'relation', rel: e.rel ?? '=', fn, latex: toLatex(e), key: `rel|${e.rel ?? '='}|${fn.key}` };
   }
 
   num(v: MathValue, e: Expr): number {

@@ -5,6 +5,7 @@ import { coreCalculusMath } from './plugins/core-calculus/math';
 import { coreAnalysisMath } from './plugins/core-calculus/analysis-builtins';
 import { linearAlgebraMath } from './plugins/linear-algebra/plugin';
 import { vectorCalculusMath } from './plugins/vector-calculus/plugin';
+import { graphingMath } from './plugins/core-calculus/graphing';
 import './plugins/core-calculus/analyzers';
 import './plugins/linear-algebra/analyzers';
 import './plugins/vector-calculus/analyzers';
@@ -13,6 +14,7 @@ export function installMathLab() {
   installCoreBuiltins();
   installPlugin(coreCalculusMath);
   installPlugin(coreAnalysisMath);
+  installPlugin(graphingMath);
   installPlugin(linearAlgebraMath);
   installPlugin(vectorCalculusMath);
 }

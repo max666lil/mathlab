@@ -50,7 +50,7 @@ function firstSlider(ws: Workspace): string | undefined {
   return sliders.find((n) => /^(a|b|c|x0|x_0|p)$/.test(n));
 }
 
-const isFn = (v: MathValue, n: number) => v.kind === 'function' && (v as FunctionValue).out === 'scalar' && (v as FunctionValue).params.length === n && !!(v as FunctionValue).expr;
+const isFn = (v: MathValue, n: number) => v.kind === 'function' && (v as FunctionValue).out === 'scalar' && (v as FunctionValue).params.length === n && !!(v as FunctionValue).expr && (v as FunctionValue).role !== 'polar';
 
 // ------------------------------------------------------------------ f(x)
 
@@ -90,6 +90,14 @@ registerAnalyzer({
       { id: 'taylor', title: `T₄ at ${a ?? 0}`, expr: `taylor ${f} at ${a ?? 0} order 4`, tier: 1, section: 'taylor', pinName: 'T', visual: 'auto' },
       { id: 'integral', title: `∫ ${f} d${x}`, expr: `integrate ${f}`, tier: 1, section: 'integral', pinName: 'F' },
     ];
+    // like a graphing calculator: every other function of one variable is drawn too, with intersections on demand
+    const others = ws.statements().filter((s) => s.name && s.name !== f && ws.value(s.id) && isFn(ws.value(s.id)!, 1)).map((s) => s.name!);
+    for (const g of others) facts.push({ id: `graph:${g}`, title: g, expr: g, tier: 0, section: 'overview', visual: 'always', hidden: true });
+    if (others.length) {
+      sections.splice(1, 0, { id: 'intersections', title: 'Intersections' });
+      for (const g of others.slice(0, 4))
+        facts.push({ id: `meet:${g}`, title: `${f} = ${g}`, expr: `solve ${f}(${x}) = ${g}(${x})`, tier: 1, section: 'intersections', pinName: 'X' });
+    }
     if (a)
       facts.push(
         { id: 'a', title: a, expr: a, tier: 1, section: 'at', hidden: true },

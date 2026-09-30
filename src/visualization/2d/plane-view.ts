@@ -98,7 +98,7 @@ export class PlaneView {
     const items = this.ws.sceneItems();
     this.frame = frameFromItems(items, this.ws.focus ? this.ws.value(this.ws.focus) : undefined);
     const graph = this.frame.graph;
-    this.view.equal = !graph;
+    this.view.equal = !graph || !!this.frame.equal;
     // refit when the object changes, not when a parameter inside it moves
     const fk = graph ? `graph|${this.ws.focus}|${graph.expr ? toText(graph.expr) : ''}` : `${this.frame.xr}|${this.frame.yr}`;
     if (!this.fitted || fk !== this.lastFrameKey) {

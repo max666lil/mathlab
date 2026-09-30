@@ -44,6 +44,8 @@ function outputLatex(info: StatementInfo, v: MathValue, math: boolean): string {
     return name && f.label !== name ? `${name} = ${body}` : body;
   }
   const expr = st.kind === 'assign' || st.kind === 'expr' ? st.value : undefined;
+  // an equation / inequality is its own display: x² + y² = 9, R: x² + y² ≤ 1
+  if (v.kind === 'relation') return name ? `${name}:\\ ${valueLatex(v)}` : valueLatex(v);
   // math mode: show the definition itself (∇f(P)), code mode: how it was obtained numerically
   const middle = math && expr && !literal(expr) ? toLatex(expr) : v.derivation;
   const parts = [name, middle, valueLatex(v)].filter(Boolean) as string[];

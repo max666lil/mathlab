@@ -50,7 +50,7 @@ interface Playing {
 const TAU = 2 * Math.PI;
 
 /** Result kinds that are drawn automatically when named (Desmos-like). */
-const SHOWN_KINDS = new Set(['point', 'plane', 'pointset', 'visual', 'asymptotes', 'slice', 'subspace', 'affine']);
+const SHOWN_KINDS = new Set(['point', 'plane', 'pointset', 'visual', 'asymptotes', 'slice', 'subspace', 'affine', 'relation']);
 
 export class Workspace {
   doc: MathDocument;
@@ -445,7 +445,9 @@ export class Workspace {
         });
         continue;
       }
-      const geometric = SHOWN_KINDS.has(v.kind) || (v.kind === 'vector' && !!(v as { anchor?: number[] }).anchor) || !!v.visuals?.length;
+      const fnv = v as { kind: string; params?: string[]; out?: string; role?: string };
+      const curve = v.kind === 'function' && fnv.params?.length === 1 && (fnv.out === 'vector' || fnv.role === 'polar');
+      const geometric = SHOWN_KINDS.has(v.kind) || curve || (v.kind === 'vector' && !!(v as { anchor?: number[] }).anchor) || !!v.visuals?.length;
       if (info.name && (geometric || this.visibility.get(`${info.id}#auto`))) {
         if (v.kind === 'function' && info.name === this.focus && !v.visuals?.length) continue; // drawn by the analysis
         push(info.id, v, !info.hidden, info.name);
@@ -464,6 +466,14 @@ export class Workspace {
     this.sceneCache = { version: this.versions.values, view: this.versions.view, items: out };
     return out;
   }
+  /** 3-D domain window per focused surface (scroll / right-drag in the 3-D view); null = default. */
+  window3d = new Map<string, { xr: [number, number]; yr: [number, number] }>();
+  setWindow3d(key: string, w: { xr: [number, number]; yr: [number, number] } | null) {
+    if (w) this.window3d.set(key, w);
+    else this.window3d.delete(key);
+    this.emit('view');
+  }
+
   setVisible(key: string, visible: boolean) {
     this.visibility.set(key, visible);
     this.emit('view');

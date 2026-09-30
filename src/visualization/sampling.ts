@@ -221,6 +221,8 @@ export interface SceneFrame {
   zHi: number;
   /** true geometry in ℝ³: one scale on all axes (linear maps, subspaces) instead of a graph box */
   euclid?: boolean;
+  /** graph frame that must keep one scale on both axes (circles stay round: implicit curves, curves) */
+  equal?: boolean;
 }
 
 /** A visual that knows how much of the plane / space it needs (e.g. a transformed unit cell). */
@@ -262,12 +264,20 @@ export function graphFrame(fn: FunctionValue, xr: Range = [-6, 6]): SceneFrame {
  * The frame for a set of scene items. The focused object decides: a function of one variable gives
  * a graph frame, a function of two variables its surface frame; otherwise the first visible surface.
  */
-export function frameFromItems(items: { visible: boolean; visual: { vtype: string; props: Record<string, unknown> } }[], focus?: { kind: string }): SceneFrame {
+export function frameFromItems(items: { visible: boolean; visual: { vtype: string; props: Record<string, unknown> } }[], focus?: { kind: string }, window?: { xr: Range; yr: Range }): SceneFrame {
   const fv = focus?.kind === 'function' ? (focus as FunctionValue) : undefined;
-  if (fv && fv.out === 'scalar' && fv.params.length === 1) return graphFrame(fv);
+  if (fv && fv.out === 'scalar' && fv.params.length === 1) {
+    const g = graphFrame(fv);
+    // with curves or regions on the graph, keep one scale (like a graphing calculator)
+    if (items.some((i) => i.visible && ['implicit', 'region', 'curve'].includes(i.visual.vtype))) {
+      const cy = (g.yr[0] + g.yr[1]) / 2;
+      return { ...g, xr: [-6, 6], yr: [Math.min(cy - 4, g.yr[0]), Math.max(cy + 4, g.yr[1])], equal: true };
+    }
+    return g;
+  }
   if (fv && fv.out === 'scalar' && fv.params.length === 2) {
     const own = items.find((i) => i.visual.vtype === 'surface' && (i.visual.props.fn as FunctionValue | undefined)?.key === fv.key)?.visual.props as { xRange?: Range; yRange?: Range } | undefined;
-    return sceneFrame(fv, own?.xRange ?? DEFAULT_RANGE, own?.yRange ?? DEFAULT_RANGE);
+    return sceneFrame(fv, window?.xr ?? own?.xRange ?? DEFAULT_RANGE, window?.yr ?? own?.yRange ?? DEFAULT_RANGE);
   }
   // visuals with their own extent (linear maps, subspaces): a symmetric Euclidean frame
   let r = 0;

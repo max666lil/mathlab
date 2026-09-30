@@ -248,11 +248,15 @@ export function evaluateStatement(info: StatementInfo, ev: Evaluator, firstByNam
       throw new EvalError(st.message, st.errorSpan);
     case 'funcdef': {
       if (!info.name) throw new EvalError(`'${st.name}' is already defined`, st.nameSpan);
-      return ev.makeFunction(st.body, st.params, { label: symbolLatex(st.name) });
+      // r(θ) = …: a polar curve
+      const polar = st.name === 'r' && st.params.length === 1 && st.params[0] === 'θ';
+      return ev.makeFunction(st.body, st.params, { label: symbolLatex(st.name), role: polar ? 'polar' : undefined });
     }
     case 'assign': {
       if (!info.name) throw new EvalError(`'${st.name}' is already defined${firstByName.has(st.name) ? ' above' : ''}`, st.nameSpan);
-      let v = ev.evaluateOrLift(st.value);
+      // r = 1 + cos(θ): a polar curve
+      if (st.name === 'r' && freeSymbols(st.value).has('θ') && !ev.lookup('θ')) return ev.makeFunction(st.value, ['θ'], { label: 'r', role: 'polar' });
+      let v = st.value.type === 'eq' ? ev.relation(st.value) : ev.evaluateOrLift(st.value);
       if (v.kind === 'function' && !(v as FunctionValue).label) v = { ...(v as FunctionValue), label: symbolLatex(st.name) };
       if (st.typeHint === 'vector' && v.kind === 'point') v = vector((v as PointValue).coords);
       if (st.typeHint === 'point' && v.kind === 'vector') v = point((v as VectorValue).comps);
@@ -262,7 +266,7 @@ export function evaluateStatement(info: StatementInfo, ev: Evaluator, firstByNam
     case 'show':
       return { kind: 'show', items: st.items.map((e) => ev.evaluateOrLift(e)), sources: st.items.map((e) => (e.type === 'sym' ? e.name : undefined)) } as ShowValue;
     case 'expr':
-      return ev.evaluateOrLift(st.value);
+      return st.value.type === 'eq' ? ev.relation(st.value) : ev.evaluateOrLift(st.value);
     case 'animate': {
       const from = ev.num(ev.evaluate(st.from), st.from);
       const to = ev.num(ev.evaluate(st.to), st.to);

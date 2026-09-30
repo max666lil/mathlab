@@ -183,6 +183,11 @@ export function CanvasPanel() {
                     {s.label === '3D' ? 'Default 3D view' : s.label === 'Top' ? 'Top view' : s.label}
                   </button>
                 ))}
+              {show3d && layout.menu?.shots && (
+                <button title="Scroll over the surface to zoom its domain, right-drag to pan it" onClick={act(() => scene?.resetDomain())}>
+                  Reset the 3D domain
+                </button>
+              )}
               {show3d && layout.menu?.flatten && (
                 <button
                   onClick={act(() => {

@@ -12,7 +12,7 @@
  * Statement forms are extensible through `registerStatementRule` so plugins can add syntax
  * such as `X ~ Normal(0, 1)` without touching the core parser.
  */
-import { Expr, Span, BinOp, sym } from '../math-core/ast';
+import { Expr, Span, BinOp, Relation, sym } from '../math-core/ast';
 import { lex, Token, MathSyntaxError } from './lexer';
 
 export { MathSyntaxError };
@@ -169,6 +169,7 @@ export class ExprParser {
         case '^':
           return BP.pow;
         case '.':
+        case '!':
           return BP.postfix;
         case '(':
           return isCallable(left) ? BP.postfix : BP.mul;
@@ -217,6 +218,11 @@ export class ExprParser {
           const index = this.withStops([], () => this.parseExpr(0));
           const close = this.expectOp(']');
           return { type: 'call', callee: sym('item'), args: [left, index], span: { from, to: close.to } };
+        }
+        case '!': {
+          // n! — factorial (Γ(n + 1) for non-integers)
+          const bang = this.next();
+          return { type: 'call', callee: sym('factorial'), args: [left], span: { from, to: bang.to } };
         }
         case '.': {
           this.next();
@@ -551,17 +557,40 @@ function parseCoreStatement(toks: Token[], span: Span, modifiers: string[], opts
   const lhs = p.parseExpr(BP.eq);
   if (p.isOp('=')) {
     p.next();
-    const rhs = p.parseExpr(0);
+    let rhs = p.parseExpr(0);
+    // R = x^2 + y^2 <= 1: a named region
+    const relR = parseRelation(p);
+    if (relR) rhs = { type: 'eq', left: rhs, right: relR.rhs, rel: relR.rel, span: { from: spanOf(rhs).from, to: spanOf(relR.rhs).to } };
     p.expectEnd();
     if (lhs.type === 'sym') return { kind: 'assign', name: lhs.name, nameSpan: spanOf(lhs), value: rhs, typeHint, span, modifiers };
     if (lhs.type === 'call' && lhs.callee.type === 'sym' && lhs.args.every((a) => a.type === 'sym')) {
       const params = lhs.args.map((a) => (a as Extract<Expr, { type: 'sym' }>).name);
       return { kind: 'funcdef', name: lhs.callee.name, nameSpan: spanOf(lhs.callee), params, body: rhs, typeHint, span, modifiers };
     }
-    throw new MathSyntaxError('Left side of a definition must be a name or f(x, y, ...)', spanOf(lhs).from, spanOf(lhs).to);
+    // x^2 + y^2 = 1: an implicit curve
+    return { kind: 'expr', value: { type: 'eq', left: lhs, right: rhs, span: { from: spanOf(lhs).from, to: spanOf(rhs).to } }, span, modifiers };
+  }
+  // y < x^2, x^2 + y^2 >= 1: a region
+  const rel = parseRelation(p);
+  if (rel) {
+    p.expectEnd();
+    return { kind: 'expr', value: { type: 'eq', left: lhs, right: rel.rhs, rel: rel.rel, span: { from: spanOf(lhs).from, to: spanOf(rel.rhs).to } }, span, modifiers };
   }
   p.expectEnd();
   return { kind: 'expr', value: lhs, span, modifiers };
+}
+
+/** `< E`, `<= E`, `≤ E`, `> E`, `>= E`, `≥ E` at statement level. */
+function parseRelation(p: ExprParser): { rel: Relation; rhs: Expr } | undefined {
+  const t = p.peek();
+  if (t.kind !== 'op' || !['<', '>', '≤', '≥', '<=', '>='].includes(t.text)) return undefined;
+  p.next();
+  let rel: Relation = t.text === '≤' ? '<=' : t.text === '≥' ? '>=' : (t.text as Relation);
+  if ((t.text === '<' || t.text === '>') && p.isOp('=') && !p.peek().spaced) {
+    p.next();
+    rel = t.text === '<' ? '<=' : '>=';
+  }
+  return { rel, rhs: p.parseExpr(0) };
 }
 
 /** Parse a single expression (used by tests and tools). */

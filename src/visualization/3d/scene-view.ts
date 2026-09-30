@@ -109,6 +109,8 @@ export class SceneView {
       this.needsSync = true;
     }));
     const el = this.renderer.domElement;
+    el.addEventListener('wheel', this.onWheel, { capture: true, passive: false });
+    el.addEventListener('contextmenu', (e) => this.frame.surface && e.preventDefault());
     el.addEventListener('pointerdown', this.onDown, true);
     el.addEventListener('pointermove', this.onMove);
     el.addEventListener('pointerup', this.onUp);
@@ -185,7 +187,11 @@ export class SceneView {
   private sync() {
     this.needsSync = false;
     const items = this.ws.sceneItems();
-    this.frame = frameFromItems(items, this.ws.focus ? this.ws.value(this.ws.focus) : undefined);
+    this.frame = frameFromItems(items, this.ws.focus ? this.ws.value(this.ws.focus) : undefined, this.ws.focus ? this.ws.window3d.get(this.ws.focus) : undefined);
+    // graphs of f(x, y): scroll and right-drag change the domain (the surface is re-sampled); orbit keeps rotating
+    const domainNav = !!this.frame.surface && !this.frame.euclid;
+    this.controls.enableZoom = !domainNav;
+    this.controls.enablePan = !domainNav;
     this.map.update(this.frame);
     const pad = 1e-3;
     // Euclidean scenes (linear maps) are not clipped to a graph box
@@ -429,7 +435,59 @@ export class SceneView {
     return null;
   }
 
+  /** Move the camera with the domain so the box stays put on screen while its content changes. */
+  private moveWorld(scale: number, shift: [number, number], about: [number, number]) {
+    const tf = (v: THREE.Vector3) => v.set(about[0] + (v.x - about[0]) * scale + shift[0], about[1] + (v.y - about[1]) * scale + shift[1], v.z * scale);
+    tf(this.camera.position);
+    tf(this.controls.target);
+    this.controls.update();
+  }
+
+  /** Current domain window (the latest request, even before the next frame re-syncs the map). */
+  private domain(): { xr: [number, number]; yr: [number, number] } {
+    return (this.ws.focus && this.ws.window3d.get(this.ws.focus)) || { xr: this.map.xr, yr: this.map.yr };
+  }
+
+  private setDomain(xr: [number, number], yr: [number, number]) {
+    if (this.ws.focus) this.ws.setWindow3d(this.ws.focus, { xr, yr });
+  }
+
+  /** Scroll over a surface: zoom the domain (Desmos-like), not the camera. */
+  private onWheel = (e: WheelEvent) => {
+    if (!this.frame.surface || this.frame.euclid) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const k = Math.exp(Math.max(-60, Math.min(60, e.deltaY)) * 0.004);
+    const { xr, yr } = this.domain();
+    const [cx, cy] = [(xr[0] + xr[1]) / 2, (yr[0] + yr[1]) / 2];
+    const hw = ((xr[1] - xr[0]) / 2) * k;
+    const hh = ((yr[1] - yr[0]) / 2) * k;
+    if (hw < 1e-3 || hw > 1e5) return;
+    this.moveWorld(k, [0, 0], [cx, cy]);
+    this.setDomain([cx - hw, cx + hw], [cy - hh, cy + hh]);
+  };
+
+  private floorPoint(e: PointerEvent): THREE.Vector3 | null {
+    this.raycaster.setFromCamera(this.ndc(e), this.camera);
+    const p = new THREE.Vector3();
+    return this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), -this.map.floorZ), p) ? p : null;
+  }
+
+  private panFrom: THREE.Vector3 | null = null;
+
+  /** Reset the domain window of the focused surface to its default. */
+  resetDomain() {
+    if (this.ws.focus) this.ws.setWindow3d(this.ws.focus, null);
+    this.initialShot = false;
+  }
+
   private onDown = (e: PointerEvent) => {
+    if (e.button === 2 && this.frame.surface && !this.frame.euclid) {
+      // right-drag: pan the domain
+      this.panFrom = this.floorPoint(e);
+      this.renderer.domElement.setPointerCapture(e.pointerId);
+      return;
+    }
     if (e.button !== 0) return;
     this.downPos = { x: e.clientX, y: e.clientY };
     this.raycaster.setFromCamera(this.ndc(e), this.camera);
@@ -448,6 +506,17 @@ export class SceneView {
   };
 
   private onMove = (e: PointerEvent) => {
+    if (this.panFrom) {
+      const p = this.floorPoint(e);
+      if (!p) return;
+      const dx = this.panFrom.x - p.x;
+      const dy = this.panFrom.y - p.y;
+      if (Math.abs(dx) + Math.abs(dy) < 1e-9) return;
+      this.moveWorld(1, [dx, dy], [0, 0]);
+      const { xr, yr } = this.domain();
+      this.setDomain([xr[0] + dx, xr[1] + dx], [yr[0] + dy, yr[1] + dy]);
+      return;
+    }
     const d = this.pickDomain(e);
     if (this.drag) {
       if (d) {
@@ -472,6 +541,10 @@ export class SceneView {
   };
 
   private onUp = (e: PointerEvent) => {
+    if (this.panFrom) {
+      this.panFrom = null;
+      return;
+    }
     const click = this.downPos && Math.hypot(e.clientX - this.downPos.x, e.clientY - this.downPos.y) < 4;
     this.downPos = null;
     if (click && !this.drag) {

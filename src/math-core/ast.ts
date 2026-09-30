@@ -28,8 +28,10 @@ export type Expr =
   | { type: 'matrix'; rows: Expr[][]; span?: Span }
   /** P.x */
   | { type: 'member'; object: Expr; prop: string; span?: Span }
-  /** x = a (only meaningful as an argument, e.g. slice(f, x = 1)) */
-  | { type: 'eq'; left: Expr; right: Expr; span?: Span };
+  /** x = a (arguments such as slice(f, x = 1)); as a statement: an implicit curve or, with `rel`, an inequality */
+  | { type: 'eq'; left: Expr; right: Expr; rel?: Relation; span?: Span };
+
+export type Relation = '<' | '>' | '<=' | '>=';
 
 export const num = (value: number): Expr => ({ type: 'num', value });
 export const sym = (name: string): Expr => ({ type: 'sym', name });

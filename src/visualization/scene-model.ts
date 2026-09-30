@@ -53,10 +53,13 @@ registerDefaultVisual('vector', (v, ctx) => {
 });
 registerDefaultVisual('function', (v, ctx) => {
   const f = v as FunctionValue;
+  // parametric (x(t), y(t)[, z(t)]) and polar r(θ) curves
+  if ((f.out === 'vector' && f.params.length === 1) || f.role === 'polar') return [visual('curve', { fn: f, polar: f.role === 'polar' }, ctx.name, v.role === 'polar' ? 'curve' : (v.role ?? 'curve'))];
   if (f.out === 'scalar' && f.params.length === 2)
     return [visual('surface', { fn: f }, ctx.name, 'surface'), visual('contours', { fn: f }, ctx.name, 'contours')];
   if (f.out === 'scalar' && f.params.length === 1) return [visual('graph1d', { fn: f }, ctx.name, v.role)];
   if (f.out === 'vector' && f.params.length === 2) return [visual('field2', { fn: f }, ctx.name, v.role)];
+
   return undefined;
 });
 registerDefaultVisual('plane', (v, ctx) => [visual('plane', { plane: v }, ctx.name, v.role ?? 'tangent')]);

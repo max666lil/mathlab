@@ -4,4 +4,5 @@
  */
 import './draw2d';
 import './visuals3d';
+import './draw-graphing';
 export { coreCalculusMath } from './math';

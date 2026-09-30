@@ -135,7 +135,7 @@ export function toText(e: Expr, precise = false): string {
     case 'neg':
       return `-${p(e.arg, PREC.pow)}`;
     case 'eq':
-      return `${toText(e.left, precise)} = ${toText(e.right, precise)}`;
+      return `${toText(e.left, precise)} ${e.rel ?? '='} ${toText(e.right, precise)}`;
     case 'call':
       return `${p(e.callee, PREC.atom)}(${list(e.args)})`;
     case 'tuple':
@@ -308,7 +308,7 @@ export function toLatex(e: Expr, digits = 4): string {
     case 'neg':
       return `-${p(e.arg, PREC.pow)}`;
     case 'eq':
-      return `${L(e.left)} = ${L(e.right)}`;
+      return `${L(e.left)} ${e.rel === '<=' ? '\\le' : e.rel === '>=' ? '\\ge' : (e.rel ?? '=')} ${L(e.right)}`;
     case 'call': {
       const name = e.callee.type === 'sym' ? e.callee.name : undefined;
       const cmd = name ? commandLatex.get(name) : undefined;
