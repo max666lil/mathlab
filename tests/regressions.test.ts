@@ -153,3 +153,20 @@ describe('language and analysis details', () => {
     expect(last('derivative exp(x)').value.expr.type).not.toBe('bin');
   });
 });
+
+describe('smaller findings', () => {
+  it('focus on load prefers primary definitions', () => {
+    expect(new Workspace(['A = [[2,1],[1,2]]', 'N = nullspace A']).focus).toBe('A');
+    expect(new Workspace(['f(x) = x^3', 'g = derivative f']).focus).toBe('f');
+    expect(new Workspace(['f(x,y) = x^2 - y^2', 'G = gradient f']).focus).toBe('f');
+  });
+  it('vector length and indexing', () => {
+    expect(last('v = <3, 4>', '|v|').value.value).toBe(5);
+    expect(last('v = <3, 4>', 'v[2]').value.value).toBe(4);
+    expect(last('A = [[1,2],[3,4]]', 'A[2]').value.comps).toEqual([3, 4]);
+  });
+  it('antiderivatives of roots; exact fractions with large denominators', () => {
+    expect(last('integrate sqrt(x)').value.eval(4)).toBeCloseTo((2 / 3) * 8, 9);
+    expect(valueLatex(last('A = [[1,2],[3,1/120]]', 'A^2').value)).toContain('\\frac');
+  });
+});

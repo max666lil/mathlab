@@ -195,5 +195,14 @@ export function itemOf(v: MathValue, k: number): MathValue | undefined {
     return p.coords.length === 1 ? scalar(p.coords[0], { certainty: s.certainty }) : { ...point(p.coords), certainty: s.certainty };
   }
   if (v.kind === 'list') return (v as unknown as { items: MathValue[] }).items[k];
+  // v[2]: a component; A[1]: a row
+  if (v.kind === 'vector' || v.kind === 'point') {
+    const c = (v as unknown as { comps?: number[]; coords?: number[] }).comps ?? (v as unknown as { coords: number[] }).coords;
+    return k < c.length ? scalar(c[k], { certainty: v.certainty }) : undefined;
+  }
+  if (v.kind === 'matrix') {
+    const rows = (v as unknown as { rows: number[][] }).rows;
+    return rows[k] ? ({ kind: 'vector', comps: rows[k].slice(), certainty: v.certainty } as MathValue) : undefined;
+  }
   return undefined;
 }

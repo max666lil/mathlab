@@ -144,7 +144,7 @@ export const examples: Example[] = [
     id: 'gradient-field',
     title: 'Gradient field — conservative, harmonic potential',
     course: 'Vector Calculus',
-    cells: ['f(x,y) = x^2 - y^2', 'G = gradient f'],
+    cells: ['f(x,y) = x^2 - y^2', 'G = gradient f', 'analyze G'],
   },
   {
     id: 'vortex',

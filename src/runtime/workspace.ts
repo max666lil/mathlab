@@ -213,9 +213,15 @@ export class Workspace {
     if (!next && this.focus && this.isAnalyzable(this.focus)) next = this.focus;
     if (!next) next = request(this.doc.statements.map((s) => s.id).reverse()) ?? null;
     // prefer primary objects (functions) over derived results such as point sets
-    // on load: functions first (the objects a document is usually about), then matrices / fields / subspaces
-    if (!next) next = [...named].reverse().find((s) => this.value(s.id)?.kind === 'function' && this.isAnalyzable(s.name!))?.name ?? null;
-    if (!next) next = [...named].reverse().find((s) => this.claimsFocus(s.name!))?.name ?? null;
+    // on load: primary definitions (not built from other analysable objects: A, not N = nullspace A),
+    // functions first, then matrices / fields / subspaces; derived objects only as a fallback
+    const primary = (s: StatementInfo) => s.deps.every((d) => !this.isAnalyzable(d));
+    const rev = [...named].reverse();
+    const isFn = (s: StatementInfo) => this.value(s.id)?.kind === 'function' && this.isAnalyzable(s.name!);
+    if (!next) next = rev.find((s) => primary(s) && isFn(s))?.name ?? null;
+    if (!next) next = rev.find((s) => primary(s) && this.claimsFocus(s.name!))?.name ?? null;
+    if (!next) next = rev.find(isFn)?.name ?? null;
+    if (!next) next = rev.find((s) => this.claimsFocus(s.name!))?.name ?? null;
     if (!next) next = [...named].reverse().find((s) => this.isAnalyzable(s.name!))?.name ?? null;
     this.focus = next;
   }

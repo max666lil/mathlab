@@ -396,6 +396,11 @@ export class Evaluator implements EvalContext {
       const [lo, hi] = typeof sf.arity === 'number' ? [sf.arity, sf.arity] : sf.arity;
       if (e.args.length < lo || e.args.length > hi) throw spanErr(`${name} takes ${lo === hi ? lo : `${lo}–${hi}`} argument${hi === 1 ? '' : 's'}`, e);
       const args = e.args.map((a) => this.evaluate(a));
+      // |v|, |Q − P|: the length of a vector
+      if (name === 'abs' && (args[0]?.kind === 'vector' || args[0]?.kind === 'point')) {
+        const c = args[0].kind === 'vector' ? (args[0] as VectorValue).comps : (args[0] as PointValue).coords;
+        return scalar(Math.hypot(...c), { certainty: args[0].certainty });
+      }
       if (args.some((a) => a.kind === 'function')) {
         const fs = args.filter((a) => a.kind === 'function') as FunctionValue[];
         const body = { ...e, args: args.map((a, i) => (a.kind === 'function' ? (a as FunctionValue).expr ?? e.args[i] : e.args[i])) };

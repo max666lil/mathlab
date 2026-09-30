@@ -9,6 +9,7 @@ import { Expr } from './ast';
 import { NumericEnv } from './compile';
 import { toLatex, formatNumber, numberLatex, symbolLatex } from './symbolic/print';
 import { recognize } from './recognize';
+import { toFrac } from './rational';
 
 /**
  * How trustworthy a result is:
@@ -167,7 +168,15 @@ const nums = (xs: number[], d = 4) => xs.map((x) => numberLatex(x, d)).join(', '
 export function entryLatex(x: number, exact: boolean | undefined): string {
   if (Object.is(x, -0) || Math.abs(x) < 1e-13) return '0';
   if (!exact || Number.isInteger(x)) return numberLatex(x);
-  return recognize(x)?.latex ?? numberLatex(x);
+  return recognize(x)?.latex ?? fracOrDecimal(x);
+}
+
+/** Exact rationals with larger denominators (−7/120, 17/72) still print as fractions. */
+function fracOrDecimal(x: number): string {
+  const q = toFrac(x);
+  if (!q || q.d > 100000n) return numberLatex(x);
+  const n = q.n < 0n ? -q.n : q.n;
+  return `${q.n < 0n ? '-' : ''}\\frac{${n}}{${q.d}}`;
 }
 
 export function matrixLatex(rows: number[][], exact?: boolean): string {
@@ -191,8 +200,8 @@ registerValueKind({
   latex: (v) => {
     const x = (v as ScalarValue).value;
     if (Number.isNaN(x)) return '\\text{undefined}';
-    const r = v.certainty === 'exact' && !Number.isInteger(x) ? recognize(x) : null;
-    return r ? r.latex : numberLatex(x);
+    if (v.certainty === 'exact' && !Number.isInteger(x)) return entryLatex(x, true);
+    return numberLatex(x);
   },
   typeLabel: (v) => ((v as ScalarValue).slider ? 'slider ∈ ℝ' : 'scalar ∈ ℝ'),
 });

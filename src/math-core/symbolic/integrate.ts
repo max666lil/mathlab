@@ -3,7 +3,7 @@
  * verified by differentiating it and comparing numerically with the integrand; unverified results are
  * discarded, so "found" means "exact".
  */
-import { Expr, num, sym, call, add, mul, div, pow, dependsOn } from '../ast';
+import { Expr, num, sym, call, add, mul, div, pow, dependsOn, mapExpr } from '../ast';
 import { diff } from './diff';
 import { simplify } from './simplify';
 import { expand, polyCoeffs } from './expand';
@@ -167,7 +167,11 @@ function divideByLinear(e: Expr, x: string): Expr | null {
 
 export function antiderivative(e: Expr, x: string): Expr | null {
   const division = divideByLinear(e, x);
-  const candidates = [simplify(e), expand(e), ...(division ? [division] : [])];
+  // √u and ∛u as powers, so the power rule (and u-substitution) apply
+  const powers = mapExpr(e, (n) =>
+    n.type === 'call' && n.callee.type === 'sym' && (n.callee.name === 'sqrt' || n.callee.name === 'cbrt') && n.args.length === 1 ? pow(n.args[0], num(n.callee.name === 'sqrt' ? 0.5 : 1 / 3)) : n,
+  );
+  const candidates = [simplify(e), expand(e), ...(division ? [division] : []), simplify(powers)];
   for (const cand of candidates) {
     const parts = terms(cand).map((t) => integrateTerm(t, x));
     if (parts.some((p) => !p)) continue;

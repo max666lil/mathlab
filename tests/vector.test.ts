@@ -62,7 +62,7 @@ describe('vector field analysis', () => {
     expect(setup('F(x,y) = <-y, x>').an.plan()!.typeLabel).toBe('vector field ℝ² → ℝ²');
     expect(setup('T(x,y) = (-y, x)').an.plan()!.typeLabel).toBe('linear map ℝ² → ℝ²');
     expect(setup('F(x,y,z) = <-y, x, z>').an.plan()!.layout.views[0].renderer).toBe('scene');
-    const g = setup('f(x,y) = x^2 - y^2', 'G = gradient f').an;
+    const g = setup('f(x,y) = x^2 - y^2', 'G = gradient f', 'analyze G').an;
     expect(g.plan()!.typeLabel).toBe('vector field ℝ² → ℝ²');
   });
   it('arrows by default; flow and local pictures only when opened', () => {
