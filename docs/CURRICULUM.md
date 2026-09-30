@@ -37,7 +37,20 @@ Plus the already-shipped linear algebra (MAT223/224).
   pinned, referenced and plotted exactly like a worksheet definition. Principle 1 of the roadmap holds.
 - Scripts are deterministic (seeded RNG, `rng(n)`), have a step budget and never freeze the tab.
 
-## 2. The programming layer (Phase S) — "MATLAB inside MathLab"
+## 2. The programming layer (Phase S) — "MATLAB inside MathLab" (first release shipped)
+
+Shipped (`src/runtime/script/`, `src/parser/blocks.ts`, `src/plugins/scripting/`, tests `tests/script.test.ts`):
+lexer / parser / interpreter with MATLAB semantics (column-major arrays, implicit expansion, `end` in
+indices, growth and deletion on assignment, `[a, b] = f(…)`, `@(x)` closures, `hold on`), ~120 library
+functions (constructors, element-wise math, column-wise reductions, `quantile` / `prctile` / `iqr`,
+`integral` / `fzero` / `trapz` / `polyfit` / `interp1`, `det` / `inv` / `\`, seeded `rand` / `randn` /
+`randi` / `randperm`, `fprintf` / `disp`, `plot` / `scatter` / `bar` / `hist` / `histogram` / `stairs` /
+`fplot`), a step budget, blocks in cells (Enter continues an open block, auto-indent), function blocks
+callable from the worksheet (symbolic when a one-line body is plain arithmetic), script variables as
+worksheet nodes with dependencies, random-dependent results marked as simulation evidence (taint tracking
+through data and control flow), lambdas returned as symbolic functions, MLL builtins callable from
+scripts, figures with free axes. Not yet: worker execution, `switch`, cell arrays, structs, strings
+beyond basics, `ode45` (Phase 4).
 
 MATLAB's strengths that matter here: arrays are values, element-wise operations, ranges, 1-based
 indexing, short functions, `plot` / `hist` one-liners. MathLab adopts that syntax inside **blocks**; the

@@ -225,10 +225,12 @@ export interface SceneFrame {
   equal?: boolean;
   /** a visible visual sits under the surface (Riemann boxes): surfaces become translucent */
   seeThrough?: boolean;
+  /** independent x and y scales (data plots: histograms, time series) */
+  free?: boolean;
 }
 
 /** A visual that knows how much of the plane / space it needs (e.g. a transformed unit cell). */
-export type FrameHint = (props: Record<string, unknown>) => { r: number; dim: number; box?: Range[] } | undefined;
+export type FrameHint = (props: Record<string, unknown>) => { r: number; dim: number; box?: Range[]; free?: boolean } | undefined;
 const frameHints = new Map<string, FrameHint>();
 export function registerFrameHint(vtype: string, hint: FrameHint) {
   frameHints.set(vtype, hint);
@@ -292,16 +294,22 @@ export function frameFromItems(items: { visible: boolean; visual: { vtype: strin
   // plane visuals may give their own box (a region far from the origin is framed around itself)
   let box: Range[] | null = null;
   let allBoxes = true;
+  let free = false;
   for (const i of items) {
     const h = i.visible ? frameHints.get(i.visual.vtype)?.(i.visual.props) : undefined;
     if (h && h.r > 0) {
       r = Math.max(r, h.r);
       dim = Math.max(dim, h.dim);
+      free = free || !!h.free;
       if (h.box) box = box ? box.map((b, k) => [Math.min(b[0], h.box![k][0]), Math.max(b[1], h.box![k][1])] as Range) : h.box.map((b) => [...b] as Range);
       else allBoxes = false;
     }
   }
   if (r > 0 && dim === 2 && box && allBoxes) {
+    if (free) {
+      const padF = (b: Range): Range => [b[0] - (b[1] - b[0]) * 0.08, b[1] + (b[1] - b[0]) * 0.08];
+      return { xr: padF(box[0]), yr: padF(box[1]), zLo: -1, zHi: 1, free };
+    }
     const pad = (b: Range): Range => [b[0] - (b[1] - b[0]) * 0.15 - 0.2, b[1] + (b[1] - b[0]) * 0.15 + 0.2];
     return { xr: pad(box[0]), yr: pad(box[1]), zLo: -1, zHi: 1 };
   }

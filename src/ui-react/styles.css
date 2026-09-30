@@ -381,3 +381,27 @@ select { max-width: 360px; }
 }
 .update-banner button.ghost { background: transparent; border: none; margin-left: auto; }
 .panel-error pre { white-space: pre-wrap; color: var(--error); font-size: 12px; }
+
+/* script blocks (Phase S) */
+.out-row.script {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+.script-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.script-out {
+  margin: 0;
+  padding: 6px 8px;
+  max-height: 220px;
+  overflow: auto;
+  font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  background: var(--panel-2, rgba(127, 127, 127, 0.08));
+  border-radius: 6px;
+  white-space: pre;
+}

@@ -7,10 +7,12 @@ import { linearAlgebraMath } from './plugins/linear-algebra/plugin';
 import { vectorCalculusMath } from './plugins/vector-calculus/plugin';
 import { graphingMath } from './plugins/core-calculus/graphing';
 import { multivariableMath } from './plugins/multivariable/plugin';
+import { scriptingMath } from './plugins/scripting/plugin';
 import './plugins/core-calculus/analyzers';
 import './plugins/linear-algebra/analyzers';
 import './plugins/vector-calculus/analyzers';
 import './plugins/multivariable/analyzers';
+import './plugins/scripting/analyzers';
 
 export function installMathLab() {
   installCoreBuiltins();
@@ -20,4 +22,5 @@ export function installMathLab() {
   installPlugin(linearAlgebraMath);
   installPlugin(vectorCalculusMath);
   installPlugin(multivariableMath);
+  installPlugin(scriptingMath);
 }

@@ -14,6 +14,8 @@
  */
 import { Expr, Span, BinOp, Relation, sym } from '../math-core/ast';
 import { lex, Token, MathSyntaxError } from './lexer';
+import { findBlocks, parseBlock, ParsedBlock } from './blocks';
+import { ScriptSyntaxError } from '../runtime/script/parser';
 
 export { MathSyntaxError };
 
@@ -31,6 +33,7 @@ export type Statement =
   | (StatementBase & { kind: 'hide'; items: Expr[] })
   | (StatementBase & { kind: 'compare'; a: Expr; b: Expr })
   | (StatementBase & { kind: 'custom'; rule: string; name?: string; data: unknown })
+  | (StatementBase & { kind: 'block'; name?: string; block: ParsedBlock })
   | (StatementBase & { kind: 'error'; message: string; errorSpan: Span });
 
 export const MODIFIERS = new Set(['draggable', 'hidden', 'fixed']);
@@ -451,15 +454,47 @@ function splitStatements(toks: Token[]): Token[][] {
 }
 
 export function parseProgram(src: string, opts: ParserOptions = {}): Statement[] {
+  // MATLAB-style blocks (function / script / for / while / if … end) are cut out first
+  const blocks = findBlocks(src);
+  if (!blocks.length) return parseLines(src, 0, opts);
+  const out: Statement[] = [];
+  let pos = 0;
+  for (const b of blocks) {
+    if (b.from > pos) out.push(...parseLines(src.slice(pos, b.from), pos, opts));
+    out.push(blockStatement(src, b.from, b.to));
+    pos = b.to;
+  }
+  if (pos < src.length) out.push(...parseLines(src.slice(pos), pos, opts));
+  return out;
+}
+
+function parseLines(src: string, offset: number, opts: ParserOptions): Statement[] {
   let toks: Token[];
   try {
-    toks = lex(src);
+    toks = lex(src).map((t) => (offset ? { ...t, from: t.from + offset, to: t.to + offset } : t));
   } catch (e) {
     if (e instanceof MathSyntaxError)
-      return [{ kind: 'error', message: e.message, errorSpan: { from: e.from, to: e.to }, span: { from: 0, to: src.length }, modifiers: [] }];
+      return [{ kind: 'error', message: e.message, errorSpan: { from: e.from + offset, to: e.to + offset }, span: { from: offset, to: offset + src.length }, modifiers: [] }];
     throw e;
   }
   return splitStatements(toks).map((st) => parseStatementTokens(st, opts));
+}
+
+/** A script / function / code block as one statement; syntax errors point at their line. */
+function blockStatement(src: string, from: number, to: number): Statement {
+  const text = src.slice(from, to);
+  const span = { from, to };
+  try {
+    const block = parseBlock(text);
+    return { kind: 'block', name: block.name, block, span, modifiers: [] };
+  } catch (e) {
+    if (e instanceof ScriptSyntaxError) {
+      const at = from + Math.min(e.pos, text.length);
+      const line = src.slice(0, at).split('\n').length;
+      return { kind: 'error', message: `line ${line}: ${e.message}`, errorSpan: { from: at, to: Math.min(to, at + 1) }, span, modifiers: [] };
+    }
+    throw e;
+  }
 }
 
 export function parseStatementTokens(tokens: Token[], opts: ParserOptions = {}): Statement {

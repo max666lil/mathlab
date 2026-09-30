@@ -158,6 +158,27 @@ function Row({ ws, info, math }: { ws: Workspace; info: StatementInfo; math: boo
       </div>
     );
   }
+  // a script: what it printed, and the variables / figures it produced
+  if (v.kind === 'script') {
+    const s = v as unknown as { output: string[]; vars: Record<string, MathValue> };
+    const out = s.output.length > 40 ? [...s.output.slice(0, 18), `… ${s.output.length - 36} more lines …`, ...s.output.slice(-18)] : s.output;
+    return (
+      <div className={`out-row script ${selected ? 'selected' : ''}`} onClick={select} {...hover}>
+        <div className="script-summary">
+          <Tex tex={valueLatex(v)} />
+          {Object.keys(s.vars).length > 0 && <span className="dim small"> → {Object.keys(s.vars).join(', ')}</span>}
+        </div>
+        {out.length > 0 && <pre className="script-out">{out.join('\n')}</pre>}
+      </div>
+    );
+  }
+  if (v.kind === 'text') {
+    return (
+      <div className="out-row plain">
+        <pre className="script-out">{info.name ? `${info.name} = ` : ''}{(v as unknown as { text: string }).text}</pre>
+      </div>
+    );
+  }
   const slider = v.kind === 'scalar' && (v as ScalarValue).slider && info.input;
   return (
     <div className={`out-row ${selected ? 'selected' : ''} ${lit ? 'lit' : ''}`} onClick={select} {...hover}>

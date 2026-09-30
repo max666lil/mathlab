@@ -249,7 +249,12 @@ registerValueKind({
 registerValueKind({ kind: 'slice', latex: (v) => (v as SliceValue).label, typeLabel: () => 'cross-section curve' });
 registerValueKind({
   kind: 'list',
-  latex: (v) => `\\left[${(v as ListValue).items.map(valueLatex).join(', ')}\\right]`,
+  // long lists (simulated data) show their first entries and their size
+  latex: (v) => {
+    const items = (v as ListValue).items;
+    if (items.length <= 12) return `\\left[${items.map(valueLatex).join(', ')}\\right]`;
+    return `\\left[${items.slice(0, 6).map(valueLatex).join(', ')}, \\ldots\\right]_{${items.length}}`;
+  },
   typeLabel: (v) => `list of ${(v as ListValue).items.length}`,
 });
 registerValueKind({

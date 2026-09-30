@@ -6,6 +6,7 @@ import { useEffect, useRef } from 'react';
 import { EditorView, keymap, drawSelection, placeholder as cmPlaceholder } from '@codemirror/view';
 import { EditorState, Annotation } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, insertNewline } from '@codemirror/commands';
+import { openBlocks } from '../../parser/blocks';
 import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete';
 import { setDiagnostics } from '@codemirror/lint';
 import { bracketMatching } from '@codemirror/language';
@@ -38,6 +39,29 @@ export function CellEditor({ cellId, autoFocus, onCommit, onFocus, onBlur, onDel
       onCommit(cellId);
       return true;
     };
+    // inside an unfinished script / function / loop block, Enter continues the block (indented)
+    const enter = (v: EditorView) => {
+      const pos = v.state.selection.main.head;
+      const before = v.state.doc.sliceString(0, pos);
+      const depth = openBlocks(before);
+      const line = v.state.doc.lineAt(pos);
+      const changes: { from: number; to?: number; insert: string }[] = [];
+      // end / else / elseif line up with the line that opened their block
+      const lead = /^\s*/.exec(line.text)![0];
+      if (/^\s*(end|else|elseif)\b/.test(line.text)) {
+        const want = '  '.repeat(Math.max(0, openBlocks(v.state.doc.sliceString(0, line.from)) - 1));
+        if (want !== lead) changes.push({ from: line.from, to: line.from + lead.length, insert: want });
+      }
+      if (depth === 0) {
+        if (changes.length) v.dispatch({ changes });
+        return commit();
+      }
+      const indent = '  '.repeat(depth);
+      changes.push({ from: pos, insert: `\n${indent}` });
+      const shift = changes.length > 1 ? changes[0].insert.length - lead.length : 0;
+      v.dispatch({ changes, selection: { anchor: pos + shift + 1 + indent.length } });
+      return true;
+    };
     const view = new EditorView({
       parent: host.current,
       state: EditorState.create({
@@ -53,7 +77,7 @@ export function CellEditor({ cellId, autoFocus, onCommit, onFocus, onBlur, onDel
           cmPlaceholder(placeholder ?? 'f(x) = x^3 - 3x'),
           autocompletion({ override: [mllCompletions(() => ws.statements().filter((s) => s.name).map((s) => s.name!))], icons: false }),
           keymap.of([
-            { key: 'Enter', run: commit },
+            { key: 'Enter', run: enter },
             { key: 'Mod-Enter', run: commit },
             { key: 'Shift-Enter', run: insertNewline },
             {

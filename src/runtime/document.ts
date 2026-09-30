@@ -11,6 +11,7 @@ import { symbolLatex, formatNumber, toText } from '../math-core/symbolic/print';
 import { MathValue, FunctionValue, PointValue, VectorValue, MatrixValue, ScalarValue, ShowValue, point, vector } from '../math-core/values';
 import { NodeDef } from './graph';
 import { Evaluator, Scope } from './evaluator';
+import { runScript, functionOf, ScriptValue } from './script/bridge';
 
 export interface Cell {
   id: string;
@@ -111,19 +112,42 @@ export class MathDocument {
   analyze(): StatementInfo[] {
     const infos: StatementInfo[] = [];
     const taken = new Set<string>();
+    const exportsOf = new Map<string, string[]>();
     for (const cell of this.cells) {
       this.parseCell(cell.source).forEach((stmt, index) => {
-        let name = stmt.kind === 'funcdef' || stmt.kind === 'assign' ? stmt.name : stmt.kind === 'custom' ? stmt.name : undefined;
+        let name = stmt.kind === 'funcdef' || stmt.kind === 'assign' ? stmt.name : stmt.kind === 'custom' || stmt.kind === 'block' ? stmt.name : undefined;
         let id = `${cell.id}#${index}`;
         if (name && !taken.has(name)) {
           id = name;
           taken.add(name);
         } else if (name) name = undefined; // duplicate — reported at evaluation
         infos.push({ id, cellId: cell.id, index, stmt, name, deps: [], hidden: stmt.modifiers.includes('hidden') });
+        // a script leaves its variables in the worksheet: one node each, computed from the script
+        if (stmt.kind === 'block' && stmt.block.blockKind === 'script') {
+          const ex: string[] = [];
+          for (const w of stmt.block.writes) {
+            if (taken.has(w)) continue;
+            taken.add(w);
+            ex.push(w);
+            infos.push({ id: w, cellId: cell.id, index, stmt: { kind: 'custom', rule: 'script-export', name: w, data: { script: id, var: w }, span: stmt.span, modifiers: [] }, name: w, deps: [id], hidden: false });
+          }
+          exportsOf.set(id, ex);
+        }
       });
     }
     const names = new Set(infos.filter((i) => i.name).map((i) => i.name!));
     for (const info of infos) {
+      const st = info.stmt;
+      if (st.kind === 'custom' && st.rule === 'script-export') {
+        info.input = undefined;
+        continue;
+      }
+      if (st.kind === 'block') {
+        // names it reads that the worksheet defines (not its own variables)
+        const own = new Set(exportsOf.get(info.id) ?? []);
+        info.deps = st.block.reads.filter((n) => names.has(n) && !own.has(n) && n !== info.name);
+        continue;
+      }
       info.deps = this.dependencies(info.stmt, names);
       info.input = this.inputSpec(info);
     }
@@ -297,8 +321,24 @@ export function evaluateStatement(info: StatementInfo, ev: Evaluator, firstByNam
       }
       return { kind: 'show', items } as ShowValue;
     }
-    case 'custom':
+    case 'custom': {
+      if (st.rule === 'script-export') {
+        const { script, var: v } = st.data as { script: string; var: string };
+        const s = ev.lookup(script) as ScriptValue | undefined;
+        if (!s || s.kind !== 'script') throw new EvalError(`the script defining ${v} failed`, st.span);
+        const value = s.vars[v];
+        if (!value) throw new EvalError(`${v} is not assigned when the script finishes`, st.span);
+        return value;
+      }
       throw new EvalError(`Statement '${st.rule}' has no evaluator`, st.span);
+    }
+    case 'block':
+      if (st.block.blockKind === 'function') {
+        if (!info.name) throw new EvalError(`'${st.name}' is already defined`, st.span);
+        return functionOf(st.block, ev);
+      }
+      if (st.name && !info.name) throw new EvalError(`'${st.name}' is already defined`, st.span);
+      return runScript(st.block, ev) as unknown as MathValue;
   }
 }
 

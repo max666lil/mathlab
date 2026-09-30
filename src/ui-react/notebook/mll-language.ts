@@ -5,7 +5,7 @@ import { CompletionContext, CompletionResult, Completion } from '@codemirror/aut
 import { getBuiltin, allBuiltins } from '../../math-core/builtins';
 import { getScalarFunction, scalarFunctionNames } from '../../math-core/scalar-functions';
 
-const KEYWORDS = new Set(['show', 'animate', 'from', 'to', 'over', 'at', 'draggable', 'hidden', 'point', 'vector', 'field', 'slider', 'function', 'direction', 'gradient']);
+const KEYWORDS = new Set(['show', 'animate', 'from', 'to', 'over', 'at', 'draggable', 'hidden', 'point', 'vector', 'field', 'slider', 'function', 'direction', 'gradient', 'script', 'for', 'while', 'if', 'elseif', 'else', 'end', 'break', 'continue', 'return', 'and', 'in', 'order']);
 
 export const mll = StreamLanguage.define<{ lineStart: boolean }>({
   name: 'mll',
@@ -13,7 +13,7 @@ export const mll = StreamLanguage.define<{ lineStart: boolean }>({
   token(stream, state) {
     if (stream.sol()) state.lineStart = true;
     if (stream.eatSpace()) return null;
-    if (stream.match('#') || stream.match('//')) {
+    if (stream.match('#') || stream.match('//') || stream.match('%')) {
       stream.skipToEnd();
       return 'comment';
     }

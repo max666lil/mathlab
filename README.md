@@ -158,7 +158,11 @@ typed results with certainty, `show` / `hide` / `compare`, analyzer-declared lay
 graphing-calculator layer (implicit curves, regions, parametric / polar curves, several graphs at once,
 scroll-to-zoom 3-D domains).
 
-**Phase 3b (multiple integrals) is in progress**: regions from inequalities in Cartesian, polar,
+**Phase S (MATLAB-style scripts) — first release**: `script name … end` and `function … end` blocks in
+worksheet cells, arrays, loops, seeded random numbers, `plot` / `hist`; script variables become worksheet
+objects that the rest of MathLab analyses (`src/runtime/script`, `plugins/scripting`).
+
+**Phase 3b (multiple integrals) is done**: regions from inequalities in Cartesian, polar,
 cylindrical and spherical coordinates (`R = 0 <= x <= 1 and x^2 <= y <= x`), iterated bounds in any order,
 `integrate f over R` (exact where every inner integral is symbolic), area, volume, average, mass,
 centroid, the strip sweep, Riemann boxes and 3-D solids (`plugins/multivariable`). The content of every

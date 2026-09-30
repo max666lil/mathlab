@@ -231,6 +231,31 @@ export const examples: Example[] = [
     cells: ['E = x^2 + y^2 + z^2 <= 4 and z >= 0', 'K = sqrt(x^2 + y^2) <= z <= 3', 'mass z over K'],
   },
   {
+    id: 'script-clt',
+    title: 'Script — the central limit theorem by simulation',
+    course: 'Probability & Statistics',
+    cells: [
+      "script clt\n  rng(1);\n  n = 30; k = 2000;\n  means = zeros(1, k);\n  for i = 1:k\n    means(i) = mean(rand(1, n));\n  end\n  histogram(means, 30, 'Normalization', 'pdf')\n  title('Means of 30 uniforms')\n  fprintf('mean %.4f, sd %.4f (theory 0.5, %.4f)\\n', mean(means), std(means), sqrt(1/12/n));\nend",
+    ],
+  },
+  {
+    id: 'script-euler',
+    title: "Script — Euler's method for y′ = y (functions, loops, plots)",
+    course: 'Differential Equations',
+    cells: [
+      'function y = euler(f, y0, h, n)\n  y = zeros(1, n + 1);\n  y(1) = y0;\n  for k = 1:n\n    y(k + 1) = y(k) + h * f((k - 1) * h, y(k));\n  end\nend',
+      "script ode\n  h = 0.1; n = 10;\n  x = 0:h:1;\n  y = euler(@(x, y) y, 1, h, n);\n  plot(x, y, 'o'); hold on; plot(x, exp(x));\n  err = exp(1) - y(end)\nend",
+    ],
+  },
+  {
+    id: 'script-birthday',
+    title: 'Script — Monte Carlo: the birthday problem',
+    course: 'Probability & Statistics',
+    cells: [
+      'script birthday\n  rng(7); trials = 5000; n = 23; hits = 0;\n  for t = 1:trials\n    b = randi(365, 1, n);\n    if numel(unique(b)) < n\n      hits = hits + 1;\n    end\n  end\n  phat = hits / trials\n  se = sqrt(phat * (1 - phat) / trials)\nend',
+    ],
+  },
+  {
     id: 'parameter',
     title: 'Parameters — watch the analysis update',
     course: 'Calculus I',
