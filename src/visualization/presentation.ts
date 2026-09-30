@@ -89,6 +89,9 @@ interface Timeline {
   playing: boolean;
   signature?: string;
   holdUntil: number;
+  /** loop timelines (flows): the value is elapsed cycles, unbounded, while playing */
+  loop?: boolean;
+  base?: number;
 }
 
 export class Presentation {
@@ -210,6 +213,11 @@ export class Presentation {
     for (const tl of this.timelines.values()) {
       if (!tl.playing) continue;
       if (tl.start < 0) tl.start = now;
+      if (tl.loop) {
+        tl.t = (tl.base ?? 0) + (now - tl.start) / (tl.duration * 1000);
+        changed = true;
+        continue;
+      }
       const steps = Math.max(1e-9, Math.abs(tl.to - tl.from));
       const u = Math.min(1, (now - tl.start) / (tl.duration * 1000 * Math.max(1, steps)));
       const dir = tl.to >= tl.from ? 1 : -1;
@@ -265,10 +273,23 @@ export class Presentation {
     tl.playing = true;
     this.listeners.forEach((l) => l());
   }
+  /** Start (or resume) a looping flow: its value keeps growing, one unit per cycle. */
+  playLoop(key: string, duration = 3) {
+    const tl = this.tl(key);
+    if (tl.playing && tl.loop) return;
+    tl.loop = true;
+    tl.base = tl.loop && Number.isFinite(tl.t) && tl.signature === 'loop' ? tl.t : 0;
+    tl.signature = 'loop';
+    tl.duration = duration;
+    tl.start = -1;
+    tl.playing = true;
+    this.listeners.forEach((l) => l());
+  }
   pauseTimeline(key: string) {
     const tl = this.timelines.get(key);
     if (tl?.playing) {
       tl.playing = false;
+      if (tl.loop) tl.base = tl.t;
       this.listeners.forEach((l) => l());
     }
   }

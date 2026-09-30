@@ -123,6 +123,42 @@ export const examples: Example[] = [
     cells: ['T(x,y) = (x + y, 2y)'],
   },
   {
+    id: 'rotation-field',
+    title: 'Vector field — rotation (curl 2, div 0)',
+    course: 'Vector Calculus',
+    cells: ['F(x,y) = <-y, x>', 'P = point(1.5, 0.5) draggable'],
+  },
+  {
+    id: 'source-field',
+    title: 'Vector field — a source (div 2)',
+    course: 'Vector Calculus',
+    cells: ['F(x,y) = <x, y>', 'P = point(1, 1) draggable'],
+  },
+  {
+    id: 'gradient-field',
+    title: 'Gradient field — conservative, harmonic potential',
+    course: 'Vector Calculus',
+    cells: ['f(x,y) = x^2 - y^2', 'G = gradient f'],
+  },
+  {
+    id: 'vortex',
+    title: 'Vortex — curl 0 but not conservative',
+    course: 'Vector Calculus',
+    cells: ['F(x,y) = <-y/(x^2 + y^2), x/(x^2 + y^2)>'],
+  },
+  {
+    id: 'damped',
+    title: 'Equilibria — a stable spiral',
+    course: 'Vector Calculus',
+    cells: ['F(x,y) = <y, -x - y/2>'],
+  },
+  {
+    id: 'field3d',
+    title: 'Vector field in space',
+    course: 'Vector Calculus',
+    cells: ['F(x,y,z) = <-y, x, z/2>', 'P = point(1, 0.5, 0.5) draggable'],
+  },
+  {
     id: 'parameter',
     title: 'Parameters — watch the analysis update',
     course: 'Calculus I',

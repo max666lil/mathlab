@@ -56,6 +56,7 @@ interface TimelineSpec {
   stops: string[];
   signature: string;
   duration?: number;
+  loop?: boolean;
 }
 
 /** ▶ / ⏸, a scrubber and the stop labels (I → A, I → B → AB …) of an animation the layout offers. */
@@ -69,10 +70,19 @@ function TransportBar({ tl }: { tl: TimelineSpec }) {
     };
   }, [pres]);
   const end = tl.stops.length - 1;
-  useEffect(() => pres.autoplay(tl.key, tl.signature, end), [pres, tl.key, tl.signature, end]);
+  useEffect(() => (tl.loop ? pres.playLoop(tl.key) : pres.autoplay(tl.key, tl.signature, end)), [pres, tl.key, tl.signature, end, tl.loop]);
   const st = pres.timelineState(tl.key);
   const t = st?.t ?? end;
   const playing = !!st?.playing;
+  if (tl.loop)
+    return (
+      <div className="transport">
+        <button className="play" onClick={() => (playing ? pres.pauseTimeline(tl.key) : pres.playLoop(tl.key))} title={playing ? 'Pause the flow' : 'Play the flow'}>
+          {playing ? '⏸' : '▶'}
+        </button>
+        <span className="dim small">flow</span>
+      </div>
+    );
   const toggle = () => (playing ? pres.pauseTimeline(tl.key) : pres.playTimeline(tl.key, { from: t >= end - 1e-6 ? 0 : t, to: end, duration: tl.duration }));
   return (
     <div className="transport">
@@ -127,8 +137,8 @@ export function CanvasPanel() {
   const timelines = new Map<string, TimelineSpec>();
   if (layout.timeline) timelines.set(layout.timeline.key, layout.timeline);
   for (const it of ws.sceneItems()) {
-    const p = it.visual.props as { timeline?: string; stops?: string[]; stages?: unknown };
-    if (it.visible && p.timeline && p.stops && !timelines.has(p.timeline)) timelines.set(p.timeline, { key: p.timeline, stops: p.stops, signature: JSON.stringify(p.stages) });
+    const p = it.visual.props as { timeline?: string; stops?: string[]; stages?: unknown; loop?: boolean };
+    if (it.visible && p.timeline && p.stops && !timelines.has(p.timeline)) timelines.set(p.timeline, { key: p.timeline, stops: p.stops, signature: JSON.stringify(p.stages ?? ''), loop: p.loop });
   }
   // a stepped decomposition (P⁻¹ → D → P …) takes over from the plain I → A bar of the same matrix
   const stepped = new Set(ws.sceneItems().filter((i) => i.visible && typeof i.visual.props.base === 'string').map((i) => `lin:${i.visual.props.base}`));

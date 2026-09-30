@@ -126,6 +126,7 @@ registerAnalyzer({
       { id: 'domain', title: 'Domain', expr: `domain(${f})`, tier: 0, section: 'overview', pinName: 'Dom' },
       { id: 'gradient', title: 'Gradient', expr: `gradient ${f}`, tier: 0, section: 'overview', pinName: 'g', visual: 'toggle' },
       { id: 'hessian', title: 'Hessian', expr: `hessian ${f}`, tier: 0, section: 'overview', pinName: 'H' },
+      { id: 'laplacian', title: 'Laplacian ∇²f', expr: `laplacian(${f})`, tier: 0, section: 'overview', pinName: 'L' },
       { id: 'critical', title: 'Critical points', expr: `critical ${f}`, tier: 1, section: 'critical', pinName: 'C', visual: 'auto' },
     ];
     if (P) {
@@ -133,6 +134,7 @@ registerAnalyzer({
         { id: 'at', title: `At ${P}`, why: 'gradient', actions: u ? [] : [{ label: '＋ Add a direction u', rows: [`${theta} = slider(0, 2π, 0.6)`, `${freshName(ws, 'u')} = <cos ${theta}, sin ${theta}>`] }] },
         { id: 'slices', title: `Cross-sections through ${P}`, drawer: 'slices' },
         { id: 'curvature', title: `Curvature at ${P}`, why: 'local' },
+        { id: 'laplace', title: `Laplacian at ${P}`, why: 'laplacian' },
         { id: 'path', title: `Steepest path from ${P}` },
       );
       facts.push(
@@ -150,6 +152,8 @@ registerAnalyzer({
         { id: 'axes', title: 'Principal directions', expr: `hessian_axes(${f}, ${P})`, tier: 1, section: 'curvature', visual: 'auto' },
         { id: 'quadratic', title: 'Quadratic approximation', expr: `quadratic(${f}, ${P})`, tier: 1, section: 'curvature', visual: 'auto' },
         { id: 'path', title: 'Steepest ascent / descent', expr: `gradient_path(${f}, ${P})`, tier: 1, section: 'path', visual: 'auto' },
+        { id: 'lapP', title: `∇²${f}(${P})`, expr: `laplacian(${f}) at ${P}`, tier: 1, section: 'laplace' },
+        { id: 'meancircle', title: 'Mean value on a circle', expr: `meancircle(${f}, ${P})`, tier: 1, section: 'laplace', visual: 'auto' },
       );
     } else {
       sections.push({ id: 'at', title: 'At a point', actions: [{ label: `＋ Add a point ${pName}`, rows: [`${pName} = point(1, 1) draggable`] }] });

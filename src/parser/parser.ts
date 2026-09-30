@@ -288,6 +288,16 @@ export class ExprParser {
         case '+':
           return this.parseExpr(BP.neg);
         case '∇': {
+          // ∇·F (divergence), ∇×F (curl), ∇²f (Laplacian)
+          const nx = this.peek();
+          const special =
+            nx.kind === 'op' && nx.text === '·' ? 'div' : nx.kind === 'op' && nx.text === '×' ? 'curl' : nx.kind === 'op' && nx.text === '^' && this.peek(1).kind === 'num' && this.peek(1).value === 2 ? 'laplacian' : undefined;
+          if (special) {
+            this.next();
+            if (special === 'laplacian') this.next();
+            const arg = this.primaryOnly();
+            return { type: 'call', callee: { type: 'sym', name: special, span: { from: t.from, to: t.to } }, args: [arg], span: { from: t.from, to: spanOf(arg).to } };
+          }
           const operand = this.primaryOnly();
           return {
             type: 'call',

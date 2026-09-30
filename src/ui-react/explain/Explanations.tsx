@@ -9,6 +9,7 @@ import { localAnalysis, LocalAnalysis, DirectionInfo } from '../../plugins/core-
 import { numberLatex, symbolLatex } from '../../math-core/symbolic/print';
 import { ROLE_COLORS } from '../../visualization/scene-model';
 import { LinearExplain, LINEAR_TOPICS } from './LinearExplain';
+import { VectorExplain, VECTOR_TOPICS } from './VectorExplain';
 
 const N = (x: number, d = 3) => numberLatex(x, d);
 const col = (role: string, tex: string) => `\\textcolor{${ROLE_COLORS[role]}}{${tex}}`;
@@ -206,6 +207,7 @@ export function Explanation({ topic }: { topic: string }) {
   const ws = useWs();
   if (topic === 'tangent-1d') return <TangentExplain1D />;
   if (LINEAR_TOPICS.has(topic)) return <LinearExplain topic={topic} />;
+  if (VECTOR_TOPICS.has(topic)) return <VectorExplain topic={topic} />;
   useTopics('values', 'view', 'selection', 'animation');
   const a = localAnalysis(ws);
   if (!a) return <div className="empty">Add a point to see the explanation.</div>;

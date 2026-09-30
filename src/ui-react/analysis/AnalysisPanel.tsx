@@ -8,7 +8,7 @@ import { Tex } from '../Tex';
 import type { AnalysisPlan, FactSpec, SectionSpec } from '../../runtime/analysis';
 import type { AnalysisService } from '../../runtime/analysis';
 import type { Workspace } from '../../runtime/workspace';
-import { valueLatex, MathValue, VisualValue } from '../../math-core/values';
+import { valueLatex, MathValue } from '../../math-core/values';
 import { freshName } from '../../plugins/core-calculus/analyzers';
 
 /** Provenance badge — only for results that are not exact (exact is the unmarked default). */
@@ -23,10 +23,8 @@ export function CertaintyBadge({ v }: { v?: MathValue }) {
 }
 
 function factLatex(v: MathValue): string {
-  if (v.kind === 'visual') {
-    const vv = v as VisualValue;
-    return `\\text{${(vv.label ?? vv.vtype).replace(/[\\{}]/g, '')}}`;
-  }
+  // a visual object's row just says where it is; its name is the row title
+  if (v.kind === 'visual') return '\\small\\textsf{on canvas}';
   if (v.kind === 'function' && (v as { expr?: unknown }).expr) {
     // in a labelled row the body is enough: "Gradient  ⟨2x, 4y⟩"
     const text = valueLatex(v);
