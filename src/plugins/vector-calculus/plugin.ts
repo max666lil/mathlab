@@ -5,6 +5,7 @@ import { curveBuiltins, curveTangent } from './curves';
 import { lineIntegralBuiltins, integrateAlong } from './integrals';
 import { greenBuiltins, TheoremValue } from './green';
 import { surfaceBuiltins, fluxThroughBuiltin, areaOfSurface } from './surfaces';
+import { theoremBuiltins } from './theorems';
 import { numberLatex } from '../../math-core/symbolic/print';
 import { getBuiltin } from '../../math-core/builtins';
 
@@ -18,6 +19,8 @@ export const vectorCalculusMath = definePlugin({
     lineIntegralBuiltins.forEach((b) => api.registerBuiltin(b));
     greenBuiltins.forEach((b) => api.registerBuiltin(b));
     surfaceBuiltins.forEach((b) => api.registerBuiltin(b));
+    theoremBuiltins.forEach((b) => api.registerBuiltin(b));
+    api.registerBuiltin({ ...theoremBuiltins[1], name: 'divergencetheorem', signature: 'divergencetheorem F on S' });
     api.registerBuiltin(fluxThroughBuiltin(getBuiltin('flux')!));
     api.registerBuiltin(areaOfSurface(getBuiltin('area')!));
     // a theorem check shows both sides and whether they agree

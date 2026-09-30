@@ -8,7 +8,7 @@ import { Tex } from '../Tex';
 import { symbolLatex, numberLatex } from '../../math-core/symbolic/print';
 import { MathValue, valueLatex } from '../../math-core/values';
 
-export const VECTOR_TOPICS = new Set(['divcurl', 'laplacian', 'lineintegral', 'green']);
+export const VECTOR_TOPICS = new Set(['divcurl', 'laplacian', 'lineintegral', 'green', 'flux', 'stokes', 'divergence']);
 
 const col = (c: string, tex: string) => `\\textcolor{${c}}{${tex}}`;
 const OUT = '#ff6b6b';
@@ -36,6 +36,46 @@ export function VectorExplain({ topic }: { topic: string }) {
     return v?.kind === 'scalar' ? (v as { value: number }).value : undefined;
   };
   const F = symbolLatex(plan.object);
+  if (topic === 'flux' || topic === 'stokes' || topic === 'divergence') {
+    const th = (fact(topic === 'stokes' ? 'stokes' : topic === 'divergence' ? 'gauss' : 'flux') ?? null) as unknown as { lhs?: number; rhs?: number; value?: number } | null;
+    const both = th && th.lhs !== undefined ? <p>Here the two sides are <Tex tex={`${numberLatex(th.lhs, 5)}`} /> and <Tex tex={`${numberLatex(th.rhs!, 5)}`} />.</p> : null;
+    if (topic === 'flux')
+      return (
+        <div className="explain">
+          <div className="explain-title">Flux: how much of the field passes through the surface</div>
+          <LiveFormula tex={`\\iint_S \\mathbf{F}\\cdot d\\mathbf{S} = \\iint_D \\mathbf{F}(\\mathbf{S}(u,v))\\cdot(\\mathbf{S}_u\\times\\mathbf{S}_v)\\,du\\,dv`} parts={[]} />
+          <p>
+            Each small patch of the surface has area |S_u × S_v| du dv and a normal direction. Only the part of F along the normal crosses the patch (green
+            arrows cross along the normal, red ones against it). Closed surfaces are oriented outward.
+          </p>
+          {th?.value !== undefined && <p>Here the flux is <Tex tex={numberLatex(th.value, 5)} />.</p>}
+        </div>
+      );
+    if (topic === 'stokes')
+      return (
+        <div className="explain">
+          <div className="explain-title">Stokes: circulation around the edge = total curl through the surface</div>
+          <LiveFormula tex={`\\oint_{\\partial S} \\mathbf{F}\\cdot d\\mathbf{r} = \\iint_S (\\nabla\\times\\mathbf{F})\\cdot d\\mathbf{S}`} parts={[]} />
+          <p>
+            The same cancellation as in Green's theorem, on a curved surface: cut S into small patches, each with circulation ≈ (curl F)·n ΔS. Shared edges
+            cancel; only the boundary curve ∂S (yellow, walked with the surface on the left of the normal) remains. Any surface with the same boundary gives the
+            same answer.
+          </p>
+          {both}
+        </div>
+      );
+    return (
+      <div className="explain">
+        <div className="explain-title">Divergence theorem: outflow through the skin = sources inside</div>
+        <LiveFormula tex={`\\oint\\!\\!\\oint_{S} \\mathbf{F}\\cdot d\\mathbf{S} = \\iiint_V \\nabla\\cdot\\mathbf{F}\\,dV`} parts={[]} />
+        <p>
+          Divergence is the outflow per unit volume of a tiny box. Fill the solid with boxes: the flux between neighbouring boxes cancels, and what leaves through
+          the outer skin is the sum of all the sources inside.
+        </p>
+        {both}
+      </div>
+    );
+  }
   if (topic === 'green') {
     const g = fact('green') as unknown as { lhs: number; rhs: number } | undefined;
     return (

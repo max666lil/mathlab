@@ -12,7 +12,7 @@ import { registerRelation } from '../../visualization/presentation';
 import { freshName } from '../core-calculus/analyzers';
 import { isField } from './math';
 import { isCurveFn, closedOf } from './curves';
-import { isSurfaceFn } from './surfaces';
+import { isSurfaceFn, closedSurface } from './surfaces';
 import { curveRange, surfaceRanges } from '../../math-core/ranges';
 
 
@@ -189,8 +189,16 @@ registerAnalyzer({
     ];
     const F = firstNamed(ws, (x) => isField(x) && x.expr!.type === 'vec' && x.params.length === 3);
     if (F) {
-      sections.push({ id: 'flux', title: `Flux of ${F} through ${S}` });
+      const closed = closedSurface(f);
+      sections.push({ id: 'flux', title: `Flux of ${F} through ${S}`, why: 'flux' });
       facts.push({ id: 'flux', title: `∬ ${F}·dS`, expr: `flux ${F} through ${S}`, tier: 1, section: 'flux', pinName: 'Φ', visual: 'auto' });
+      if (closed) {
+        sections.push({ id: 'gauss', title: 'Divergence theorem', why: 'divergence' });
+        facts.push({ id: 'gauss', title: '∯ F·dS = ∭ div F dV', expr: `gauss ${F} on ${S}`, tier: 1, section: 'gauss', pinName: 'G' });
+      } else {
+        sections.push({ id: 'stokes', title: "Stokes' theorem", why: 'stokes' });
+        facts.push({ id: 'stokes', title: '∮∂S F·dr = ∬ curl F·dS', expr: `stokes ${F} on ${S}`, tier: 1, section: 'stokes', pinName: 'St', visual: 'auto' });
+      }
     }
     return {
       object: S,

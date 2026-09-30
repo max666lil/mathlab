@@ -165,6 +165,36 @@ export const examples: Example[] = [
     cells: ['F(x,y,z) = <-y, x, z/2>', 'P = point(1, 0.5, 0.5) draggable'],
   },
   {
+    id: 'curve-circulation',
+    title: 'Line integral — work around a circle',
+    course: 'Vector Calculus',
+    cells: ['F(x,y) = <-y, x/2 + y>', 'C(t) = (cos t, sin t)'],
+  },
+  {
+    id: 'green',
+    title: "Green's theorem — cells cancel inside an ellipse",
+    course: 'Vector Calculus',
+    cells: ['F(x,y) = <-y + x y, x>', 'C(t) = (2cos t, 1.3sin t)', 'analyze F'],
+  },
+  {
+    id: 'helix',
+    title: 'Space curve — helix, curvature, work',
+    course: 'Vector Calculus',
+    cells: ['F(x,y,z) = <-y, x, 1>', 'H(t) = (cos t, sin t, t/4) for t in [0, 4π]', 't0 = slider(0, 4π, 2)'],
+  },
+  {
+    id: 'sphere-flux',
+    title: 'Surface flux and the divergence theorem (sphere)',
+    course: 'Vector Calculus',
+    cells: ['F(x,y,z) = <x, y, z/2>', 'S(u,v) = (cos u sin v, sin u sin v, cos v) for u in [0, 2π], v in [0, π]'],
+  },
+  {
+    id: 'stokes',
+    title: "Stokes' theorem — hemisphere and its boundary circle",
+    course: 'Vector Calculus',
+    cells: ['F(x,y,z) = <-y, x, z>', 'H(u,v) = (cos u sin v, sin u sin v, cos v) for u in [0, 2π], v in [0, π/2]'],
+  },
+  {
     id: 'parameter',
     title: 'Parameters — watch the analysis update',
     course: 'Calculus I',

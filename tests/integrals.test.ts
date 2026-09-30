@@ -136,3 +136,27 @@ describe('surfaces (3d.4)', () => {
     expect(new AnalysisService(new Workspace(['T(x,y) = (x + y, 2y)'])).plan()!.typeLabel).toContain('linear map');
   });
 });
+
+describe('Stokes and divergence theorems (3d.5)', () => {
+  const sphere = 'S(u,v) = (cos u sin v, sin u sin v, cos v) for u in [0, 2π], v in [0, π]';
+  it('divergence theorem on the unit sphere', () => {
+    const g = last('F(x,y,z) = <x, y, z>', sphere, 'gauss F on S').value;
+    expect(g.lhs).toBeCloseTo(4 * Math.PI, 5);
+    expect(g.rhs).toBeCloseTo(4 * Math.PI, 5);
+    expect(g.holds).toBe(true);
+    const h = last('F(x,y,z) = <x y, y z^2, x z>', sphere, 'gauss F on S').value;
+    expect(h.holds).toBe(true);
+    expect(last('F(x,y,z) = <x, y, z>', 'H(u,v) = (cos u sin v, sin u sin v, cos v) for u in [0, 2π], v in [0, π/2]', 'gauss F on H').error).toMatch(/closed/);
+  });
+  it("Stokes' theorem on the upper hemisphere and on a disk (same boundary, same value)", () => {
+    const hemi = last('F(x,y,z) = <-y, x, 0>', 'H(u,v) = (cos u sin v, sin u sin v, cos v) for u in [0, 2π], v in [0, π/2]', 'stokes F on H').value;
+    expect(Math.abs(hemi.lhs)).toBeCloseTo(2 * Math.PI, 5);
+    expect(hemi.holds).toBe(true);
+    const disk = last('F(x,y,z) = <-y, x, 0>', 'D(u,v) = (u cos v, u sin v, 0) for u in [0, 1], v in [0, 2π]', 'stokes F on D').value;
+    expect(Math.abs(disk.rhs)).toBeCloseTo(2 * Math.PI, 5);
+    expect(disk.holds).toBe(true);
+    const closed = last('F(x,y,z) = <-y, x, z>', sphere, 'stokes F on S').value;
+    expect(closed.lhs).toBe(0);
+    expect(Math.abs(closed.rhs)).toBeLessThan(1e-6);
+  });
+});

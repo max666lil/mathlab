@@ -146,3 +146,51 @@ class SurfaceArrows implements Visual3D {
 }
 registerVisual3D('normals', () => new SurfaceArrows());
 registerVisual3D('fluxarrows', () => new SurfaceArrows());
+
+/** The boundary ∂S (edges of the parameter rectangle that are not poles or seams), with direction arrows. */
+class SurfaceBoundary implements Visual3D {
+  object = new THREE.Group();
+  private lines: FatSegments | null = null;
+  private heads: Arrow3D[] = [];
+  update(item: SceneItem, ctx: Ctx3D) {
+    const { S, edges } = item.visual.props as { S: FunctionValue; edges: { from: [number, number]; to: [number, number] }[] };
+    const f = S.eval as S2;
+    const m = ctx.map;
+    const seg: number[] = [];
+    let h = 0;
+    for (const e of edges) {
+      const N = 120;
+      let prev: THREE.Vector3 | null = null;
+      for (let k = 0; k <= N; k++) {
+        const s = k / N;
+        const p = f(e.from[0] + (e.to[0] - e.from[0]) * s, e.from[1] + (e.to[1] - e.from[1]) * s);
+        const w = m.v(p[0], p[1], p[2]);
+        if (prev) seg.push(prev.x, prev.y, prev.z, w.x, w.y, w.z);
+        prev = w;
+      }
+      for (const s of [0.3, 0.7]) {
+        const a = f(e.from[0] + (e.to[0] - e.from[0]) * s, e.from[1] + (e.to[1] - e.from[1]) * s);
+        const b = f(e.from[0] + (e.to[0] - e.from[0]) * (s + 0.02), e.from[1] + (e.to[1] - e.from[1]) * (s + 0.02));
+        if (!this.heads[h]) {
+          this.heads[h] = new Arrow3D('#ffd166');
+          this.object.add(this.heads[h].group);
+        }
+        const A = m.v(a[0], a[1], a[2]);
+        const B = m.v(b[0], b[1], b[2]);
+        const dir = B.clone().sub(A).normalize().multiplyScalar(m.size * 0.05);
+        this.heads[h].set(A, A.clone().add(dir), m.size * 0.004);
+        this.heads[h++].group.visible = true;
+      }
+    }
+    for (let q = h; q < this.heads.length; q++) this.heads[q].group.visible = false;
+    if (this.lines) this.object.remove(this.lines.lines);
+    this.lines = new FatSegments(ctx.lineMaterial('#ffd166', 3));
+    this.lines.set(seg);
+    this.object.add(this.lines.lines);
+  }
+  dispose() {
+    this.heads.forEach((a) => a.dispose());
+    disposeObject(this.object);
+  }
+}
+registerVisual3D('surfaceboundary', () => new SurfaceBoundary());

@@ -19,7 +19,7 @@ It should feel as simple as Desmos at first glance and as deep as a mathematical
 |---|---|---|---|
 | 1 | f(x), f(x,y), derivatives, limits, integrals, Taylor, gradient, Hessian, critical points | one-variable and multivariable functions | ✅ done |
 | 2 | matrices, vectors, linear maps, rref, rank, det, inverse, subspaces, eigen, diagonalization, systems, projections, least squares, QR, SVD — with 3Blue1Brown-style animated transformations in 2-D and 3-D | linear algebra (MAT223/224) | ✅ done — [spec](phases/phase-2-linear-algebra.md) |
-| 3 | 3a 3-D fields + Lagrange · 3b multiple integrals, coordinates, Jacobian · 3c vector fields, div, curl, Laplacian · 3d line/surface integrals, Green/Stokes/Divergence | multivariable and vector calculus (MAT235) | in progress: 3c ✅ — [spec](phases/phase-3-mat235.md) |
+| 3 | 3a 3-D fields + Lagrange · 3b multiple integrals, coordinates, Jacobian · 3c vector fields, div, curl, Laplacian · 3d line/surface integrals, Green/Stokes/Divergence | multivariable and vector calculus (MAT235) | in progress: 3c ✅ 3d ✅ — [spec](phases/phase-3-mat235.md) |
 | 4 | ODE: Laplace / inverse Laplace transform, linear ODEs and IVPs, slope fields, systems x′ = Ax and phase portraits · PDE: heat, wave and Laplace equations, boundary conditions, separation of variables, Fourier series | differential equations (ODE + PDE) and transforms (MAT244, APM346) | planned |
 | 5 | distributions, random-variable transformations, joint/conditional, expectation, sampling, CLT, estimation | probability and statistics | planned |
 | 6 | sequences, series, power series, Taylor series, convergence | infinite processes | planned |

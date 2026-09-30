@@ -231,7 +231,23 @@ Shipped in `src/plugins/vector-calculus/` (tests: `tests/vector.test.ts`): `div`
 - **Flagship**: `F(x,y) = <-y, x>` → div 0, curl 2, not conservative, particles rotating; then
   `G = gradient f` for `f = x^2 - y^2` → conservative, curl 0, potential f, ∇²f = 0 (harmonic).
 
-# 3d — Curves, surfaces, line and surface integrals, the big theorems
+# 3d — Curves, surfaces, line and surface integrals, the big theorems ✅ shipped
+
+Shipped in `src/plugins/vector-calculus/` (`curves.ts`, `integrals.ts`, `green.ts`, `surfaces.ts`,
+`theorems.ts`; tests `tests/integrals.test.ts`):
+- parameter ranges `C(t) = (…) for t in [a, b]`, `S(u,v) = (…) for u in [..], v in [..]`;
+- curves: length (exact when possible), closed / orientation / self-intersection, area inside, tangent,
+  curvature + osculating circle, moving point with r′, r″;
+- line integrals: `work F along C`, `circulation F around C`, `flux F across C`, `integrate f along C`,
+  with the particle accumulating the running total;
+- Green: `green F on C` (both sides, orientation-aware) with the cell-subdivision animation,
+  `integrate f inside C`;
+- surfaces: mesh with u/v grid, `area S`, `normal S at (u, v)`, normals (closed surfaces outward),
+  `flux F through S`;
+- `stokes F on S` (boundary = rectangle edges minus poles and seams) and `gauss F on S` (star-shaped solids);
+- curve / surface analyzers, field × curve and field × surface sections, explanations.
+Limits: surface integrals and region integrals are numeric (Gauss–Legendre with error estimates); the
+divergence theorem's volume side needs a solid star-shaped about its centre.
 
 - **Objects**: Curve (parametric, open / closed, orientation), Surface (parametric, oriented, normals),
   LineIntegral, FluxIntegral.

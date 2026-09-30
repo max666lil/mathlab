@@ -107,6 +107,8 @@ registered visuals. None of this changes the core runtime.
 | `nullspace A`, `span(u, v)`, `solve(A, b)`, `project v onto W`, `leastsquares(A, b)`, `svd A` | subspaces, systems, projections, decompositions |
 | `F(x,y) = <-y, x>`, `div F`, `curl F`, `∇·F`, `∇×F`, `laplacian f`, `potential F`, `equilibria F` | vector fields (angle brackets), with flow, flux box and paddle wheel |
 | `x^2 + y^2 = 9`, `y < x^2`, `R = x^2 + y^2 <= 1`, `c(t) = (cos t, sin 2t)`, `r = 1 + cos(θ)` | implicit curves, regions, parametric and polar curves |
+| `C(t) = (cos t, sin t) for t in [0, 2π]`, `length C`, `work F along C`, `circulation F around C`, `green F on C` | curves, line integrals, Green's theorem |
+| `S(u,v) = (…) for u in [0, 2π], v in [0, π]`, `area S`, `flux F through S`, `stokes F on S`, `gauss F on S` | surfaces, flux, Stokes and divergence theorems |
 | `10!`, `nCr(5, 2)`, `gcd`, `lcm`, `mean([…])`, `median`, `stdev` | calculator functions |
 | `show surface(f), contours(f, 20)` | add to the views (`hidden` to create switched off) |
 | `slice(f, x = P.x)`, `slice(f, P, u)` | vertical cross-sections |
@@ -152,7 +154,7 @@ registerDrawer2D('my-visual', { layer: 3, draw: (a) => { /* canvas drawing */ } 
 **Phase 1 is done**: workbench shell, object recognition, lazy analysis of f(x) and f(x, y), CAS commands,
 typed results with certainty, `show` / `hide` / `compare`, analyzer-declared layouts.
 
-**Phase 3c (vector fields) is done** — div, curl, Laplacian, potentials, equilibria, animated flow — plus a
+**Phase 3c (vector fields) and 3d (curves, surfaces, line and surface integrals, Green / Stokes / Divergence) are done** — div, curl, Laplacian, potentials, equilibria, animated flow — plus a
 graphing-calculator layer (implicit curves, regions, parametric / polar curves, several graphs at once,
 scroll-to-zoom 3-D domains).
 
