@@ -154,5 +154,5 @@ decompositions, and 3Blue1Brown-style animated transformations in 2-D and 3-D (`
 
 The full plan is in **[docs/ROADMAP.md](docs/ROADMAP.md)**: linear algebra (Phase 2, done —
 **[spec](docs/phases/phase-2-linear-algebra.md)**), next all of MAT235 (**[spec](docs/phases/phase-3-mat235.md)**: 3-D fields and Lagrange, multiple integrals,
-vector fields with div / curl / Laplacian, line and surface integrals and the big theorems), ODEs and the
-Laplace transform, probability & statistics, and series.
+vector fields with div / curl / Laplacian, line and surface integrals and the big theorems), differential equations (ODEs and PDEs, with the
+Laplace transform and Fourier series), probability & statistics, and series.

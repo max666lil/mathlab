@@ -20,7 +20,7 @@ It should feel as simple as Desmos at first glance and as deep as a mathematical
 | 1 | f(x), f(x,y), derivatives, limits, integrals, Taylor, gradient, Hessian, critical points | one-variable and multivariable functions | ✅ done |
 | 2 | matrices, vectors, linear maps, rref, rank, det, inverse, subspaces, eigen, diagonalization, systems, projections, least squares, QR, SVD — with 3Blue1Brown-style animated transformations in 2-D and 3-D | linear algebra (MAT223/224) | ✅ done — [spec](phases/phase-2-linear-algebra.md) |
 | 3 | 3a 3-D fields + Lagrange · 3b multiple integrals, coordinates, Jacobian · 3c vector fields, div, curl, Laplacian · 3d line/surface integrals, Green/Stokes/Divergence | multivariable and vector calculus (MAT235) | next — [spec](phases/phase-3-mat235.md) |
-| 4 | Laplace / inverse Laplace transform, linear ODEs and IVPs, slope fields, systems x′ = Ax and phase portraits | differential equations and transforms (MAT244) | planned |
+| 4 | ODE: Laplace / inverse Laplace transform, linear ODEs and IVPs, slope fields, systems x′ = Ax and phase portraits · PDE: heat, wave and Laplace equations, boundary conditions, separation of variables, Fourier series | differential equations (ODE + PDE) and transforms (MAT244, APM346) | planned |
 | 5 | distributions, random-variable transformations, joint/conditional, expectation, sampling, CLT, estimation | probability and statistics | planned |
 | 6 | sequences, series, power series, Taylor series, convergence | infinite processes | planned |
 
@@ -77,7 +77,7 @@ Three layers, one language:
 | ScalarField3D, Constraint, OptimizationProblem, Candidates | 3a | |
 | Region (2-D / 3-D), Integral, CoordinateSystem, Jacobian | 3b | Jacobian is a Matrix-valued function |
 | VectorField, Potential, Curve (parametric), Surface (parametric), Flow | 3c–3d | |
-| Transform (Laplace), ODE, IVP, SolutionCurve | 4 | |
+| Transform (Laplace), ODE, IVP, SolutionCurve, PDE, BoundaryValueProblem, FourierSeries | 4 | |
 | Distribution, RandomVariable, Sample, Estimator | 5 | samples are heavy nodes (seeded RNG, worker) |
 | Sequence, Series, PowerSeries | 6 | |
 
@@ -94,6 +94,7 @@ J = jacobian (r cos θ, r sin θ)    Matrix-valued function → det J = r    (Ph
 F = gradient f              VectorField              (Phase 1 → Phase 3c)
 jacobian F at P             Matrix → eigenvalues classify the equilibrium (Phase 3c → Phase 2)
 x' = A x                    ODE system → phase portrait from eigen A     (Phase 4 → Phase 2)
+u_t = k laplacian u         PDE → steady state ∇²u = 0 is a harmonic function (Phase 4 → Phase 3c)
 X ~ Uniform(0,1); Y = X^2   RandomVariable → Transformation → RandomVariable (Phase 5)
 ```
 
@@ -180,9 +181,11 @@ Full specification: **[phases/phase-3-mat235.md](phases/phase-3-mat235.md)**.
   the cancelling-cells animation. Flagship: circulation of ⟨−y, x⟩ around the unit circle = 2π.
 - **Dependencies**: Phase 1 engine; Phase 2 matrices, eigen and the Euclidean 3-D map; marching cubes.
 
-### Phase 4 — Differential equations and transforms (MAT244)
+### Phase 4 — Differential equations (ODE + PDE) and transforms (MAT244, APM346)
 
-- **Goal**: ODEs and the Laplace transform as objects, with solutions you can see.
+- **Goal**: ODEs, PDEs and the Laplace transform as objects, with solutions you can see.
+
+#### ODE part
 - **Objects**: Transform (Laplace pair F(s) ↔ f(t)), ODE, IVP, SolutionCurve, SlopeField, LinearSystem.
 - **Operations**: `laplace f`, `inverse laplace F` (table + partial fractions), `solve y'' + 3y' + 2y = 0
   with y(0) = 1, y'(0) = 0` (via Laplace or characteristic equation), `slopefield y' = …`,
@@ -194,6 +197,25 @@ Full specification: **[phases/phase-3-mat235.md](phases/phase-3-mat235.md)**.
   initial condition, e^{−st} weighting under f(t) for the Laplace integral, pole locations vs. behaviour.
 - **Certainty**: table / partial-fraction transforms exact; numeric integration (RK45 with error control)
   is numeric.
+
+#### PDE part
+- **Objects**: PDE, BoundaryValueProblem (domain, boundary and initial conditions), FourierSeries,
+  Solution u(x, t) (and u(x, y) for steady states).
+- **Operations**: `heat u_t = k u_xx on [0, L] with u(0,t) = 0, u(L,t) = 0, u(x,0) = f(x)`,
+  `wave u_tt = c^2 u_xx …`, `laplace equation on the rectangle / disk with boundary values …`,
+  `separate` (separation of variables), `fourier f on [0, L]` (sine / cosine / full series),
+  `dalembert` for the wave equation, `steady state`.
+- **Analyzers**: `pde` (classification — parabolic / hyperbolic / elliptic; method; eigenfunctions
+  sin(nπx/L) with eigenvalues (nπ/L)² as eigen objects), `fourier-series` (coefficients, partial sums,
+  convergence, Gibbs phenomenon).
+- **Canvas**: heat diffusing along a rod (colour + graph, timeline loop), a vibrating string (standing
+  waves, d'Alembert travelling waves), steady-state temperature on a rectangle or disk (heat map, reusing
+  the Phase 1 heat map and the 3c Laplacian / mean-value picture), Fourier partial sums converging to the
+  initial profile, each mode decaying at its own rate.
+- **Certainty**: Fourier coefficients exact when the integrals are symbolic; truncated series numeric with
+  the truncation stated; finite-difference solutions (explicit scheme with a stability check) numeric.
+- **Dependencies**: Fourier series are built here and reused by Phase 6; the Laplacian (3c); eigenvalues
+  and eigenvectors (Phase 2) for the Sturm–Liouville picture.
 ### Phase 5 — Probability and statistics
 
 - **Goal**: let the user *see* how probability mass moves and how estimators behave.
@@ -259,7 +281,7 @@ Full specification: **[phases/phase-3-mat235.md](phases/phase-3-mat235.md)**.
 ## 7. Order and milestones
 
 ```
-Phase 2 (linear algebra) → Phase 3 (MAT235: 3a → 3b → 3c → 3d) → Phase 4 (ODEs, Laplace) → Phase 5 → Phase 6
+Phase 2 (linear algebra) → Phase 3 (MAT235: 3a → 3b → 3c → 3d) → Phase 4 (ODE + PDE, Laplace, Fourier) → Phase 5 → Phase 6
 ```
 
 A phase is done when:
