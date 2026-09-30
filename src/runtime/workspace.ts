@@ -133,6 +133,7 @@ export class Workspace {
 
   loadDocument(sources: string[]) {
     this.doc = new MathDocument(sources);
+    this.window3d.clear(); // a new document starts with default 3-D domains
     this.focus = null;
     this.lastEditedCell = null;
     this.selection = null;

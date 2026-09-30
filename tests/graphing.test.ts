@@ -59,5 +59,8 @@ describe('graphing calculator layer', () => {
     ws.setWindow3d('f', { xr: [-10, 10], yr: [-5, 5] });
     const frame = frameFromItems(ws.sceneItems(), ws.value('f'), ws.window3d.get('f'));
     expect([frame.xr, frame.yr]).toEqual([[-10, 10], [-5, 5]]);
+    // a new document starts with the default domain (the window must not leak into another f)
+    ws.loadDocument(['f(x,y) = sin(x) cos(y)']);
+    expect(ws.window3d.get('f')).toBeUndefined();
   });
 });

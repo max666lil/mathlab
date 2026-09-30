@@ -372,3 +372,5 @@ select { max-width: 360px; }
   font-size: 12.5px; line-height: 1.4; padding: 6px 12px; border-radius: 8px;
   background: color-mix(in srgb, var(--panel) 85%, transparent); border: 1px solid var(--border); color: var(--text);
 }
+/* long results (Hessians and Laplacians of complicated functions) scroll inside their row */
+.fact-value { max-height: 7.5em; overflow-y: auto; }
