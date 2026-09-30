@@ -455,7 +455,8 @@ export class Workspace {
         continue;
       }
       const fnv = v as { kind: string; params?: string[]; out?: string; role?: string };
-      const curve = v.kind === 'function' && fnv.params?.length === 1 && (fnv.out === 'vector' || fnv.role === 'polar');
+      const nComp = ((v as { expr?: { items?: unknown[] } }).expr?.items ?? []).length;
+      const curve = v.kind === 'function' && ((fnv.params?.length === 1 && (fnv.out === 'vector' || fnv.role === 'polar')) || (fnv.params?.length === 2 && fnv.out === 'vector' && nComp === 3));
       const geometric = SHOWN_KINDS.has(v.kind) || curve || (v.kind === 'vector' && !!(v as { anchor?: number[] }).anchor) || !!v.visuals?.length;
       if (info.name && (geometric || this.visibility.get(`${info.id}#auto`))) {
         if (v.kind === 'function' && info.name === this.focus && !v.visuals?.length) continue; // drawn by the analysis

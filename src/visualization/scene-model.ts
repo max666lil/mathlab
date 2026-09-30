@@ -58,6 +58,8 @@ registerDefaultVisual('function', (v, ctx) => {
   if (f.out === 'scalar' && f.params.length === 2)
     return [visual('surface', { fn: f }, ctx.name, 'surface'), visual('contours', { fn: f }, ctx.name, 'contours')];
   if (f.out === 'scalar' && f.params.length === 1) return [visual('graph1d', { fn: f }, ctx.name, v.role)];
+  // S(u, v) = (x, y, z): a parametric surface; F(x, y) = <P, Q>: a plane vector field
+  if (f.out === 'vector' && f.params.length === 2 && f.expr && (f.expr.type === 'vec' || f.expr.type === 'tuple') && f.expr.items.length === 3) return [visual('psurface', { S: f }, ctx.name, 'psurface')];
   if (f.out === 'vector' && f.params.length === 2) return [visual('field2', { fn: f }, ctx.name, v.role)];
 
   return undefined;

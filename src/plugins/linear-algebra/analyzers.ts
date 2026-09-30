@@ -214,7 +214,9 @@ registerAnalyzer({
   focusOnEdit: true,
   recognizes: (v) => {
     const f = v as FunctionValue;
-    return v.kind === 'function' && f.out === 'vector' && f.expr?.type === 'tuple' && f.params.length >= 2 && f.params.length <= 3 && !!linearMatrixOf(f);
+    // S(u, v) / S(s, t) with three components are parametric surfaces, even when linear (a plane)
+    const surfaceParams = f.params?.length === 2 && ['uv', 'st'].includes(f.params.join('')) && (f.expr as { items?: unknown[] })?.items?.length === 3;
+    return v.kind === 'function' && f.out === 'vector' && f.expr?.type === 'tuple' && !surfaceParams && f.params.length >= 2 && f.params.length <= 3 && !!linearMatrixOf(f);
   },
   plan(T, value): AnalysisPlan {
     const rows = linearMatrixOf(value as FunctionValue)!;

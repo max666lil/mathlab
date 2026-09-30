@@ -2,5 +2,6 @@
 import './draw2d';
 import './visuals3d';
 import './draw-curves';
+import './visuals-surfaces';
 import './flow';
 export { vectorCalculusMath } from './plugin';

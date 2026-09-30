@@ -113,3 +113,26 @@ describe("Green's theorem (3d.3)", () => {
     expect(cells.visual.props.stops).toEqual(['1×1', '2×2', '4×4', '8×8', '16×16', '32×32']);
   });
 });
+
+describe('surfaces (3d.4)', () => {
+  const sphere = 'S(u,v) = (cos u sin v, sin u sin v, cos v) for u in [0, 2π], v in [0, π]';
+  it('area, closedness, normals', () => {
+    expect(last(sphere, 'area S').value.value).toBeCloseTo(4 * Math.PI, 6);
+    expect(last(sphere, 'closedsurface S').value.value).toBe(true);
+    expect(last('D(u,v) = (u cos v, u sin v, 0) for u in [0, 1], v in [0, 2π]', 'closedsurface D').value.value).toBe(false);
+    expect(last('D(u,v) = (u cos v, u sin v, 0) for u in [0, 1], v in [0, 2π]', 'area D').value.value).toBeCloseTo(Math.PI, 8);
+    const n = last(sphere, 'normal S at (0, π/2)').value;
+    expect(n.comps.map((x: number) => +x.toFixed(9) + 0)).toEqual([1, 0, 0]);
+  });
+  it('flux through the unit sphere: ⟨x, y, z⟩ gives 4π', () => {
+    expect(last('F(x,y,z) = <x, y, z>', sphere, 'flux F through S').value.value).toBeCloseTo(4 * Math.PI, 6);
+    expect(last('F(x,y,z) = <0, 0, 1>', sphere, 'flux F through S').value.value).toBeCloseTo(0, 8);
+  });
+  it('recognition: S(u, v) surfaces vs linear maps; analyzer', () => {
+    const ws = new Workspace([sphere]);
+    const an = new AnalysisService(ws);
+    expect(an.plan()!.typeLabel).toContain('surface in ℝ³');
+    expect(new AnalysisService(new Workspace(['P(u,v) = (u, v, u + v)'])).plan()!.typeLabel).toContain('surface');
+    expect(new AnalysisService(new Workspace(['T(x,y) = (x + y, 2y)'])).plan()!.typeLabel).toContain('linear map');
+  });
+});

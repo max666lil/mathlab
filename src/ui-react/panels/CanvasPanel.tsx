@@ -149,7 +149,9 @@ export function CanvasPanel() {
   const renderers = new Set(active.views.map((id) => layout.views.find((v) => v.id === id)?.renderer));
   const show3d = renderers.has('scene');
   const show2d = renderers.has('plane');
-  const drawer = an.drawer;
+  // a cross-section drawer only makes sense for objects that have cross-sections
+  const plan = an.plan();
+  const drawer = an.drawer?.kind === 'slices' && !plan?.sections.some((s) => s.drawer === 'slices') ? null : an.drawer;
   // animations: the one the layout declares, plus any visible animated visual (transformation(A, B) …)
   const timelines = new Map<string, TimelineSpec>();
   if (layout.timeline) timelines.set(layout.timeline.key, layout.timeline);

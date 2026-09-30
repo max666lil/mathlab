@@ -4,6 +4,7 @@ import { vectorCalculusBuiltins } from './math';
 import { curveBuiltins, curveTangent } from './curves';
 import { lineIntegralBuiltins, integrateAlong } from './integrals';
 import { greenBuiltins, TheoremValue } from './green';
+import { surfaceBuiltins, fluxThroughBuiltin, areaOfSurface } from './surfaces';
 import { numberLatex } from '../../math-core/symbolic/print';
 import { getBuiltin } from '../../math-core/builtins';
 
@@ -16,6 +17,9 @@ export const vectorCalculusMath = definePlugin({
     if (tangent) api.registerBuiltin(curveTangent(tangent));
     lineIntegralBuiltins.forEach((b) => api.registerBuiltin(b));
     greenBuiltins.forEach((b) => api.registerBuiltin(b));
+    surfaceBuiltins.forEach((b) => api.registerBuiltin(b));
+    api.registerBuiltin(fluxThroughBuiltin(getBuiltin('flux')!));
+    api.registerBuiltin(areaOfSurface(getBuiltin('area')!));
     // a theorem check shows both sides and whether they agree
     api.registerValueKind({
       kind: 'theorem',

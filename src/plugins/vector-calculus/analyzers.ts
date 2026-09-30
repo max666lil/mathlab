@@ -12,7 +12,8 @@ import { registerRelation } from '../../visualization/presentation';
 import { freshName } from '../core-calculus/analyzers';
 import { isField } from './math';
 import { isCurveFn, closedOf } from './curves';
-import { curveRange } from '../../math-core/ranges';
+import { isSurfaceFn } from './surfaces';
+import { curveRange, surfaceRanges } from '../../math-core/ranges';
 
 
 registerRelation('role:flux', ['role:field']);
@@ -156,6 +157,45 @@ registerAnalyzer({
         n === 2
           ? { canvasTitle: `Curve ${C}`, views: [{ id: 'plane', label: '2D', renderer: 'plane' }], defaultView: 'plane' }
           : { canvasTitle: `Curve ${C}`, views: [{ id: 'space', label: '3D', renderer: 'scene' }], defaultView: 'space' },
+      title: valueLatex(value),
+      sections,
+      facts,
+      relations: [],
+      diagnostics: [],
+    };
+  },
+});
+
+// ------------------------------------------------------------------ parametric surfaces S(u, v)
+
+registerAnalyzer({
+  id: 'surface',
+  focusOnEdit: true,
+  recognizes: (v) => isSurfaceFn(v),
+  plan(S, value, ws): AnalysisPlan {
+    const f = value as FunctionValue;
+    const [[u0, u1], [v0, v1]] = surfaceRanges(f);
+    const fmt = (x: number) => (Math.abs(x - 2 * Math.PI) < 1e-9 ? '2π' : Math.abs(x - Math.PI) < 1e-9 ? 'π' : Math.abs(x - Math.PI / 2) < 1e-9 ? 'π/2' : String(+x.toFixed(4)));
+    const [u, v] = f.params;
+    const sections: SectionSpec[] = [
+      { id: 'overview', title: 'Summary', summary: true },
+      { id: 'normals', title: 'Normals & orientation' },
+    ];
+    const facts: FactSpec[] = [
+      { id: 'self', title: S, expr: S, tier: 0, section: 'overview', visual: 'always', hidden: true },
+      { id: 'closed', title: 'Closed', expr: `closedsurface(${S})`, tier: 0, section: 'overview' },
+      { id: 'area', title: 'Area', expr: `area(${S})`, tier: 0, section: 'overview', pinName: 'A' },
+      { id: 'normals', title: 'Normals (S_u × S_v)', expr: `surfacenormals(${S})`, tier: 1, section: 'normals', visual: 'auto' },
+    ];
+    const F = firstNamed(ws, (x) => isField(x) && x.expr!.type === 'vec' && x.params.length === 3);
+    if (F) {
+      sections.push({ id: 'flux', title: `Flux of ${F} through ${S}` });
+      facts.push({ id: 'flux', title: `∬ ${F}·dS`, expr: `flux ${F} through ${S}`, tier: 1, section: 'flux', pinName: 'Φ', visual: 'auto' });
+    }
+    return {
+      object: S,
+      typeLabel: `surface in ℝ³ · ${u} ∈ [${fmt(u0)}, ${fmt(u1)}], ${v} ∈ [${fmt(v0)}, ${fmt(v1)}]`,
+      layout: { canvasTitle: `Surface ${S}`, views: [{ id: 'space', label: '3D', renderer: 'scene' }], defaultView: 'space' },
       title: valueLatex(value),
       sections,
       facts,
