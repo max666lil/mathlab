@@ -564,7 +564,7 @@ const tangent: Builtin = {
 const directional: Builtin = {
   name: 'directional', command: true, minArgs: 1, maxArgs: 3, argModes: [FN, V, V], keywords: { at: V, toward: V },
   category: 'calculus', signature: 'directional f at P toward v', doc: 'Directional derivative D_û f(P) = ∇f(P)·û, with its geometry.',
-  apply: ([fv, pv, uv], ctx, _raw, kw) => {
+  apply: ([fv, pv, uv], ctx, raw, kw) => {
     const f = asScalarField(expectFunction(fv));
     if (f.params.length !== 2) throw new EvalError('directional derivative: function of two variables');
     const p = pointArg(kw.values.at ?? pv, 'directional');
@@ -573,11 +573,20 @@ const directional: Builtin = {
     const u = normalize(v);
     const d = localData(ctx, f, p);
     const D = dot(d.g, u);
+    // name the direction after what the user wrote: toward u → û, toward (3,-2) → the unit vector of (3,−2)
+    const dirExpr = kw.raw.toward ?? raw[2];
+    const named = dirExpr?.type === 'sym' ? dirExpr.name : undefined;
+    const unit = u.map((c) => +c.toFixed(3));
+    const dirLatex = named ? `\\hat{${symbolLatex(named)}}` : `\\hat{v}`;
+    const arrowLabel = named ? `${named}̂` : `dir (${v.map((c) => +c.toFixed(3)).join(', ')})`;
     return scalar(D, {
-      certainty: 'exact', evidence: '∇f(P)·û with the symbolic gradient', derivation: `D_{\\hat u}${f.label ?? 'f'}`, role: 'directional',
+      certainty: 'exact',
+      evidence: `∇f(P)·${named ? `${named}̂` : 'v̂'} with the symbolic gradient; unit direction ⟨${unit.join(', ')}⟩`,
+      derivation: `D_{${dirLatex}}${f.label ?? 'f'}`,
+      role: 'directional',
       visuals: [
-        visual('arrow', { anchor: p, vec: u }, 'û', 'direction'),
-        visual('slice', { slice: { kind: 'slice', fn: f, origin: p, dir: u, marker: 0, label: `z = ${f.label ?? 'f'}(P + t\\,\\hat{u})`, role: 'slice-dir' } }, undefined, 'slice-dir'),
+        visual('arrow', { anchor: p, vec: u }, arrowLabel, 'direction'),
+        visual('slice', { slice: { kind: 'slice', fn: f, origin: p, dir: u, marker: 0, label: `z = ${f.label ?? 'f'}(P + t\\,${dirLatex})`, role: 'slice-dir' } }, undefined, 'slice-dir'),
       ],
     });
   },
