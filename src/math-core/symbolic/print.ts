@@ -276,6 +276,7 @@ function liftVar(e: Expr | undefined): string {
 
 registerCommandLatex('limit', (a, kw) => `\\lim_{${kw.wrt ?? 'x'} \\to ${kw.approach ?? '?'}${kw.side === '\\mathrm{right}' ? '^{+}' : kw.side === '\\mathrm{left}' ? '^{-}' : ''}} ${a}`);
 registerCommandLatex('integrate', (a, kw, raw) => {
+  if (kw.over !== undefined) return `\\int_{${kw.over}} ${a}`;
   const v = kw.wrt ?? liftVar(raw.args[0]);
   return kw.from !== undefined ? `\\int_{${kw.from}}^{${kw.to}} ${a}\\,d${v}` : `\\int ${a}\\,d${v}`;
 });
@@ -284,6 +285,9 @@ registerCommandLatex('derivative', (a, kw, raw) => {
   const n = kw.order && kw.order !== '1' ? `^{${kw.order}}` : '';
   return `\\frac{d${n}}{d${v}${n}}\\left[${a}\\right]`;
 });
+registerCommandLatex('volume', (a, kw) => (kw.over !== undefined ? `\\text{volume under } ${a} \\text{ over } ${kw.over}` : `\\text{volume}(${a})`));
+registerCommandLatex('mass', (a, kw) => `m = \\int_{${kw.over ?? 'R'}} ${a}`);
+registerCommandLatex('average', (a, kw) => `\\overline{${a}}_{${kw.over ?? 'R'}}`);
 registerCommandLatex('taylor', (a, kw) => `T_{${kw.order ?? 'n'}}\\left[${a}\\right]_{${kw.at ?? '0'}}`);
 registerCommandLatex('directional', (a, kw) => `D_{${kw.toward ?? 'u'}}\\,${a}\\left(${kw.at ?? 'P'}\\right)`);
 registerCommandLatex('tangent', (a, kw) => `\\text{tangent to } ${a}${kw.at ? ` \\text{ at } ${kw.at}` : ''}`);

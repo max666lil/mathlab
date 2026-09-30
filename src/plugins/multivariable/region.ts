@@ -42,6 +42,8 @@ export interface RegionValue {
   test: FunctionValue;
   /** Cartesian bounding box [lo, hi] per axis (sampled) */
   box: [number, number][];
+  /** false when the region reaches the edge of the sampled window (y < x², x > 0 …) */
+  bounded: boolean;
   certainty?: 'exact';
   [k: string]: unknown;
 }
@@ -104,9 +106,19 @@ export function regionOfRelation(r: RelationValue): RegionValue {
   return makeRegion('cartesian', ['x', 'y'], 2, [{ g: simplify(bindEnv(r.fn.expr!, r.fn.env)), rel: r.rel }], r.latex);
 }
 
+const fromRelation = new Map<string, RegionValue>();
 export function asRegion(v: MathValue | undefined): RegionValue | undefined {
   if (v?.kind === 'region') return v as unknown as RegionValue;
-  if (v?.kind === 'relation' && (v as unknown as RelationValue).rel !== '=') return regionOfRelation(v as unknown as RelationValue);
+  if (v?.kind === 'relation' && (v as unknown as RelationValue).rel !== '=') {
+    const rv = v as unknown as RelationValue;
+    let r = fromRelation.get(rv.key);
+    if (!r) {
+      r = regionOfRelation(rv);
+      fromRelation.set(rv.key, r);
+      if (fromRelation.size > 64) fromRelation.delete(fromRelation.keys().next().value!);
+    }
+    return r;
+  }
   return undefined;
 }
 
@@ -140,12 +152,12 @@ function makeRegion(system: CoordSystem, vars: string[], dim: 2 | 3, cons: Const
   const cvars = SYSTEM_VARS.cartesian.slice(0, dim);
   const key = `region|${system}|${cons.map((c) => `${toText(c.g, true)}${c.rel}`).join(';')}`;
   const test: FunctionValue = { kind: 'function', params: cvars, eval: G as FunctionValue['eval'], out: 'scalar', key, env: {} } as FunctionValue;
-  const box = boundingBox(G, dim);
-  return { kind: 'region', system, vars, dim, cons, latex, key, test, box, certainty: 'exact' };
+  const { box, bounded } = boundingBox(G, dim);
+  return { kind: 'region', system, vars, dim, cons, latex, key, test, box, bounded, certainty: 'exact' };
 }
 
 /** Sampled bounding box of {G ≤ 0}: a coarse scan of [−24, 24]^d, then a refinement. */
-function boundingBox(G: (...p: number[]) => number, dim: number): [number, number][] {
+function boundingBox(G: (...p: number[]) => number, dim: number): { box: [number, number][]; bounded: boolean } {
   const scan = (lo: number[], hi: number[], n: number): [number, number][] | null => {
     const mins = Array(dim).fill(Infinity);
     const maxs = Array(dim).fill(-Infinity);
@@ -171,13 +183,21 @@ function boundingBox(G: (...p: number[]) => number, dim: number): [number, numbe
   };
   const n1 = dim === 2 ? 96 : 32;
   let b = scan(Array(dim).fill(-24), Array(dim).fill(24), n1) ?? scan(Array(dim).fill(-3), Array(dim).fill(3), n1);
-  if (!b) return Array(dim).fill([-1, 1]);
+  if (!b) return { box: Array(dim).fill([-1, 1]), bounded: true };
+  const bounded = b.every(([l, h]) => l > -23.9 && h < 23.9);
   const step = (w: number) => w / n1 + 1e-9;
-  b = scan(b.map(([l]) => l - step(48)), b.map(([, h]) => h + step(48)), dim === 2 ? 120 : 36) ?? b;
-  return b.map(([l, h]) => {
-    const pad = (h - l) * 0.02 + 1e-6;
-    return [l - pad, h + pad] as [number, number];
-  });
+  const n2 = dim === 2 ? 120 : 36;
+  const lo0 = b.map(([l]) => l - step(48));
+  const hi0 = b.map(([, h]) => h + step(48));
+  b = scan(lo0, hi0, n2) ?? b;
+  // thin corners can fall between grid points: pad by a grid step on top of 2%
+  return {
+    box: b.map(([l, h], d) => {
+      const pad = (h - l) * 0.02 + 1.5 * ((hi0[d] - lo0[d]) / n2) + 1e-6;
+      return [l - pad, h + pad] as [number, number];
+    }),
+    bounded,
+  };
 }
 
 /** The region's inequalities rewritten in another coordinate system. */
@@ -263,7 +283,11 @@ const sqrtE = (e: Expr): Expr => ({ type: 'call', callee: sym('sqrt'), args: [e]
  */
 function isolate(c: Constraint, v: string, vars: string[], samples: number[][]): { lows: Bound[]; highs: Bound[]; rest: Constraint[] } | null {
   const cs = polyCoeffsExpr(c.g, v);
-  if (!cs) return null;
+  if (!cs) {
+    const sq = unSqrt(c, vars, samples);
+    if (sq === 'true') return { lows: [], highs: [], rest: [] };
+    return sq && dependsOn(sq.g, v) ? isolate(sq, v, vars, samples) : sq ? { lows: [], highs: [], rest: [sq] } : null;
+  }
   const up = upper(c.rel);
   if (cs.length === 2) {
     const [b, a] = cs;
@@ -308,6 +332,140 @@ function isolate(c: Constraint, v: string, vars: string[], samples: number[][]):
   return null;
 }
 
+/** Range of a coordinate for sampling / scanning: angles by definition, lengths and x, y, z from the box. */
+function coordRange(v: string, region: RegionValue): [number, number] {
+  if (v === 'θ') return [0, 2 * Math.PI];
+  if (v === 'φ') return [0, Math.PI];
+  const R = Math.max(...region.box.flat().map(Math.abs));
+  if (v === 'r' || v === 'ρ') return [0, R * 1.8];
+  const i = ['x', 'y', 'z'].indexOf(v);
+  const b = region.box[i];
+  // generous: a condition is only dropped when it holds well beyond the sampled extent too
+  return b ? [b[0] - (b[1] - b[0]) * 0.25 - 0.1, b[1] + (b[1] - b[0]) * 0.25 + 0.1] : [-R, R];
+}
+
+/**
+ * A condition on v alone that is not polynomial (cos φ ≥ 0, sin θ ≥ 0): constant bounds from the
+ * sign changes of g on v's range, when the solution set is one interval.
+ */
+function scanIsolate(c: Constraint, v: string, region: RegionValue, system: CoordSystem): { lows: Bound[]; highs: Bound[]; rest: Constraint[] } | null {
+  const others = [...freeSymbols(c.g)].filter((n) => n !== v && SYSTEM_VARS[system].includes(n));
+  if (others.length) return null;
+  const [a, b] = coordRange(v, region);
+  const g = compileScalar(c.g, [v]);
+  const ok = (t: number) => (upper(c.rel) ? g(t) <= 1e-12 : g(t) >= -1e-12);
+  const cuts = [a, ...roots1D(g, a, b, 2000).roots.filter((r) => r > a + 1e-12 && r < b - 1e-12), b];
+  const ivs: [number, number][] = [];
+  for (let k = 0; k + 1 < cuts.length; k++) {
+    if (!ok((cuts[k] + cuts[k + 1]) / 2)) continue;
+    const last = ivs[ivs.length - 1];
+    if (last && Math.abs(last[1] - cuts[k]) < 1e-12) last[1] = cuts[k + 1];
+    else ivs.push([cuts[k], cuts[k + 1]]);
+  }
+  if (ivs.length !== 1) return null;
+  return { lows: [{ e: num(ivs[0][0]) }], highs: [{ e: num(ivs[0][1]) }], rest: [] };
+}
+
+/**
+ * Drop feasibility conditions (low ≤ high) that already hold wherever the other conditions hold,
+ * checked on random points of the outer variables' box — e.g. −√(4 − x² − y²) ≤ 0 given 4 − x² − y² ≥ 0.
+ */
+function dropImplied(rest: Constraint[], pairs: Set<Constraint>, outer: string[], region: RegionValue): Constraint[] {
+  if (!pairs.size || !outer.length) return rest;
+  const ranges = outer.map((v) => coordRange(v, region));
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const pts: number[][] = [];
+  for (let k = 0; k < 1500; k++) pts.push(ranges.map(([a, b]) => a + (b - a) * rnd()));
+  const f = rest.map((c) => {
+    try {
+      return compileScalar(c.g, outer);
+    } catch {
+      return null;
+    }
+  });
+  const holds = (i: number, p: number[]) => {
+    const v = f[i]?.(...p);
+    if (v === undefined || Number.isNaN(v)) return false;
+    return upper(rest[i].rel) ? v <= 1e-9 : v >= -1e-9;
+  };
+  const keep = rest.map(() => true);
+  rest.forEach((c, i) => {
+    if (!pairs.has(c) || !f[i]) return;
+    let tested = 0;
+    for (const p of pts) {
+      if (!rest.every((_, j) => j === i || !keep[j] || holds(j, p))) continue;
+      tested++;
+      const v = f[i]!(...p);
+      if (Number.isNaN(v) || !holds(i, p)) return;
+    }
+    if (tested >= 30) keep[i] = false;
+  });
+  return rest.filter((_, i) => keep[i]);
+}
+
+/** A numerically found break point snapped to a nearby simple value (integer, p/q, pπ/q). */
+function snap(x: number): number {
+  const tol = 1e-9 * Math.max(1, Math.abs(x));
+  for (let q = 1; q <= 12; q++) {
+    const p = Math.round(x * q);
+    if (Math.abs(x - p / q) < tol) return p / q;
+    const pp = Math.round((x * q) / Math.PI);
+    if (pp !== 0 && Math.abs(x - (pp * Math.PI) / q) < tol) return (pp * Math.PI) / q;
+  }
+  return +x.toPrecision(14);
+}
+
+/**
+ * a·√u + k ≤ 0 (or ≥) without v elsewhere under the root: square both sides where that is valid —
+ * √(x² + y²) ≤ 3 → x² + y² ≤ 9. 'true' when the condition always holds.
+ */
+function unSqrt(c: Constraint, vars: string[], samples: number[][]): Constraint | 'true' | null {
+  const g = upper(c.rel) ? simplify(c.g) : neg(c.g);
+  const terms: Expr[] = [];
+  const flat = (e: Expr): void => {
+    if (e.type === 'bin' && e.op === '+') {
+      flat(e.left);
+      flat(e.right);
+    } else terms.push(e);
+  };
+  flat(g);
+  const rootOf = (t: Expr): { a: number; u: Expr } | null => {
+    const fs: Expr[] = [];
+    const ff = (e: Expr): void => {
+      if (e.type === 'bin' && e.op === '*') {
+        ff(e.left);
+        ff(e.right);
+      } else fs.push(e);
+    };
+    ff(t);
+    let a = 1;
+    let u: Expr | null = null;
+    for (const f of fs) {
+      if (f.type === 'num') a *= f.value;
+      else if (!u && f.type === 'call' && f.callee.type === 'sym' && f.callee.name === 'sqrt' && f.args.length === 1) u = f.args[0];
+      else if (!u && f.type === 'bin' && f.op === '^' && f.right.type === 'num' && f.right.value === 0.5) u = f.left;
+      else return null;
+    }
+    return u ? { a, u } : null;
+  };
+  const idx = terms.findIndex((t) => rootOf(t));
+  if (idx < 0) return null;
+  const { a, u } = rootOf(terms[idx])!;
+  const k = terms.length > 1 ? addList(terms.filter((_, i) => i !== idx)) : num(0);
+  // √u ≤ m (a > 0, m = −k/a) or √u ≥ m (a < 0, m = k/|a|)
+  const m = simplify(mulList([num(a > 0 ? -1 / a : 1 / -a), k]));
+  const sm = signOver(m, vars, samples);
+  const sq = simplify(addList([u, neg(powS(m, num(2)))]));
+  if (a > 0) {
+    if (m.type === 'num' ? m.value < 0 : sm < 0) return null;
+    return { g: sq, rel: '<=' };
+  }
+  if (m.type === 'num' ? m.value <= 0 : sm < 0) return 'true';
+  if (m.type !== 'num' && sm === 0) return null;
+  return { g: sq, rel: '>=' };
+}
+
 const constValue = (e: Expr): number => {
   try {
     return compileScalar(e, [])();
@@ -340,7 +498,7 @@ export function describe(region: RegionValue, system: CoordSystem, order: string
         rest.push(c);
         continue;
       }
-      const iso = isolate(c, v, order, ordered);
+      const iso = isolate(c, v, order, ordered) ?? scanIsolate(c, v, region, system);
       if (!iso) {
         // the outermost variable may keep non-isolable conditions (sin θ ≥ 0): they are scanned
         if (i === 0 && [...freeSymbols(c.g)].every((n) => n === v || !vars.includes(n))) {
@@ -358,9 +516,11 @@ export function describe(region: RegionValue, system: CoordSystem, order: string
       if (POSITIVE.has(v) || !lows.length) lows.push({ e: num(imp[0]) });
       if (Number.isFinite(imp[1]) && !highs.length) highs.push({ e: num(imp[1]) });
     }
+    let next = rest;
     if (i > 0) {
       if (!lows.length || !highs.length) return null;
       // feasibility (low ≤ high) becomes a condition on the outer variables
+      const pairs = new Set<Constraint>();
       for (const L of lows)
         for (const U of highs) {
           if (L.tag && L.tag === U.tag) continue;
@@ -369,11 +529,14 @@ export function describe(region: RegionValue, system: CoordSystem, order: string
             if (g.value > 1e-12) return null;
             continue;
           }
-          rest.push({ g, rel: '<=' });
+          const c = { g, rel: '<=' as Relation };
+          pairs.add(c);
+          rest.push(c);
         }
+      next = dropImplied(rest, pairs, order.slice(0, i), region);
     }
     levels.unshift({ v, lows, highs });
-    cons = rest;
+    cons = next;
   }
   // outermost variable: constant bounds from isolated bounds, conditions checked by scanning
   const outer = levels[0];
@@ -392,7 +555,10 @@ function piecesOf(system: CoordSystem, order: string[], levels: { v: string; low
   // break points: roots of scanned conditions and where competing bounds of the second level cross
   const cuts = new Set<number>([A, B]);
   const addRoots = (g: (t: number) => number) => {
-    for (const r of roots1D(g, A, B, 1200).roots) if (r > A + 1e-12 && r < B - 1e-12) cuts.add(+r.toPrecision(14));
+    for (const r0 of roots1D(g, A, B, 1200).roots) {
+      const r = snap(r0);
+      if (r > A + 1e-9 * Math.max(1, Math.abs(A)) && r < B - 1e-9 * Math.max(1, Math.abs(B))) cuts.add(r);
+    }
   };
   for (const c of scanned) addRoots(f0(c.g));
   if (levels.length > 1) {
@@ -412,7 +578,14 @@ function piecesOf(system: CoordSystem, order: string[], levels: { v: string; low
   };
   for (let k = 0; k + 1 < pts.length; k++) {
     const [a, b] = [pts[k], pts[k + 1]];
-    const m = (a + b) / 2;
+    // the test point: the midpoint, or a quarter point when the region pinches to nothing there
+    const cands = [0.5, 0.3, 0.7].map((s) => a + (b - a) * s);
+    let m = cands[0];
+    if (levels.length > 1) {
+      const lo1 = levels[1].lows.map((q) => f0(q.e));
+      const hi1 = levels[1].highs.map((q) => f0(q.e));
+      m = cands.find((t) => Math.min(...hi1.map((h) => h(t))) > Math.max(...lo1.map((l) => l(t))) + 1e-12) ?? cands[0];
+    }
     if (!scanned.every((c) => holds(c, m))) continue;
     const lv: Level[] = [{ v: v0, lo: num(a), hi: num(b) }];
     let approx = false;
@@ -523,10 +696,10 @@ export function numLatex(x: number): string {
       return qq === 1 ? top : `\\frac{${top}}{${qq}}`;
     }
   }
-  if (Number.isInteger(x)) return String(x);
+  if (Math.abs(x - Math.round(x)) < 1e-9 * Math.max(1, Math.abs(x))) return String(Math.round(x));
   for (let q = 2; q <= 64; q++) {
     const p = Math.round(x * q);
-    if (Math.abs(x * q - p) < 1e-9) return `${p < 0 ? '-' : ''}\\frac{${Math.abs(p)}}{${q}}`;
+    if (Math.abs(x * q - p) < 1e-9 && gcd(Math.abs(p), q) === 1) return `${p < 0 ? '-' : ''}\\frac{${Math.abs(p)}}{${q}}`;
   }
   const s = Math.round(x * x);
   if (Math.abs(x * x - s) < 1e-9 && s < 1000) return `${x < 0 ? '-' : ''}\\sqrt{${s}}`;

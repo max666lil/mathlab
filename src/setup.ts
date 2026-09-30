@@ -10,6 +10,7 @@ import { multivariableMath } from './plugins/multivariable/plugin';
 import './plugins/core-calculus/analyzers';
 import './plugins/linear-algebra/analyzers';
 import './plugins/vector-calculus/analyzers';
+import './plugins/multivariable/analyzers';
 
 export function installMathLab() {
   installCoreBuiltins();

@@ -80,6 +80,7 @@ export interface RegionIntegral extends IteratedResult {
 
 /** ∬ f dA / ∭ f dV: exact in the first system / order that integrates symbolically, else numeric. */
 export function integrateOver(f: FunctionValue | number, region: RegionValue, opts: { system?: CoordSystem; order?: string[] } = {}): RegionIntegral {
+  if (!region.bounded) throw new EvalError('the region is unbounded — integrals over unbounded regions are not supported yet');
   const cartF = typeof f === 'number' || !f.expr ? [] : [bindEnv(f.expr, f.env)];
   const systems: CoordSystem[] = opts.system
     ? [opts.system]
@@ -203,6 +204,7 @@ export function integrateOverBuiltin(base: Builtin): Builtin {
 export function areaOverBuiltin(base: Builtin): Builtin {
   return {
     ...base,
+    command: true,
     argModes: [V],
     keywords: { ...(base.keywords ?? {}), in: RAW, order: RAW },
     signature: `${base.signature}  ·  area R`,
@@ -276,7 +278,8 @@ export const centroidBuiltin: Builtin = {
     if (Math.abs(M.value) < 1e-300) throw new EvalError('the region has zero mass');
     const moments = cart.map((c) => integrateOver(make(simplify(mulList([sym(c), base]))), region, o));
     const exact = M.exact && moments.every((m) => m.exact);
-    return { ...point(moments.map((m) => m.value / M.value)), certainty: exact ? 'exact' : 'numeric', evidence: `x̄ = (1/m)∫x δ dA …; ${exact ? 'all integrals exact' : 'numeric quadrature'}` } as MathValue;
+    const scale = Math.max(1e-300, ...region.box.flat().map(Math.abs));
+    return { ...point(moments.map((m) => (Math.abs(m.value / M.value) < 1e-12 * scale ? 0 : m.value / M.value))), certainty: exact ? 'exact' : 'numeric', evidence: `x̄ = (1/m)∫x δ dA …; ${exact ? 'all integrals exact' : 'numeric quadrature'}` } as MathValue;
   },
 };
 
@@ -286,7 +289,8 @@ export const boundsBuiltin: Builtin = {
   apply: ([a], _ctx, _raw, kw) => {
     const region = expectRegion(a);
     const o = opts(kw);
-    const systems = o.system ? [o.system] : [region.system];
+    // Cartesian first; a round region that has no Cartesian description gets its natural one
+    const systems = o.system ? [o.system] : [region.system, ...(region.system === 'cartesian' ? roundness(region.cons.map((c) => c.g), region.dim) : [])];
     for (const s of systems)
       for (const ord of o.order ? [o.order] : naturalOrders(s, region.dim)) {
         const d = describe(region, s, ord);

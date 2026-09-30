@@ -173,6 +173,9 @@ export function antiderivative(e: Expr, x: string): Expr | null {
     n.type === 'call' && n.callee.type === 'sym' && (n.callee.name === 'sqrt' || n.callee.name === 'cbrt') && n.args.length === 1 ? pow(n.args[0], num(n.callee.name === 'sqrt' ? 0.5 : 1 / 3)) : n,
   );
   const candidates = [simplify(e), expand(e), ...(division ? [division] : []), simplify(powers)];
+  // sin²u, cos²u and sin u cos u by the double-angle identities (∫ cos²θ dθ in polar area integrals)
+  const reduced = powerReduce(expand(e));
+  if (reduced) candidates.push(expand(reduced));
   for (const cand of candidates) {
     const parts = terms(cand).map((t) => integrateTerm(t, x));
     if (parts.some((p) => !p)) continue;
@@ -204,4 +207,33 @@ function verify(F: Expr, e: Expr, x: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** cos²u → (1 + cos 2u)/2, sin²u → (1 − cos 2u)/2, sin u · cos u → sin 2u / 2; null if nothing changed. */
+function powerReduce(e: Expr): Expr | null {
+  let changed = false;
+  const trig = (n: Expr, name: string): Expr | null => (n.type === 'call' && n.callee.type === 'sym' && n.callee.name === name && n.args.length === 1 ? n.args[0] : null);
+  const out = mapExpr(e, (n) => {
+    if (n.type === 'bin' && n.op === '^' && n.right.type === 'num' && n.right.value === 2) {
+      const c = trig(n.left, 'cos');
+      const s = trig(n.left, 'sin');
+      const u = c ?? s;
+      if (u) {
+        changed = true;
+        return div(add(num(1), mul(num(c ? 1 : -1), call('cos', mul(num(2), u)))), num(2));
+      }
+    }
+    if (n.type === 'bin' && n.op === '*') {
+      const fs = factors(n);
+      const si = fs.findIndex((f) => trig(f, 'sin'));
+      const ci = si < 0 ? -1 : fs.findIndex((f) => { const c = trig(f, 'cos'); return !!c && toText(c, true) === toText(trig(fs[si], 'sin')!, true); });
+      if (si >= 0 && ci >= 0) {
+        changed = true;
+        const u = trig(fs[si], 'sin')!;
+        return mul(div(call('sin', mul(num(2), u)), num(2)), prod(fs.filter((_, j) => j !== si && j !== ci)));
+      }
+    }
+    return n;
+  });
+  return changed ? out : null;
 }

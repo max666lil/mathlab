@@ -177,7 +177,25 @@ Inequality constraints / KKT conditions, more than two equality constraints.
 
 ---
 
-# 3b — Multiple integrals and coordinate systems
+# 3b — Multiple integrals and coordinate systems (3b.1–3b.2 shipped)
+
+Shipped in `src/plugins/multivariable/` (tests `tests/multiple-integrals.test.ts`, book examples from
+Hughes-Hallett ch. 16):
+- language: inequality chains `0 <= x <= 1`, conjunctions `and` / `,`; regions in x y [z], r θ, r θ z,
+  ρ φ θ (region value kind: membership test G ≤ 0, bounding box, bounded?);
+- iterated descriptions (`bounds R [in polar] [order dx dy]`): each variable isolated (linear, quadratic,
+  √u ≤ c, one-angle conditions by scanning), competing bounds split at their crossings, implied
+  feasibility conditions dropped;
+- `integrate f over R`, `area`, `volume`, `average`, `mass`, `centroid`: exact when every inner integral is
+  symbolic (antiderivatives now handle other symbols and sin², cos²), else nested Gauss–Kronrod; the
+  natural system (polar / cylindrical / spherical) is tried for round regions;
+- region analyzer (2-D / 3-D layouts; area / volume, centroid, bounds in both orders, strip sweep, polar
+  description with the r Δr Δθ cell, Riemann squares) and "Over R" on f(x, y) (∬ f dA, average, Riemann
+  boxes under a see-through surface framed on the region); 3-D solids by marching tetrahedra with their
+  shadow on the floor; explanations `iterated` and `polar`.
+
+Next (3b.3): coordinate maps `T(u,v) = (…)` as objects (Jacobian matrix-valued function, the (u, v) grid
+mapped to the curved grid with |det J| cells animated), `integrate … using T`, solids of revolution.
 
 - **Goal**: make ∬ f dA and ∭ f dV geometric; make dA = r dr dθ something you *see*.
 - **Objects**: Region (inequalities; type I / II descriptions; polar / cylindrical / spherical

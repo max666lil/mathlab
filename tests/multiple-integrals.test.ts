@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { installMathLab } from '../src/setup';
 import { Workspace } from '../src/runtime/workspace';
+import { AnalysisService } from '../src/runtime/analysis';
 import { fromCartesian } from '../src/plugins/multivariable/coords';
 import { parseExpression } from '../src/parser/parser';
 import { toText } from '../src/math-core/symbolic/print';
@@ -106,16 +107,24 @@ describe('multiple integrals — Hughes-Hallett ch. 16', () => {
   });
   it('areas: disk, half disk, triangle, cardioid, ellipse', () => {
     expect(last('R = x^2 + y^2 <= 4', 'area R').value.value).toBeCloseTo(4 * Math.PI, 12);
+    expect(last('R = x^2 + y^2 <= 4', 'area R in polar').value.value).toBeCloseTo(4 * Math.PI, 12);
+    expect(last('C(t) = (cos t, sin t)', 'area C').value.value).toBeCloseTo(Math.PI, 10);
     expect(last('H = x^2 + y^2 <= 1 and y >= 0', 'area H').value.value).toBeCloseTo(Math.PI / 2, 12);
     expect(last('T = x >= 0 and y >= 0 and x + y <= 1', 'area T').value.value).toBeCloseTo(0.5, 12);
     expect(last('C = r <= 1 + cos(θ)', 'area C').value.value).toBeCloseTo(1.5 * Math.PI, 12);
     expect(last('E = x^2/9 + y^2/4 <= 1', 'area E').value.value).toBeCloseTo(6 * Math.PI, 7);
   });
   it('ball and cone in spherical / cylindrical coordinates', () => {
+    const half = last('E = x^2 + y^2 + z^2 <= 4 and z >= 0', 'volume E').value;
+    expect(half.value).toBeCloseTo((16 * Math.PI) / 3, 10);
+    expect(half.certainty).toBe('exact');
+    expect(last('E = x^2 + y^2 + z^2 <= 4 and z >= 0', 'bounds E').value.latex).toMatch(/^-2 \\le x \\le 2,/);
     const B = last('B = x^2 + y^2 + z^2 <= 4', 'volume B').value;
     expect(B.value).toBeCloseTo((4 / 3) * Math.PI * 8, 10);
     expect(B.certainty).toBe('exact');
     expect(last('B = ρ <= 3', 'volume B').value.value).toBeCloseTo(36 * Math.PI, 10);
+    // √(x² + y²) ≤ 3 is squared, so the cone has a Cartesian description too
+    expect(last('K = sqrt(x^2 + y^2) <= z <= 3', 'bounds K').value.latex).toContain('\\sqrt{x^{2} + y^{2}} \\le z \\le 3');
     // cone z = √(x²+y²) up to z = 3 with density z: 81π/4
     const m = last('K = sqrt(x^2 + y^2) <= z <= 3', 'mass z over K').value;
     expect(m.value).toBeCloseTo((81 * Math.PI) / 4, 8);
@@ -139,8 +148,75 @@ describe('multiple integrals — Hughes-Hallett ch. 16', () => {
     expect(last(...cells, 'Q = 0 <= x <= 1 and 0 <= y <= 1', 'integrate p over Q').value.value).toBeCloseTo(1, 12);
     expect(last(...cells, 'A = 0 <= x <= 1/4 and 0 <= y <= 1/4', 'integrate p over A').value.value).toBeCloseTo(7 / 640, 12);
   });
+  it('Riemann sums (Table 16.2): e^{−(x²+y²)} on the unit square, n = 4 lower 0.44 / upper 0.68', () => {
+    const r = last('Q = 0 <= x <= 1 and 0 <= y <= 1', 'riemann(exp(-(x^2 + y^2)), Q, 4)').value;
+    const [, lo, hi] = r.evidence.match(/lower ([\d.]+), upper ([\d.]+)/)!;
+    expect(+lo).toBeCloseTo(0.44, 2);
+    expect(+hi).toBeCloseTo(0.68, 2);
+    expect(r.visuals[0].vtype).toBe('riemann');
+    // refining converges to the integral
+    expect(last('Q = 0 <= x <= 1 and 0 <= y <= 1', 'riemann(exp(-(x^2 + y^2)), Q, 64)').value.value).toBeCloseTo(0.5577, 3);
+  });
   it('errors are explained', () => {
     expect(last('R = x^2 + y^2 <= 1', 'f(x) = x', 'integrate f over R').error).toMatch(/1 variable/);
-    expect(last('U = y >= 0', 'area U').error).toMatch(/iterated bounds|describe/);
+    expect(last('U = y >= 0', 'area U').error).toMatch(/unbounded/);
+  });
+});
+describe('region analysis (3b engine)', () => {
+  function analysis(cells: string[], focus?: string) {
+    const ws = new Workspace(cells);
+    const an = new AnalysisService(ws);
+    if (focus) ws.setFocus(focus);
+    const plan = an.plan()!;
+    const open = (id: string) => an.setSectionOpen(plan, id, true);
+    return { ws, an, plan, open };
+  }
+  it('a plane region: 2-D layout, bounds, area, strips, polar description of a round region', () => {
+    const { plan, an, ws } = analysis(['R = x^2 + y^2 <= 1 and y >= 0']);
+    expect(plan.object).toBe('R');
+    expect(plan.layout.views[0].renderer).toBe('plane');
+    const ids = plan.facts.map((f) => f.id);
+    expect(ids).toEqual(expect.arrayContaining(['bounds', 'measure', 'centroid', 'strips', 'polarBounds', 'polarGrid', 'riemann']));
+    an.flushNow();
+    const area = an.fact(plan, plan.facts.find((f) => f.id === 'measure')!);
+    expect(area.value && (area.value as any).value).toBeCloseTo(Math.PI / 2, 12);
+    // the region is drawn; strips only when their section is open
+    expect(ws.sceneItems().some((i) => i.visual.vtype === 'region' && i.visible)).toBe(true);
+    expect(ws.sceneItems().some((i) => i.visual.vtype === 'strips' && i.visible)).toBe(false);
+    an.setSectionOpen(plan, 'bounds', true);
+    an.flushNow();
+    expect(ws.sceneItems().some((i) => i.visual.vtype === 'strips' && i.visible)).toBe(true);
+  });
+  it('a solid: 3-D layout and the solid visual', () => {
+    const { plan, ws } = analysis(['E = x^2 + y^2 + z^2 <= 4, z >= 0']);
+    expect(plan.layout.views[0].renderer).toBe('scene');
+    expect(ws.sceneItems().some((i) => i.visual.vtype === 'solid')).toBe(true);
+  });
+  it('an unbounded region is only drawn', () => {
+    const { plan } = analysis(['U = y >= x^2']);
+    expect(plan.typeLabel).toMatch(/unbounded/);
+    expect(plan.facts.length).toBe(1);
+  });
+  it('f(x, y) with a region in the worksheet gets "Over R"', () => {
+    const { plan, an } = analysis(['R = 0 <= x <= 1 and 0 <= y <= 2', 'f(x,y) = x y'], 'f');
+    expect(plan.sections.some((s) => s.id === 'over')).toBe(true);
+    an.setSectionOpen(plan, 'over', true);
+    an.flushNow();
+    const I = an.fact(plan, plan.facts.find((f) => f.id === 'integral')!);
+    expect((I.value as any).value).toBeCloseTo(1, 12);
+    expect((I.value as any).certainty).toBe('exact');
+  });
+});
+
+describe('power reduction in antiderivatives (polar areas)', () => {
+  it('cardioid area 3π/2 is exact', () => {
+    const A = last('C = r <= 1 + cos(θ)', 'area C').value;
+    expect(A.value).toBeCloseTo(1.5 * Math.PI, 12);
+    expect(A.certainty).toBe('exact');
+  });
+  it('∫ sin²x and ∫ sin x cos x', () => {
+    expect(last('integrate sin(x)^2 from 0 to π').value.value).toBeCloseTo(Math.PI / 2, 12);
+    expect(last('integrate sin(x)^2 from 0 to π').value.certainty).toBe('exact');
+    expect(last('integrate sin(x) cos(x) from 0 to π/2').value.value).toBeCloseTo(0.5, 12);
   });
 });

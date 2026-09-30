@@ -200,7 +200,13 @@ export class SceneView {
     const domainNav = !!this.frame.surface && !this.frame.euclid;
     this.controls.enableZoom = !domainNav;
     this.controls.enablePan = !domainNav;
+    const [oldSize, oldC] = [this.map.size, this.map.center];
     this.map.update(this.frame);
+    // the frame changed by itself (a visual asked for its own domain): the camera follows, like a zoom
+    const [newSize, newC] = [this.map.size, this.map.center];
+    if (this.initialShot && !this.worldMoved && !this.map.euclid && Math.abs(newSize / oldSize - 1) > 1e-6)
+      this.moveWorld(newSize / oldSize, [newC[0] - oldC[0], newC[1] - oldC[1]], oldC);
+    this.worldMoved = false;
     // near / far planes follow the size of the scene (a zoomed-out domain must not be cut off far away)
     const near = this.map.size * 0.002;
     const far = this.map.size * 60;
@@ -453,11 +459,15 @@ export class SceneView {
   }
 
   /** Move the camera with the domain so the box stays put on screen while its content changes. */
+  /** set when a user gesture already moved the camera with the world (domain zoom / pan) */
+  private worldMoved = false;
+
   private moveWorld(scale: number, shift: [number, number], about: [number, number]) {
     const tf = (v: THREE.Vector3) => v.set(about[0] + (v.x - about[0]) * scale + shift[0], about[1] + (v.y - about[1]) * scale + shift[1], v.z * scale);
     tf(this.camera.position);
     tf(this.controls.target);
     this.controls.update();
+    this.worldMoved = true;
   }
 
   /** Current domain window (the latest request, even before the next frame re-syncs the map). */

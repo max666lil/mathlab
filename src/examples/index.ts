@@ -195,6 +195,36 @@ export const examples: Example[] = [
     cells: ['F(x,y,z) = <-y, x, z>', 'H(u,v) = (cos u sin v, sin u sin v, cos v) for u in [0, 2π], v in [0, π/2]'],
   },
   {
+    id: 'disk-integral',
+    title: 'Double integral over the unit disk — 7π/2 in polar coordinates',
+    course: 'Multivariable Calculus',
+    cells: ['f(x,y) = 4 - x^2 - y^2', 'R = x^2 + y^2 <= 1'],
+  },
+  {
+    id: 'region-between',
+    title: 'Region between y = x² and y = x — both orders of integration',
+    course: 'Multivariable Calculus',
+    cells: ['D = 0 <= x <= 1 and x^2 <= y <= x', 'mass 1 + x over D'],
+  },
+  {
+    id: 'swap-order',
+    title: 'Swap the order: ∫∫ x√(y³+1) becomes exact',
+    course: 'Multivariable Calculus',
+    cells: ['g(x,y) = x sqrt(y^3 + 1)', 'D = 0 <= x <= 6 and x/3 <= y <= 2', 'integrate g over D'],
+  },
+  {
+    id: 'polar-sector',
+    title: 'Polar region — a cardioid and a sector',
+    course: 'Multivariable Calculus',
+    cells: ['C = r <= 1 + cos(θ)', 'S = 1 <= r <= 2 and 0 <= θ <= π/4', 'integrate (x^2 + y^2)^(-3/2) over S'],
+  },
+  {
+    id: 'solid-ball',
+    title: 'Solids — half ball in spherical coordinates, a cone',
+    course: 'Multivariable Calculus',
+    cells: ['E = x^2 + y^2 + z^2 <= 4 and z >= 0', 'K = sqrt(x^2 + y^2) <= z <= 3', 'mass z over K'],
+  },
+  {
     id: 'parameter',
     title: 'Parameters — watch the analysis update',
     course: 'Calculus I',

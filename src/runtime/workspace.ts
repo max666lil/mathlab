@@ -50,7 +50,7 @@ interface Playing {
 const TAU = 2 * Math.PI;
 
 /** Result kinds that are drawn automatically when named (Desmos-like). */
-const SHOWN_KINDS = new Set(['point', 'plane', 'pointset', 'visual', 'asymptotes', 'slice', 'subspace', 'affine', 'relation']);
+const SHOWN_KINDS = new Set(['point', 'plane', 'pointset', 'visual', 'asymptotes', 'slice', 'subspace', 'affine', 'relation', 'region']);
 
 export class Workspace {
   doc: MathDocument;

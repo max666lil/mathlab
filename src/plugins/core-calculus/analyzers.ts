@@ -36,6 +36,14 @@ export function freshName(ws: Workspace, base: string): string {
   for (let i = 2; ; i++) if (!ws.value(`${base}${i}`) && !ws.statement(`${base}${i}`)) return `${base}${i}`;
 }
 
+/** First named plane region (inequalities in x, y) of the worksheet. */
+function firstRegion(ws: Workspace): string | undefined {
+  return ws.statements().find((s) => {
+    const v = s.name ? (ws.value(s.id) as (MathValue & { rel?: string; dim?: number }) | undefined) : undefined;
+    return (v?.kind === 'relation' && v.rel !== '=') || (v?.kind === 'region' && v.dim === 2);
+  })?.name;
+}
+
 function firstPoint(ws: Workspace, dim: number): string | undefined {
   const pts = ws.statements().filter((s) => s.name && ws.value(s.id)?.kind === 'point' && (ws.value(s.id) as PointValue).coords.length === dim);
   return (pts.find((s) => s.input?.kind === 'point') ?? pts[0])?.name;
@@ -170,6 +178,16 @@ registerAnalyzer({
       );
     } else {
       sections.push({ id: 'at', title: 'At a point', actions: [{ label: `＋ Add a point ${pName}`, rows: [`${pName} = point(1, 1) draggable`] }] });
+    }
+    // a plane region in the worksheet: the double integral over it (volume under the surface)
+    const R = firstRegion(ws);
+    if (R) {
+      sections.push({ id: 'over', title: `Over ${R}`, why: 'iterated' });
+      facts.push(
+        { id: 'integral', title: `∬ ${f} dA`, expr: `integrate ${f} over ${R}`, tier: 1, section: 'over', pinName: 'I' },
+        { id: 'average', title: `Average of ${f}`, expr: `average ${f} over ${R}`, tier: 1, section: 'over' },
+        { id: 'riemann', title: 'Riemann sum', expr: `riemann ${f} over ${R}`, tier: 1, section: 'over', visual: 'auto' },
+      );
     }
     return {
       object: f, typeLabel: 'function ℝ² → ℝ', layout: SURFACE_LAYOUT, title: valueLatex(fv), sections, facts,

@@ -5,6 +5,7 @@ import { installMathLab } from './setup';
 import './plugins/core-calculus';
 import './plugins/linear-algebra';
 import './plugins/vector-calculus';
+import './plugins/multivariable';
 import { Workspace } from './runtime/workspace';
 import { AnalysisService } from './runtime/analysis';
 import { examples } from './examples';

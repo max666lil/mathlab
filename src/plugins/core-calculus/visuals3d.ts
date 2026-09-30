@@ -58,6 +58,15 @@ class SurfaceVisual implements Visual3D {
     const yr = (item.visual.props.yRange as Range | undefined) ?? ctx.frame.yr;
     this.mat.emissive.set(selected ? 0x222233 : 0x000000);
     this.mat.clippingPlanes = ctx.clip;
+    // see-through while something below it is shown (Riemann boxes)
+    const thin = !!ctx.frame.seeThrough;
+    if (this.mat.transparent !== thin) {
+      this.mat.transparent = thin;
+      this.mat.userData.baseTransparent = thin;
+      this.mat.depthWrite = !thin;
+      setOpacity(this.mat, thin ? 0.3 : 1);
+      this.mat.needsUpdate = true;
+    }
     (this.wire.material as THREE.LineBasicMaterial).clippingPlanes = ctx.clip;
     const key = `${fn.key}|${xr}|${yr}|${ctx.map.key()}|${ctx.theme.name}`;
     if (key === this.key) return;

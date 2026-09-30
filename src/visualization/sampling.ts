@@ -223,10 +223,12 @@ export interface SceneFrame {
   euclid?: boolean;
   /** graph frame that must keep one scale on both axes (circles stay round: implicit curves, curves) */
   equal?: boolean;
+  /** a visible visual sits under the surface (Riemann boxes): surfaces become translucent */
+  seeThrough?: boolean;
 }
 
 /** A visual that knows how much of the plane / space it needs (e.g. a transformed unit cell). */
-export type FrameHint = (props: Record<string, unknown>) => { r: number; dim: number } | undefined;
+export type FrameHint = (props: Record<string, unknown>) => { r: number; dim: number; box?: Range[] } | undefined;
 const frameHints = new Map<string, FrameHint>();
 export function registerFrameHint(vtype: string, hint: FrameHint) {
   frameHints.set(vtype, hint);
@@ -277,17 +279,31 @@ export function frameFromItems(items: { visible: boolean; visual: { vtype: strin
   }
   if (fv && fv.out === 'scalar' && fv.params.length === 2) {
     const own = items.find((i) => i.visual.vtype === 'surface' && (i.visual.props.fn as FunctionValue | undefined)?.key === fv.key)?.visual.props as { xRange?: Range; yRange?: Range } | undefined;
-    return sceneFrame(fv, window?.xr ?? own?.xRange ?? DEFAULT_RANGE, window?.yr ?? own?.yRange ?? DEFAULT_RANGE);
+    // a visible visual may ask for its own domain (Riemann boxes over a region)
+    const box = items.find((i) => i.visible && i.visual.props.frameBox)?.visual.props.frameBox as Range[] | undefined;
+    const pad = (r: Range): Range => [r[0] - (r[1] - r[0]) * 0.12, r[1] + (r[1] - r[0]) * 0.12];
+    const seeThrough = items.some((i) => i.visible && i.visual.props.seeThrough);
+    const f = sceneFrame(fv, window?.xr ?? (box ? pad(box[0]) : own?.xRange) ?? DEFAULT_RANGE, window?.yr ?? (box ? pad(box[1]) : own?.yRange) ?? DEFAULT_RANGE);
+    return seeThrough ? { ...f, seeThrough } : f;
   }
   // visuals with their own extent (linear maps, subspaces): a symmetric Euclidean frame
   let r = 0;
   let dim = 0;
+  // plane visuals may give their own box (a region far from the origin is framed around itself)
+  let box: Range[] | null = null;
+  let allBoxes = true;
   for (const i of items) {
     const h = i.visible ? frameHints.get(i.visual.vtype)?.(i.visual.props) : undefined;
-    if (h) {
+    if (h && h.r > 0) {
       r = Math.max(r, h.r);
       dim = Math.max(dim, h.dim);
+      if (h.box) box = box ? box.map((b, k) => [Math.min(b[0], h.box![k][0]), Math.max(b[1], h.box![k][1])] as Range) : h.box.map((b) => [...b] as Range);
+      else allBoxes = false;
     }
+  }
+  if (r > 0 && dim === 2 && box && allBoxes) {
+    const pad = (b: Range): Range => [b[0] - (b[1] - b[0]) * 0.15 - 0.2, b[1] + (b[1] - b[0]) * 0.15 + 0.2];
+    return { xr: pad(box[0]), yr: pad(box[1]), zLo: -1, zHi: 1 };
   }
   if (r > 0) return { xr: [-r, r], yr: [-r, r], zLo: dim === 3 ? -r : -1, zHi: dim === 3 ? r : 1, euclid: dim === 3 };
   const primary = items.find((i) => i.visible && i.visual.vtype === 'surface') ?? items.find((i) => i.visible && i.visual.vtype === 'contours');

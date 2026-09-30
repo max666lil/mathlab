@@ -158,6 +158,12 @@ typed results with certainty, `show` / `hide` / `compare`, analyzer-declared lay
 graphing-calculator layer (implicit curves, regions, parametric / polar curves, several graphs at once,
 scroll-to-zoom 3-D domains).
 
+**Phase 3b (multiple integrals) is in progress**: regions from inequalities in Cartesian, polar,
+cylindrical and spherical coordinates (`R = 0 <= x <= 1 and x^2 <= y <= x`), iterated bounds in any order,
+`integrate f over R` (exact where every inner integral is symbolic), area, volume, average, mass,
+centroid, the strip sweep, Riemann boxes and 3-D solids (`plugins/multivariable`). The content of every
+remaining phase comes from the course books — see **[docs/CURRICULUM.md](docs/CURRICULUM.md)**.
+
 **Phase 2 (linear algebra) is done**: exact matrix computation, subspaces, systems, projections,
 decompositions, and 3Blue1Brown-style animated transformations in 2-D and 3-D (`plugins/linear-algebra`).
 
