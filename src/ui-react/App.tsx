@@ -11,6 +11,7 @@ import { AnalysisPanel } from './analysis/AnalysisPanel';
 import { examples } from '../examples';
 import { setTheme } from '../visualization/theme';
 import { HelpDialog } from './Help';
+import { PanelBoundary, UpdateBanner } from './ErrorBoundary';
 
 function Toolbar({ ws }: { ws: Workspace }) {
   const [theme, setThemeState] = useState<'dark' | 'light'>('dark');
@@ -60,17 +61,24 @@ export function App({ ws, pres, analysis }: { ws: Workspace; pres: Presentation;
         <AnalysisContext.Provider value={analysis}>
           <div className="app">
             <Toolbar ws={ws} />
+            <UpdateBanner />
             <Group orientation="horizontal" className="main">
               <Panel defaultSize="26" minSize="16">
-                <Notebook />
+                <PanelBoundary name="Worksheet">
+                  <Notebook />
+                </PanelBoundary>
               </Panel>
               <Separator className="sep sep-v" />
               <Panel defaultSize="46" minSize="25">
-                <CanvasPanel />
+                <PanelBoundary name="Canvas">
+                  <CanvasPanel />
+                </PanelBoundary>
               </Panel>
               <Separator className="sep sep-v" />
               <Panel defaultSize="28" minSize="16">
-                <AnalysisPanel />
+                <PanelBoundary name="Analysis">
+                  <AnalysisPanel />
+                </PanelBoundary>
               </Panel>
             </Group>
           </div>

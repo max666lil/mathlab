@@ -374,3 +374,10 @@ select { max-width: 360px; }
 }
 /* long results (Hessians and Laplacians of complicated functions) scroll inside their row */
 .fact-value { max-height: 7.5em; overflow-y: auto; }
+/* ---------------------------------------------------------------- errors */
+.update-banner {
+  display: flex; align-items: center; gap: 10px; padding: 6px 14px;
+  background: color-mix(in srgb, var(--warn) 22%, var(--panel)); border-bottom: 1px solid var(--border); font-size: 13px;
+}
+.update-banner button.ghost { background: transparent; border: none; margin-left: auto; }
+.panel-error pre { white-space: pre-wrap; color: var(--error); font-size: 12px; }

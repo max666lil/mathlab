@@ -119,14 +119,25 @@ export function CanvasPanel() {
   const [choice, setChoice] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
   useEffect(() => {
-    const s = new SceneView(host3d.current!, ws, pres);
-    const p = new PlaneView(host2d.current!, ws, pres);
+    // one failing renderer (e.g. no WebGL) must not take the other view down
+    let s: SceneView | null = null;
+    let p: PlaneView | null = null;
+    try {
+      s = new SceneView(host3d.current!, ws, pres);
+    } catch (e) {
+      console.error('3D view failed to start', e);
+    }
+    try {
+      p = new PlaneView(host2d.current!, ws, pres);
+    } catch (e) {
+      console.error('2D view failed to start', e);
+    }
     setScene(s);
     setPlane(p);
     if (import.meta.env.DEV) Object.assign(devViews(), { scene: s, plane: p });
     return () => {
-      s.destroy();
-      p.destroy();
+      s?.destroy();
+      p?.destroy();
     };
   }, [ws, pres]);
 
