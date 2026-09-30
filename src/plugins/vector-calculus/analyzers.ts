@@ -64,6 +64,10 @@ registerAnalyzer({
       sections.push({ id: 'around', title: `Around ${Cc}`, why: 'lineintegral' });
       facts.push({ id: 'circulation', title: `∮ ${F}·dr`, expr: `circulation ${F} around ${Cc}`, tier: 1, section: 'around', pinName: 'Γ', visual: 'auto' });
       if (n === 2) facts.push({ id: 'fluxAround', title: `∮ ${F}·n ds`, expr: `flux ${F} across ${Cc}`, tier: 1, section: 'around', pinName: 'Φ' });
+      if (n === 2) {
+        sections.push({ id: 'green', title: `Green's theorem on ${Cc}`, why: 'green' });
+        facts.push({ id: 'green', title: '∮ = ∬ curl', expr: `green ${F} on ${Cc}`, tier: 1, section: 'green', pinName: 'G', visual: 'auto' });
+      }
     }
     sections.push({ id: 'potential', title: 'Potential' }, { id: 'equilibria', title: 'Equilibria' });
     facts.push(

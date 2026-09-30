@@ -39,7 +39,7 @@ export const TYPE_HINTS = new Set([
 ]);
 const KEYWORDS = new Set(['at', 'from', 'to', 'over', 'draggable', 'hidden', 'fixed', 'toward', 'along', 'as', 'order', 'wrt', 'with']);
 /** Clause words that end a command's main argument. */
-const CLAUSES = ['at', 'from', 'to', 'toward', 'along', 'as', 'order', 'wrt', 'with', 'onto', 'in', 'around', 'across', 'through', 'on'];
+const CLAUSES = ['at', 'from', 'to', 'toward', 'along', 'as', 'order', 'wrt', 'with', 'onto', 'in', 'around', 'across', 'through', 'on', 'inside'];
 
 /** Hook for plugin syntax. `match` sees the statement's tokens (without newline/eof). */
 export interface StatementRule {

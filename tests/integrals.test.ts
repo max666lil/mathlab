@@ -85,3 +85,31 @@ describe('line integrals (3d.2)', () => {
     expect(pf.sections.some((s) => s.id === 'around')).toBe(true);
   });
 });
+
+describe("Green's theorem (3d.3)", () => {
+  it('both sides agree on circles and ellipses, with orientation', () => {
+    const g = last('F(x,y) = <-y, x>', 'C(t) = (cos t, sin t)', 'green F on C').value;
+    expect(g.kind).toBe('theorem');
+    expect(g.lhs).toBeCloseTo(2 * Math.PI, 10);
+    expect(g.rhs).toBeCloseTo(2 * Math.PI, 4);
+    expect(g.holds).toBe(true);
+    const e = last('F(x,y) = <x y, x^2 + y>', 'E(t) = (3cos t, 2sin t)', 'green F on E').value;
+    expect(e.holds).toBe(true);
+    const cw = last('F(x,y) = <-y, x>', 'C(t) = (cos t, -sin t)', 'green F on C').value;
+    expect(cw.lhs).toBeCloseTo(-2 * Math.PI, 10);
+    expect(cw.holds).toBe(true);
+  });
+  it('double integral inside a closed curve', () => {
+    expect(last('C(t) = (cos t, sin t)', 'integrate 1 + 0x inside C').value.value).toBeCloseTo(Math.PI, 4);
+    expect(last('C(t) = (cos t, sin t)', 'integrate x^2 + y^2 inside C').value.value).toBeCloseTo(Math.PI / 2, 4);
+  });
+  it('Green section with a stepped cell animation', () => {
+    const ws = new Workspace(['F(x,y) = <-y, x>', 'C(t) = (cos t, sin t)', 'analyze F']);
+    const an = new AnalysisService(ws);
+    const plan = an.plan()!;
+    an.setSectionOpen(plan, 'green', true);
+    an.flushNow();
+    const cells = ws.sceneItems().find((i) => i.visible && i.visual.vtype === 'greencells')!;
+    expect(cells.visual.props.stops).toEqual(['1×1', '2×2', '4×4', '8×8', '16×16', '32×32']);
+  });
+});

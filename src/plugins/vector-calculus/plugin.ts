@@ -3,6 +3,8 @@ import { definePlugin } from '../plugin-api';
 import { vectorCalculusBuiltins } from './math';
 import { curveBuiltins, curveTangent } from './curves';
 import { lineIntegralBuiltins, integrateAlong } from './integrals';
+import { greenBuiltins, TheoremValue } from './green';
+import { numberLatex } from '../../math-core/symbolic/print';
 import { getBuiltin } from '../../math-core/builtins';
 
 export const vectorCalculusMath = definePlugin({
@@ -13,6 +15,16 @@ export const vectorCalculusMath = definePlugin({
     const tangent = getBuiltin('tangent');
     if (tangent) api.registerBuiltin(curveTangent(tangent));
     lineIntegralBuiltins.forEach((b) => api.registerBuiltin(b));
+    greenBuiltins.forEach((b) => api.registerBuiltin(b));
+    // a theorem check shows both sides and whether they agree
+    api.registerValueKind({
+      kind: 'theorem',
+      latex: (v) => {
+        const t = v as unknown as TheoremValue;
+        return `\\begin{array}{l} ${t.lhsLatex} = ${numberLatex(t.lhs, 5)} \\\\ ${t.rhsLatex} = ${numberLatex(t.rhs, 5)} \\\\ \\text{${t.holds ? '✓ equal' : '✗ not equal'}} \\end{array}`;
+      },
+      typeLabel: (v) => `${(v as unknown as TheoremValue).name} check`,
+    });
     const integ = getBuiltin('integrate');
     if (integ) api.registerBuiltin(integrateAlong(integ));
     api.registerLatexFunctionName('div', '\\nabla\\cdot');

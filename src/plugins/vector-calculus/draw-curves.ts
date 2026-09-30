@@ -6,6 +6,7 @@ import type { SceneItem } from '../../visualization/scene-model';
 import type { FunctionValue } from '../../math-core/values';
 import { drawArrow, drawLabel } from '../core-calculus/draw-util';
 import { withAlpha } from '../../visualization/colormap';
+import { polygonOf } from './green';
 
 const V = '#4cc9f0';
 const A = '#ff6b6b';
@@ -216,3 +217,114 @@ class LineIntegral3D implements Visual3D {
   }
 }
 registerVisual3D('lineintegral', () => new LineIntegral3D());
+
+// ---------------------------------------------------------------- Green's theorem: cells whose interior edges cancel
+
+const polyCache = new Map<string, number[][]>();
+function polygon(C: FunctionValue): number[][] {
+  let P = polyCache.get(C.key);
+  if (!P) {
+    P = polygonOf(C, 900);
+    if (polyCache.size > 20) polyCache.clear();
+    polyCache.set(C.key, P);
+  }
+  return P;
+}
+function insidePoly(P: number[][], x: number, y: number): boolean {
+  let inside = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const [xi, yi] = P[i];
+    const [xj, yj] = P[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+registerDrawer2D('greencells', {
+  layer: 2,
+  draw(a) {
+    const { curl, curve, timeline, stops, total, orient } = a.item.visual.props as { curl: FunctionValue; curve: FunctionValue; timeline: string; stops: string[]; total: number; orient: number };
+    const { ctx, view, theme } = a;
+    const P = polygon(curve);
+    const xs = P.map((p) => p[0]);
+    const ys = P.map((p) => p[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const side = Math.max(x1 - x0, y1 - y0) * 1.02;
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    const level = Math.max(0, Math.min(stops.length - 1, Math.round(a.timeline(timeline, stops.length - 1))));
+    const N = 2 ** level;
+    const h = side / N;
+    const bx = cx - side / 2, by = cy - side / 2;
+    const cf = curl.eval as (x: number, y: number) => number;
+    const inside: boolean[] = [];
+    let maxC = 1e-12;
+    const vals: number[] = [];
+    for (let j = 0; j < N; j++)
+      for (let i = 0; i < N; i++) {
+        const mx = bx + (i + 0.5) * h, my = by + (j + 0.5) * h;
+        const ins = insidePoly(P, mx, my);
+        inside.push(ins);
+        const c = ins ? cf(mx, my) : 0;
+        vals.push(c);
+        if (ins && Number.isFinite(c)) maxC = Math.max(maxC, Math.abs(c));
+      }
+    let sum = 0;
+    for (let j = 0; j < N; j++)
+      for (let i = 0; i < N; i++) {
+        const k = j * N + i;
+        if (!inside[k]) continue;
+        const c = vals[k];
+        if (Number.isFinite(c)) sum += c * h * h;
+        const X = view.sx(bx + i * h), Y = view.sy(by + (j + 1) * h);
+        const W = view.sx(bx + (i + 1) * h) - X, H = view.sy(by + j * h) - Y;
+        ctx.fillStyle = withAlpha(c >= 0 ? '#52d69b' : '#ff6b6b', 0.12 + 0.35 * Math.min(1, Math.abs(c) / maxC));
+        ctx.fillRect(X, Y, W, H);
+        // each cell's own circulation (counter-clockwise when curl > 0); drawn while cells are big enough to read
+        if (N <= 8 && Math.abs(c) > 1e-9) {
+          const r = Math.min(W, H) * 0.28;
+          const mx = X + W / 2, my = Y + H / 2;
+          ctx.strokeStyle = withAlpha(c >= 0 ? '#52d69b' : '#ff6b6b', 0.95);
+          ctx.lineWidth = 1.6;
+          // canvas angles grow clockwise on screen, so a counter-clockwise turn decreases the angle
+          const dir = c > 0 ? -1 : 1;
+          ctx.beginPath();
+          for (let s = 0; s <= 24; s++) {
+            const ang = dir * (0.3 + (s / 24) * 1.4 * Math.PI);
+            const px = mx + r * Math.cos(ang), py = my + r * Math.sin(ang);
+            if (s === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.stroke();
+          const endA = dir * (0.3 + 1.4 * Math.PI);
+          ctx.beginPath();
+          ctx.arc(mx + r * Math.cos(endA), my + r * Math.sin(endA), 2.4, 0, Math.PI * 2);
+          ctx.fillStyle = ctx.strokeStyle as string;
+          ctx.fill();
+        }
+      }
+    // edges: shared (interior) edges cancel — faint; edges on the outside of the cell union — bright
+    for (let j = 0; j < N; j++)
+      for (let i = 0; i < N; i++) {
+        const k = j * N + i;
+        if (!inside[k]) continue;
+        const edges: [number, number, number, number, boolean][] = [
+          [i, j, i + 1, j, j === 0 || !inside[k - N]],
+          [i, j + 1, i + 1, j + 1, j === N - 1 || !inside[k + N]],
+          [i, j, i, j + 1, i === 0 || !inside[k - 1]],
+          [i + 1, j, i + 1, j + 1, i === N - 1 || !inside[k + 1]],
+        ];
+        for (const [ia, ja, ib, jb, outer] of edges) {
+          ctx.strokeStyle = outer ? withAlpha('#ffd166', 0.9) : withAlpha(theme.name === 'dark' ? '#ffffff' : '#1b1e28', 0.12);
+          ctx.lineWidth = outer ? 1.6 : 1;
+          ctx.setLineDash(outer ? [] : [3, 3]);
+          ctx.beginPath();
+          ctx.moveTo(view.sx(bx + ia * h), view.sy(by + ja * h));
+          ctx.lineTo(view.sx(bx + ib * h), view.sy(by + jb * h));
+          ctx.stroke();
+        }
+      }
+    ctx.setLineDash([]);
+    const txt = `${N}×${N} cells: Σ (curl F)·ΔA = ${(orient * sum).toFixed(3)}   →   ∮ F·dr = ${total.toFixed(3)}`;
+    drawLabel(ctx, txt, view.sx(bx), view.sy(by + side) - 10, theme.name === 'dark' ? '#e6e8ef' : '#1b1e28', theme, 13);
+  },
+});

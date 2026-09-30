@@ -3,7 +3,7 @@
  * Everything is pulled back to the curve's parameter and integrated with the `integrate` builtin
  * (exact when an antiderivative exists, numeric otherwise). Results carry the accumulation picture.
  */
-import { Builtin, EvalContext, EvalError } from '../../math-core/builtins';
+import { Builtin, EvalContext, EvalError, getBuiltin } from '../../math-core/builtins';
 import { Expr, mapExpr } from '../../math-core/ast';
 import { FunctionValue, ScalarValue } from '../../math-core/values';
 import { curveRange } from '../../math-core/ranges';
@@ -79,9 +79,10 @@ export const lineIntegralBuiltins: Builtin[] = [
 export function integrateAlong(base: Builtin): Builtin {
   return {
     ...base,
-    keywords: { ...(base.keywords ?? {}), toward: V },
-    signature: `${base.signature}  ·  integrate F along C`,
+    keywords: { ...(base.keywords ?? {}), toward: V, inside: V },
+    signature: `${base.signature}  ·  integrate F along C  ·  integrate f inside C`,
     apply: (args, ctx, raw, kw) => {
+      if (kw.values.inside) return getBuiltin('integrateinside')!.apply([args[0], kw.values.inside], ctx, raw, kw);
       const c = kw.values.toward;
       if (!c) return base.apply(args, ctx, raw, kw);
       if (!isCurveFn(c)) throw new EvalError('integrate … along C needs a curve C(t) = (…)');

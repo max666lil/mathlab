@@ -8,7 +8,7 @@ import { Tex } from '../Tex';
 import { symbolLatex, numberLatex } from '../../math-core/symbolic/print';
 import { MathValue, valueLatex } from '../../math-core/values';
 
-export const VECTOR_TOPICS = new Set(['divcurl', 'laplacian', 'lineintegral']);
+export const VECTOR_TOPICS = new Set(['divcurl', 'laplacian', 'lineintegral', 'green']);
 
 const col = (c: string, tex: string) => `\\textcolor{${c}}{${tex}}`;
 const OUT = '#ff6b6b';
@@ -36,6 +36,26 @@ export function VectorExplain({ topic }: { topic: string }) {
     return v?.kind === 'scalar' ? (v as { value: number }).value : undefined;
   };
   const F = symbolLatex(plan.object);
+  if (topic === 'green') {
+    const g = fact('green') as unknown as { lhs: number; rhs: number } | undefined;
+    return (
+      <div className="explain">
+        <div className="explain-title">Green's theorem: the inside cancels, only the boundary is left</div>
+        <LiveFormula tex={`\\oint_{C} \\mathbf{F}\\cdot d\\mathbf{r} = \\iint_{D} \\Big(\\frac{\\partial Q}{\\partial x} - \\frac{\\partial P}{\\partial y}\\Big)\\,dA`} parts={[]} />
+        <p>
+          Cut the region into small cells. Each cell has its own little circulation ≈ (curl F)·ΔA — that is what curl means. Add them all up: every edge shared
+          by two cells is walked once in each direction, so those contributions cancel (the faint dashed edges). What survives is the outer boundary — the
+          circulation around C.
+        </p>
+        <p>Play the animation: as the cells get smaller, Σ (curl F)·ΔA approaches ∮ F·dr.</p>
+        {g && (
+          <p>
+            Here <Tex tex={`\\oint = ${numberLatex(g.lhs, 5)}`} /> and <Tex tex={`\\iint = ${numberLatex(g.rhs, 5)}`} />.
+          </p>
+        )}
+      </div>
+    );
+  }
   if (topic === 'lineintegral') {
     const w = fact('work') ?? fact('circulation');
     return (
