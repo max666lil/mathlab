@@ -1,0 +1,162 @@
+import { describe, it, expect, beforeAll } from 'vitest';
+import { installMathLab } from '../src/setup';
+import { Workspace } from '../src/runtime/workspace';
+import { AnalysisService } from '../src/runtime/analysis';
+
+beforeAll(() => installMathLab());
+
+function last(...cells: string[]) {
+  const ws = new Workspace(cells);
+  const sts = ws.statements();
+  const n = ws.node(sts[sts.length - 1].id)!;
+  return { value: n.value as any, error: n.error?.message, ws };
+}
+
+describe('curves (3d.1)', () => {
+  it('parameter ranges in the language', () => {
+    const c = last('C(t) = (cos t, sin t) for t in [0, π]').value;
+    expect(c.ranges).toEqual({ t: [0, Math.PI] });
+    expect(last('a = 2', 'C(t) = (t, t^2) for t in [0, a]').value.ranges.t).toEqual([0, 2]);
+    expect(last('C(t) = (t, t) for s in [0, 1]').error).toMatch(/not a parameter/);
+  });
+  it('length: unit circle 2π (exact), helix, parabola', () => {
+    const circle = last('C(t) = (cos t, sin t)', 'length C').value;
+    expect(circle.value).toBeCloseTo(2 * Math.PI, 12);
+    expect(circle.certainty).toBe('exact');
+    expect(last('H(t) = (cos t, sin t, t) for t in [0, 2π]', 'length H').value.value).toBeCloseTo(2 * Math.PI * Math.SQRT2, 9);
+    expect(last('P(t) = (t, t^2) for t in [0, 1]', 'length P').value.value).toBeCloseTo(1.4789428575445975, 8);
+  });
+  it('closed, orientation, enclosed area', () => {
+    expect(last('C(t) = (cos t, sin t)', 'closed C').value.reason).toContain('counter-clockwise');
+    expect(last('C(t) = (cos t, -sin t)', 'closed C').value.reason).toContain('clockwise');
+    expect(last('C(t) = (t, t^2) for t in [0, 1]', 'closed C').value.value).toBe(false);
+    expect(last('E(t) = (3cos t, 2sin t)', 'area E').value.value).toBeCloseTo(6 * Math.PI, 10);
+  });
+  it('tangent and curvature', () => {
+    const T = last('C(t) = (cos t, sin t)', 'tangent C at 0').value;
+    expect(T.comps.map((x: number) => +x.toFixed(12) + 0)).toEqual([0, 1]);
+    expect(T.anchor).toEqual([1, 0]);
+    expect(last('C(t) = (2cos t, 2sin t)', 'curvature C at 1').value.value).toBeCloseTo(0.5, 12);
+    expect(last('H(t) = (cos t, sin t, t)', 'curvature H at 0').value.value).toBeCloseTo(0.5, 12);
+  });
+  it('curve analyzer: layout by dimension, motion on demand', () => {
+    const ws = new Workspace(['C(t) = (cos t, sin 2t)']);
+    const an = new AnalysisService(ws);
+    const plan = an.plan()!;
+    expect(plan.typeLabel).toContain('curve in ℝ²');
+    expect(ws.sceneItems().filter((i) => i.visible).map((i) => i.visual.vtype)).toEqual(['curve']);
+    an.setSectionOpen(plan, 'motion', true);
+    an.flushNow();
+    expect(ws.sceneItems().filter((i) => i.visible).map((i) => i.visual.vtype).sort()).toEqual(['curve', 'motion']);
+    const h = new AnalysisService(new Workspace(['H(t) = (cos t, sin t, t/3)'])).plan()!;
+    expect(h.layout.views[0].renderer).toBe('scene');
+  });
+});
+
+describe('line integrals (3d.2)', () => {
+  it('circulation of the rotation field around the unit circle: 2π exact, −2π clockwise', () => {
+    const r = last('F(x,y) = <-y, x>', 'C(t) = (cos t, sin t)', 'circulation F around C').value;
+    expect(r.value).toBeCloseTo(2 * Math.PI, 12);
+    expect(r.certainty).toBe('exact');
+    expect(last('F(x,y) = <-y, x>', 'C(t) = (cos t, -sin t)', 'circulation F around C').value.value).toBeCloseTo(-2 * Math.PI, 12);
+    expect(last('F(x,y) = <-y, x>', 'C(t) = (t, t^2) for t in [0, 1]', 'circulation F around C').error).toMatch(/not closed/);
+  });
+  it('gradient fields are path independent', () => {
+    const a = last('f(x,y) = x^2 y', 'G = gradient f', 'C(t) = (t, t) for t in [0, 1]', 'work G along C').value.value;
+    const b = last('f(x,y) = x^2 y', 'G = gradient f', 'C(t) = (t^3, t) for t in [0, 1]', 'work G along C').value.value;
+    expect(a).toBeCloseTo(1, 10);
+    expect(b).toBeCloseTo(1, 8);
+  });
+  it('flux across a curve, scalar line integrals, integrate … along', () => {
+    expect(last('F(x,y) = <x, y>', 'C(t) = (cos t, sin t)', 'flux F across C').value.value).toBeCloseTo(2 * Math.PI, 10);
+    expect(last('C(t) = (cos t, sin t) for t in [0, π]', 'integrate x^2 + y^2 along C').value.value).toBeCloseTo(Math.PI, 10);
+    expect(last('F(x,y,z) = <-y, x, 1>', 'H(t) = (cos t, sin t, t) for t in [0, 2π]', 'integrate F along H').value.value).toBeCloseTo(4 * Math.PI, 9);
+  });
+  it('field × curve sections and their visual', () => {
+    const ws = new Workspace(['F(x,y) = <-y, x>', 'C(t) = (cos t, sin t)']);
+    const an = new AnalysisService(ws);
+    const plan = an.plan()!;
+    expect(plan.object).toBe('C');
+    an.setSectionOpen(plan, 'field', true);
+    an.flushNow();
+    expect(ws.sceneItems().some((i) => i.visible && i.visual.vtype === 'lineintegral')).toBe(true);
+    ws.setFocus('F');
+    const pf = an.plan()!;
+    expect(pf.sections.some((s) => s.id === 'around')).toBe(true);
+  });
+});
+
+describe("Green's theorem (3d.3)", () => {
+  it('both sides agree on circles and ellipses, with orientation', () => {
+    const g = last('F(x,y) = <-y, x>', 'C(t) = (cos t, sin t)', 'green F on C').value;
+    expect(g.kind).toBe('theorem');
+    expect(g.lhs).toBeCloseTo(2 * Math.PI, 10);
+    expect(g.rhs).toBeCloseTo(2 * Math.PI, 4);
+    expect(g.holds).toBe(true);
+    const e = last('F(x,y) = <x y, x^2 + y>', 'E(t) = (3cos t, 2sin t)', 'green F on E').value;
+    expect(e.holds).toBe(true);
+    const cw = last('F(x,y) = <-y, x>', 'C(t) = (cos t, -sin t)', 'green F on C').value;
+    expect(cw.lhs).toBeCloseTo(-2 * Math.PI, 10);
+    expect(cw.holds).toBe(true);
+  });
+  it('double integral inside a closed curve', () => {
+    expect(last('C(t) = (cos t, sin t)', 'integrate 1 + 0x inside C').value.value).toBeCloseTo(Math.PI, 4);
+    expect(last('C(t) = (cos t, sin t)', 'integrate x^2 + y^2 inside C').value.value).toBeCloseTo(Math.PI / 2, 4);
+  });
+  it('Green section with a stepped cell animation', () => {
+    const ws = new Workspace(['F(x,y) = <-y, x>', 'C(t) = (cos t, sin t)', 'analyze F']);
+    const an = new AnalysisService(ws);
+    const plan = an.plan()!;
+    an.setSectionOpen(plan, 'green', true);
+    an.flushNow();
+    const cells = ws.sceneItems().find((i) => i.visible && i.visual.vtype === 'greencells')!;
+    expect(cells.visual.props.stops).toEqual(['1×1', '2×2', '4×4', '8×8', '16×16', '32×32']);
+  });
+});
+
+describe('surfaces (3d.4)', () => {
+  const sphere = 'S(u,v) = (cos u sin v, sin u sin v, cos v) for u in [0, 2π], v in [0, π]';
+  it('area, closedness, normals', () => {
+    expect(last(sphere, 'area S').value.value).toBeCloseTo(4 * Math.PI, 6);
+    expect(last(sphere, 'closedsurface S').value.value).toBe(true);
+    expect(last('D(u,v) = (u cos v, u sin v, 0) for u in [0, 1], v in [0, 2π]', 'closedsurface D').value.value).toBe(false);
+    expect(last('D(u,v) = (u cos v, u sin v, 0) for u in [0, 1], v in [0, 2π]', 'area D').value.value).toBeCloseTo(Math.PI, 8);
+    const n = last(sphere, 'normal S at (0, π/2)').value;
+    expect(n.comps.map((x: number) => +x.toFixed(9) + 0)).toEqual([1, 0, 0]);
+  });
+  it('flux through the unit sphere: ⟨x, y, z⟩ gives 4π', () => {
+    expect(last('F(x,y,z) = <x, y, z>', sphere, 'flux F through S').value.value).toBeCloseTo(4 * Math.PI, 6);
+    expect(last('F(x,y,z) = <0, 0, 1>', sphere, 'flux F through S').value.value).toBeCloseTo(0, 8);
+  });
+  it('recognition: S(u, v) surfaces vs linear maps; analyzer', () => {
+    const ws = new Workspace([sphere]);
+    const an = new AnalysisService(ws);
+    expect(an.plan()!.typeLabel).toContain('surface in ℝ³');
+    expect(new AnalysisService(new Workspace(['P(u,v) = (u, v, u + v)'])).plan()!.typeLabel).toContain('surface');
+    expect(new AnalysisService(new Workspace(['T(x,y) = (x + y, 2y)'])).plan()!.typeLabel).toContain('linear map');
+  });
+});
+
+describe('Stokes and divergence theorems (3d.5)', () => {
+  const sphere = 'S(u,v) = (cos u sin v, sin u sin v, cos v) for u in [0, 2π], v in [0, π]';
+  it('divergence theorem on the unit sphere', () => {
+    const g = last('F(x,y,z) = <x, y, z>', sphere, 'gauss F on S').value;
+    expect(g.lhs).toBeCloseTo(4 * Math.PI, 5);
+    expect(g.rhs).toBeCloseTo(4 * Math.PI, 5);
+    expect(g.holds).toBe(true);
+    const h = last('F(x,y,z) = <x y, y z^2, x z>', sphere, 'gauss F on S').value;
+    expect(h.holds).toBe(true);
+    expect(last('F(x,y,z) = <x, y, z>', 'H(u,v) = (cos u sin v, sin u sin v, cos v) for u in [0, 2π], v in [0, π/2]', 'gauss F on H').error).toMatch(/closed/);
+  });
+  it("Stokes' theorem on the upper hemisphere and on a disk (same boundary, same value)", () => {
+    const hemi = last('F(x,y,z) = <-y, x, 0>', 'H(u,v) = (cos u sin v, sin u sin v, cos v) for u in [0, 2π], v in [0, π/2]', 'stokes F on H').value;
+    expect(Math.abs(hemi.lhs)).toBeCloseTo(2 * Math.PI, 5);
+    expect(hemi.holds).toBe(true);
+    const disk = last('F(x,y,z) = <-y, x, 0>', 'D(u,v) = (u cos v, u sin v, 0) for u in [0, 1], v in [0, 2π]', 'stokes F on D').value;
+    expect(Math.abs(disk.rhs)).toBeCloseTo(2 * Math.PI, 5);
+    expect(disk.holds).toBe(true);
+    const closed = last('F(x,y,z) = <-y, x, z>', sphere, 'stokes F on S').value;
+    expect(closed.lhs).toBe(0);
+    expect(Math.abs(closed.rhs)).toBeLessThan(1e-6);
+  });
+});

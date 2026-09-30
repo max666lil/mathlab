@@ -1,0 +1,61 @@
+/** Registry of 2D drawers keyed by visual type (plugins add their own). */
+import type { SceneItem } from '../scene-model';
+import type { SceneFrame } from '../sampling';
+import type { Theme } from '../theme';
+import type { Workspace } from '../../runtime/workspace';
+import type { View2D } from './view2d';
+import type { ItemStyle } from '../presentation';
+
+/** A hoverable/clickable shape (world coordinates) registered while drawing. */
+export interface Hit2D {
+  itemId: string;
+  /** polyline points [x0, y0, x1, y1, ...] */
+  pts: number[];
+}
+
+/** A draggable handle registered while drawing. */
+export interface Handle2D {
+  x: number;
+  y: number;
+  /** hit radius in pixels */
+  r: number;
+  itemId: string;
+  nodeId: string;
+  cursor?: string;
+  drag(world: [number, number], mods: { shift: boolean }): void;
+  end?(): void;
+}
+
+export interface Draw2DArgs {
+  ctx: CanvasRenderingContext2D;
+  view: View2D;
+  item: SceneItem;
+  frame: SceneFrame;
+  theme: Theme;
+  ws: Workspace;
+  /** highlighted by selection / emphasis */
+  selected: boolean;
+  style: ItemStyle;
+  handles: Handle2D[];
+  hits: Hit2D[];
+  /** per-view cache for expensive layers */
+  cache: Map<string, unknown>;
+  /** current value of a presentation timeline (animated morphs) */
+  timeline(key: string, fallback?: number): number;
+  /** keep a timeline at its end state while an object is being dragged */
+  holdTimeline(key: string, end: number): void;
+}
+
+export interface Drawer2D {
+  /** paint order: 0 backgrounds … 10 handles */
+  layer: number;
+  draw(a: Draw2DArgs): void;
+}
+
+const drawers = new Map<string, Drawer2D>();
+export function registerDrawer2D(vtype: string, d: Drawer2D) {
+  drawers.set(vtype, d);
+}
+export function getDrawer2D(vtype: string): Drawer2D | undefined {
+  return drawers.get(vtype);
+}

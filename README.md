@@ -1,0 +1,167 @@
+# MathLab — interactive mathematical analysis workbench
+
+Define mathematical objects, and MathLab recognises them, analyses them, and lets you keep working
+with the results — symbolically, numerically and geometrically.
+
+```
+f(x,y) = x^3 - 3x + y^2        ← recognised as a function ℝ² → ℝ, analysed automatically
+C = critical f                 ← a typed point set: {(−1, 0) saddle, (1, 0) local min}
+Q = first(C)
+H = hessian f at Q
+eigenvalues H
+P = point(1, 0.5) draggable    ← drag it: every dependent result and visual updates
+directional f at P toward (3,-2)
+limit sin(x)/x as x -> 0
+integrate x^2 from 0 to 1
+```
+
+The screen has three areas — **Worksheet** (one statement per row, rendered as mathematics; click to
+edit) · **Canvas** (the view that fits the object: graph, 3D surface, contour map) · **Analysis**
+(cards that compute only when opened). There is no mode selector: the object decides.
+
+Principles:
+- **The Analysis panel is only a presentation of the mathematics.** Every analysis fact is an ordinary
+  expression (`critical(f)`, `domain(f)`, …) evaluated with the same builtins you can type, so any row
+  can be pinned into the worksheet as a named object and used again.
+- **Certainty is always shown**: `exact` (symbolic, or verified symbolically), `numeric` (iterative method
+  with a residual check), `evidence` (sampled/scanned — not a proof). Numeric values that match a closed
+  form are shown as "≈ 1 − √2", still labelled numeric.
+- **Lazy analysis**: type, formula, domain and derivatives appear at once; roots, critical points,
+  asymptotes, Taylor polynomials, integrals… are computed when their card is opened.
+- **`show` / `hide` / `compare` stay available** as the programmable representation layer.
+## Running
+
+```bash
+npm install
+npm run dev        # http://localhost:5173
+npm test           # vitest: parser, symbolic calculus, graph, runtime, examples
+npm run typecheck
+```
+
+## Architecture
+
+```
+src/
+  math-core/        framework-free mathematics
+    ast.ts            expression AST (with source spans)
+    symbolic/         simplify, diff (d/dx, ∇, Hessian), print (MLL text + LaTeX)
+    compile.ts        AST → fast JS closure (only literals / whitelisted functions emitted)
+    values.ts         typed MathValues + open value-kind registry
+    builtins.ts       registry of value-level operators
+    linalg.ts, numeric.ts, scalar-functions.ts
+  parser/           MLL lexer + Pratt parser + extensible statement rules
+  runtime/
+    graph.ts          generic reactive DAG (value-agnostic; topological, minimal recompute)
+    document.ts       cells → statements → graph nodes; input statements rewrite their own source
+    evaluator.ts      typed evaluation, function lifting/inlining, xy → x·y, f', f_x
+    workspace.ts      the single facade the UI talks to (inputs, inverse drag solving, scene
+                      items, selection, linked hover, animations)
+  visualization/    renderer-level, framework-free
+    scene-model.ts    MathValue → declarative visual items (+ semantic colours)
+    sampling.ts       grids, marching squares, slices, steepest paths, shared scene frame
+    2d/               canvas domain view, cross-section view, drawer registry
+    3d/               Three.js scene view, world map (z-scaling + flatten), camera shots
+    animation/clock.ts
+  plugins/
+    plugin-api.ts     definePlugin / installPlugin
+    core-calculus/    grad, hessian, partial, tangent_plane, slice, … + their 2D/3D visuals,
+                      implemented as a plugin through the same API third parties use
+    linear-algebra/   exact (ℚ) / numeric linear algebra, eigen, decompositions, analyzers for
+                      matrices, subspaces, systems, linear maps + animated transformation visuals
+  ui-react/         React owns only layout, notebook editors and panels
+```
+
+How data flows:
+
+1. The **document** parses every cell into statements. Each statement becomes a **graph node**
+   whose dependencies are the names it references.
+2. The **graph** evaluates nodes into typed **MathValues** (a point, a function with its symbolic
+   body, a plane, a slice, a visual). When an input changes, it recomputes only that input's
+   descendants. Moving P never re-samples the surface.
+3. `show` statements and visible named objects become **scene items**. The 2D and 3D renderers
+   draw each item type through registries. Both views share one frame and one colormap, so the
+   same object has the same colour and position everywhere.
+4. **Direct manipulation** goes back through the workspace. `setPoint` / `setSlider` update the
+   graph immediately and the source text shortly after. Dragging a derived object (the tip of
+   `u = <cos θ, sin θ>`) runs a damped Gauss–Newton solve over the upstream inputs.
+
+The graph does not know about calculus, and renderers do not know about statements. That is the
+seam the probability engine will use. `X ~ Normal(0,1)` becomes a plugin statement rule, a
+`random-variable` value kind and sample nodes (the graph already reserves a `heavy` flag for
+off-thread Monte Carlo). `Y = X^2` becomes a transform node, and pdf/cdf/histogram become
+registered visuals. None of this changes the core runtime.
+
+## MLL quick reference
+
+| Syntax | Meaning |
+| --- | --- |
+| `f(x,y) = x^2 + 2y^2` | function (implicit multiplication, `x²`, `π`, `θ`, `\|x\|`) |
+| `P = point(1, 1) draggable` | a draggable point |
+| `a = slider(-5, 5, 1)` / `a ∈ [-5, 5]` | parameter with a slider |
+| `u = <cos θ, sin θ>` | vector |
+| `grad(f) at P`, `∇f(P)`, `grad f at P` | gradient at a point |
+| `f'(x)`, `f_x`, `f_xy`, `partial(f, x)` | derivatives |
+| `hessian(f) at P`, `dirderiv(f, P, u)`, `linearization(f, P)`, `taylor2(f, P)` | local analysis |
+| `g · u`, `norm`, `normalize`, `cross` | vectors |
+| `A = [[2,1],[1,2]]`, `A v`, `A^-1`, `Aᵀ`, `det A`, `rank A`, `rref A`, `eigen A`, `diagonalize A` | matrices — analysed and animated as linear maps (exact for rational entries) |
+| `nullspace A`, `span(u, v)`, `solve(A, b)`, `project v onto W`, `leastsquares(A, b)`, `svd A` | subspaces, systems, projections, decompositions |
+| `F(x,y) = <-y, x>`, `div F`, `curl F`, `∇·F`, `∇×F`, `laplacian f`, `potential F`, `equilibria F` | vector fields (angle brackets), with flow, flux box and paddle wheel |
+| `x^2 + y^2 = 9`, `y < x^2`, `R = x^2 + y^2 <= 1`, `c(t) = (cos t, sin 2t)`, `r = 1 + cos(θ)` | implicit curves, regions, parametric and polar curves |
+| `C(t) = (cos t, sin t) for t in [0, 2π]`, `length C`, `work F along C`, `circulation F around C`, `green F on C` | curves, line integrals, Green's theorem |
+| `S(u,v) = (…) for u in [0, 2π], v in [0, π]`, `area S`, `flux F through S`, `stokes F on S`, `gauss F on S` | surfaces, flux, Stokes and divergence theorems |
+| `10!`, `nCr(5, 2)`, `gcd`, `lcm`, `mean([…])`, `median`, `stdev` | calculator functions |
+| `show surface(f), contours(f, 20)` | add to the views (`hidden` to create switched off) |
+| `slice(f, x = P.x)`, `slice(f, P, u)` | vertical cross-sections |
+| `tangent_plane`, `level`, `hessian_axes`, `gradient_path`, `quadratic`, `arrow` | visual objects |
+| `animate θ from 0 to 2π` | animation |
+
+In the editor, type `\theta`, `\pi` or `\nabla` for Unicode symbols. Edits apply as you type;
+Shift+Enter moves to the next cell.
+
+## Analysis engine and linked highlighting
+
+`src/runtime/analysis.ts` holds the analyzer registry: an analyzer recognises a value and returns a
+plan of *facts* (MLL expressions), relations and sections; `AnalysisService` evaluates facts lazily and
+caches them by the identity of the objects they reference. Analyzers for f(x), f(x, y) and point sets live
+in `plugins/core-calculus/analyzers.ts`; the analysis builtins in `analysis-builtins.ts`. Later phases add
+analyzers (3-D scalar fields, vector fields, distributions, optimisation problems, sequences) to the same
+registry.
+
+Every scene item carries the keys of the objects it represents (`u`, `role:gradient`, …). Hovering
+or selecting an object anywhere — an arrow in 2D or 3D, a notebook row, a value, a term of an
+explanation formula — emphasises all its representations and dims the rest; hovering `‖∇f‖` or
+`cos φ` in the explanation isolates just those objects.
+
+## Writing a plugin
+
+```ts
+import { definePlugin, installPlugin } from './plugins/plugin-api';
+import { registerDrawer2D } from './visualization/2d/registry2d';
+
+installPlugin(definePlugin({
+  name: 'my-plugin',
+  install(api) {
+    api.registerBuiltin({ name: 'laplacian', minArgs: 1, maxArgs: 1, argModes: ['function'],
+      signature: 'laplacian(f)', doc: 'Δf', category: 'calculus',
+      apply: ([f], ctx) => /* build a FunctionValue with ctx.makeFunction(...) */ f! });
+  },
+}));
+registerDrawer2D('my-visual', { layer: 3, draw: (a) => { /* canvas drawing */ } });
+```
+
+## Status and next steps
+
+**Phase 1 is done**: workbench shell, object recognition, lazy analysis of f(x) and f(x, y), CAS commands,
+typed results with certainty, `show` / `hide` / `compare`, analyzer-declared layouts.
+
+**Phase 3c (vector fields) and 3d (curves, surfaces, line and surface integrals, Green / Stokes / Divergence) are done** — div, curl, Laplacian, potentials, equilibria, animated flow — plus a
+graphing-calculator layer (implicit curves, regions, parametric / polar curves, several graphs at once,
+scroll-to-zoom 3-D domains).
+
+**Phase 2 (linear algebra) is done**: exact matrix computation, subspaces, systems, projections,
+decompositions, and 3Blue1Brown-style animated transformations in 2-D and 3-D (`plugins/linear-algebra`).
+
+The full plan is in **[docs/ROADMAP.md](docs/ROADMAP.md)**: linear algebra (Phase 2, done —
+**[spec](docs/phases/phase-2-linear-algebra.md)**), next all of MAT235 (**[spec](docs/phases/phase-3-mat235.md)**: 3-D fields and Lagrange, multiple integrals,
+vector fields with div / curl / Laplacian, line and surface integrals and the big theorems), differential equations (ODEs and PDEs, with the
+Laplace transform and Fourier series), probability & statistics, and series.
