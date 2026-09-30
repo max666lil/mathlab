@@ -52,3 +52,36 @@ describe('curves (3d.1)', () => {
     expect(h.layout.views[0].renderer).toBe('scene');
   });
 });
+
+describe('line integrals (3d.2)', () => {
+  it('circulation of the rotation field around the unit circle: 2π exact, −2π clockwise', () => {
+    const r = last('F(x,y) = <-y, x>', 'C(t) = (cos t, sin t)', 'circulation F around C').value;
+    expect(r.value).toBeCloseTo(2 * Math.PI, 12);
+    expect(r.certainty).toBe('exact');
+    expect(last('F(x,y) = <-y, x>', 'C(t) = (cos t, -sin t)', 'circulation F around C').value.value).toBeCloseTo(-2 * Math.PI, 12);
+    expect(last('F(x,y) = <-y, x>', 'C(t) = (t, t^2) for t in [0, 1]', 'circulation F around C').error).toMatch(/not closed/);
+  });
+  it('gradient fields are path independent', () => {
+    const a = last('f(x,y) = x^2 y', 'G = gradient f', 'C(t) = (t, t) for t in [0, 1]', 'work G along C').value.value;
+    const b = last('f(x,y) = x^2 y', 'G = gradient f', 'C(t) = (t^3, t) for t in [0, 1]', 'work G along C').value.value;
+    expect(a).toBeCloseTo(1, 10);
+    expect(b).toBeCloseTo(1, 8);
+  });
+  it('flux across a curve, scalar line integrals, integrate … along', () => {
+    expect(last('F(x,y) = <x, y>', 'C(t) = (cos t, sin t)', 'flux F across C').value.value).toBeCloseTo(2 * Math.PI, 10);
+    expect(last('C(t) = (cos t, sin t) for t in [0, π]', 'integrate x^2 + y^2 along C').value.value).toBeCloseTo(Math.PI, 10);
+    expect(last('F(x,y,z) = <-y, x, 1>', 'H(t) = (cos t, sin t, t) for t in [0, 2π]', 'integrate F along H').value.value).toBeCloseTo(4 * Math.PI, 9);
+  });
+  it('field × curve sections and their visual', () => {
+    const ws = new Workspace(['F(x,y) = <-y, x>', 'C(t) = (cos t, sin t)']);
+    const an = new AnalysisService(ws);
+    const plan = an.plan()!;
+    expect(plan.object).toBe('C');
+    an.setSectionOpen(plan, 'field', true);
+    an.flushNow();
+    expect(ws.sceneItems().some((i) => i.visible && i.visual.vtype === 'lineintegral')).toBe(true);
+    ws.setFocus('F');
+    const pf = an.plan()!;
+    expect(pf.sections.some((s) => s.id === 'around')).toBe(true);
+  });
+});

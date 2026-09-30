@@ -11,7 +11,7 @@ import { symbolLatex } from '../../math-core/symbolic/print';
 import { registerRelation } from '../../visualization/presentation';
 import { freshName } from '../core-calculus/analyzers';
 import { isField } from './math';
-import { isCurveFn } from './curves';
+import { isCurveFn, closedOf } from './curves';
 import { curveRange } from '../../math-core/ranges';
 
 
@@ -58,6 +58,13 @@ registerAnalyzer({
     } else {
       sections.push({ id: 'at', title: 'At a point', actions: [{ label: `＋ Add a point ${pName}`, rows: [`${pName} = point(${n === 2 ? '1, 0.5' : '1, 0.5, 0.5'}) draggable`] }] });
     }
+    // a closed curve in the worksheet: circulation and flux around it
+    const Cc = curveOfDim(ws, n, true);
+    if (Cc) {
+      sections.push({ id: 'around', title: `Around ${Cc}`, why: 'lineintegral' });
+      facts.push({ id: 'circulation', title: `∮ ${F}·dr`, expr: `circulation ${F} around ${Cc}`, tier: 1, section: 'around', pinName: 'Γ', visual: 'auto' });
+      if (n === 2) facts.push({ id: 'fluxAround', title: `∮ ${F}·n ds`, expr: `flux ${F} across ${Cc}`, tier: 1, section: 'around', pinName: 'Φ' });
+    }
     sections.push({ id: 'potential', title: 'Potential' }, { id: 'equilibria', title: 'Equilibria' });
     facts.push(
       { id: 'potential', title: 'φ with ∇φ = F', expr: `potential(${F})`, tier: 1, section: 'potential', pinName: 'φ' },
@@ -81,6 +88,14 @@ registerAnalyzer({
 });
 
 // ------------------------------------------------------------------ curves r(t)
+
+/** First named vector field / curve of a given dimension (for field × curve sections). */
+function firstNamed(ws: Workspace, test: (v: FunctionValue) => boolean): string | undefined {
+  return ws.statements().find((s) => s.name && ws.value(s.id) && test(ws.value(s.id) as FunctionValue))?.name;
+}
+const fieldOfDim = (ws: Workspace, n: number) => firstNamed(ws, (v) => isField(v) && v.expr!.type === 'vec' && v.params.length === n);
+const curveOfDim = (ws: Workspace, n: number, closedOnly = false) =>
+  firstNamed(ws, (v) => isCurveFn(v) && (v.expr as { items: unknown[] }).items.length === n && (!closedOnly || closedOf(v)));
 
 /** A slider meant as a parameter value on the curve (t0, t₀, s0, τ). */
 function paramSlider(ws: Workspace): string | undefined {
@@ -121,6 +136,14 @@ registerAnalyzer({
     if (n === 2) {
       sections.push({ id: 'area', title: 'Area inside' });
       facts.push({ id: 'area', title: 'Enclosed area', expr: `area(${C})`, tier: 1, section: 'area', pinName: 'A' });
+    }
+    // a vector field in the worksheet: the work it does along this curve (and flux across it)
+    const F = fieldOfDim(ws, n);
+    if (F) {
+      const closed = closedOf(f);
+      sections.push({ id: 'field', title: `Along the field ${F}`, why: 'lineintegral' });
+      facts.push({ id: 'work', title: closed ? `∮ ${F}·dr` : `∫ ${F}·dr`, expr: `work ${F} along ${C}`, tier: 1, section: 'field', pinName: 'W', visual: 'auto' });
+      if (closed && n === 2) facts.push({ id: 'fluxC', title: `∮ ${F}·n ds`, expr: `flux ${F} across ${C}`, tier: 1, section: 'field', pinName: 'Φ' });
     }
     return {
       object: C,

@@ -203,6 +203,11 @@ registerValueKind({
     const x = (v as ScalarValue).value;
     if (Number.isNaN(x)) return '\\text{undefined}';
     if (v.certainty === 'exact' && !Number.isInteger(x)) return entryLatex(x, true);
+    // a numeric value that matches a closed form: "4.712 ≈ 3π/2" (it stays numeric)
+    if (v.certainty === 'numeric' && !Number.isInteger(x) && Math.abs(x) > 1e-9) {
+      const r = recognize(x);
+      if (r && !/^-?\d+$/.test(r.text)) return `${numberLatex(x)} \\approx ${r.latex}`;
+    }
     return numberLatex(x);
   },
   typeLabel: (v) => ((v as ScalarValue).slider ? 'slider ∈ ℝ' : 'scalar ∈ ℝ'),

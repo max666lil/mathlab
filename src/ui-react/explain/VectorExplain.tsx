@@ -8,7 +8,7 @@ import { Tex } from '../Tex';
 import { symbolLatex, numberLatex } from '../../math-core/symbolic/print';
 import { MathValue, valueLatex } from '../../math-core/values';
 
-export const VECTOR_TOPICS = new Set(['divcurl', 'laplacian']);
+export const VECTOR_TOPICS = new Set(['divcurl', 'laplacian', 'lineintegral']);
 
 const col = (c: string, tex: string) => `\\textcolor{${c}}{${tex}}`;
 const OUT = '#ff6b6b';
@@ -36,6 +36,24 @@ export function VectorExplain({ topic }: { topic: string }) {
     return v?.kind === 'scalar' ? (v as { value: number }).value : undefined;
   };
   const F = symbolLatex(plan.object);
+  if (topic === 'lineintegral') {
+    const w = fact('work') ?? fact('circulation');
+    return (
+      <div className="explain">
+        <div className="explain-title">Work adds up F·Δr along the path</div>
+        <LiveFormula tex={`\\int_C \\mathbf{F}\\cdot d\\mathbf{r} = \\int_a^b \\mathbf{F}(\\mathbf{r}(t))\\cdot \\mathbf{r}'(t)\\,dt`} parts={[]} />
+        <p>
+          Cut the path into tiny steps Δr. On each step the field contributes F·Δr: positive when it pushes along the motion (green arrows), negative when it
+          pushes against it (red). The moving point shows the running total.
+        </p>
+        <p>
+          Around a closed curve this is the <b>circulation</b>. For a gradient field F = ∇φ it only depends on the end points (φ(end) − φ(start)), so every closed
+          loop gives 0. The flux ∮ F·n ds instead adds up the part of F crossing the curve (outward positive).
+        </p>
+        {w && <p>Here the total is <Tex tex={valueLatex(w)} />.</p>}
+      </div>
+    );
+  }
   if (topic === 'laplacian') {
     const L = fact('laplacian');
     const lp = num('lapP');
