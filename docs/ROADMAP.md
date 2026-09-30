@@ -23,6 +23,11 @@ It should feel as simple as Desmos at first glance and as deep as a mathematical
 | 4 | ODE: Laplace / inverse Laplace transform, linear ODEs and IVPs, slope fields, systems x′ = Ax and phase portraits · PDE: heat, wave and Laplace equations, boundary conditions, separation of variables, Fourier series | differential equations (ODE + PDE) and transforms (MAT244, APM346) | planned |
 | 5 | distributions, random-variable transformations, joint/conditional, expectation, sampling, CLT, estimation | probability and statistics | planned |
 | 6 | sequences, series, power series, Taylor series, convergence | infinite processes | planned |
+| S | MATLAB-like scripts: `function` / `for` / `while` / `if` blocks, arrays and ranges, indexing, element-wise ops, seeded random numbers, `plot` / `hist`; script variables become worksheet objects | programming and simulation (all courses; STA237 simulation) | planned |
+| 7 | linear programs (graphical, exact simplex tableaux, two-phase, duality, sensitivity, branch and bound, transportation, assignment), strategic games (Nash equilibria, zero-sum games by LP) | optimisation and game theory | planned |
+
+The content of every phase is defined by the course books — see **[CURRICULUM.md](CURRICULUM.md)** for the
+chapter → object → operation → visual map and the book examples used as acceptance tests.
 
 ---
 
@@ -281,7 +286,9 @@ Full specification: **[phases/phase-3-mat235.md](phases/phase-3-mat235.md)**.
 ## 7. Order and milestones
 
 ```
-Phase 2 (linear algebra) → Phase 3 (MAT235: 3a → 3b → 3c → 3d) → Phase 4 (ODE + PDE, Laplace, Fourier) → Phase 5 → Phase 6
+done: Phase 1 → Phase 2 → 3c → 3d
+next: 3b (coordinates, multiple integrals) → S (scripts) → 3a (3-D fields, Lagrange) → 5 (probability, statistics)
+      → 4 (ODE + PDE) → 6 (series, Fourier) → 7 (linear programming, games)
 ```
 
 A phase is done when:

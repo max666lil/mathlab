@@ -140,6 +140,9 @@ export class Evaluator implements EvalContext {
    * (y < x²). With no free variables it is simply true or false.
    */
   relation(e: Extract<Expr, { type: 'eq' }>): MathValue {
+    // chains (0 ≤ x ≤ 1) and inequalities in z or in polar / spherical coordinates are regions
+    const region = getBuiltin('region');
+    if (e.rel && region && (e.left.type === 'eq' || this.regionCoords(e))) return region.apply([], this, [e], { values: {}, raw: {} });
     const d: Expr = { type: 'bin', op: '-', left: e.left, right: e.right };
     const free = [...liftCandidates(d)].filter((n) => !this.lookup(n) && !getBuiltin(n) && !getScalarFunction(n));
     const vars = new Set(free.flatMap((n) => (LIFT_VARS.includes(n) ? [n] : [...n].filter((c) => LIFT_VARS.includes(c) && !this.lookup(c)))));
@@ -153,6 +156,13 @@ export class Evaluator implements EvalContext {
     }
     const fn = this.makeFunction(d, ['x', 'y']);
     return { kind: 'relation', rel: e.rel ?? '=', fn, latex: toLatex(e), key: `rel|${e.rel ?? '='}|${fn.key}` };
+  }
+
+  /** Does an inequality use z or polar / cylindrical / spherical coordinates (undefined names r, θ, ρ, φ)? */
+  private regionCoords(e: Extract<Expr, { type: 'eq' }>): boolean {
+    const d: Expr = { type: 'bin', op: '-', left: e.left, right: e.right };
+    const free = [...liftCandidates(d)].filter((n) => !this.lookup(n) && !getBuiltin(n) && !getScalarFunction(n));
+    return free.some((n) => ['z', 'r', 'θ', 'ρ', 'φ'].includes(n) || [...n].some((c) => ['z', 'θ', 'ρ', 'φ'].includes(c) && !this.lookup(c)));
   }
 
   num(v: MathValue, e: Expr): number {

@@ -3,7 +3,8 @@
  * verified by differentiating it and comparing numerically with the integrand; unverified results are
  * discarded, so "found" means "exact".
  */
-import { Expr, num, sym, call, add, mul, div, pow, dependsOn, mapExpr } from '../ast';
+import { Expr, num, sym, call, add, mul, div, pow, dependsOn, mapExpr, freeSymbols } from '../ast';
+import { CONSTANTS } from '../scalar-functions';
 import { diff } from './diff';
 import { simplify } from './simplify';
 import { expand, polyCoeffs } from './expand';
@@ -181,15 +182,20 @@ export function antiderivative(e: Expr, x: string): Expr | null {
   return null;
 }
 
-/** Numeric check that dF/dx = e at several points of the domain. */
+/**
+ * Numeric check that dF/dx = e at several points of the domain. Other symbols (outer variables of an
+ * iterated integral: ∫ x y dy) are constants here and get fixed sample values.
+ */
 function verify(F: Expr, e: Expr, x: string): boolean {
   try {
-    const dF = compileScalar(simplify(diff(F, x)), [x]);
-    const f = compileScalar(e, [x]);
+    const others = [...new Set([...freeSymbols(e), ...freeSymbols(F)])].filter((n) => n !== x && !(n in CONSTANTS));
+    const vals = others.map((_, i) => 0.61 + 0.37 * i);
+    const dF = compileScalar(simplify(diff(F, x)), [x, ...others]);
+    const f = compileScalar(e, [x, ...others]);
     let checked = 0;
     for (const t of [-2.3, -1.1, -0.37, 0.29, 0.77, 1.3, 2.9, 4.1]) {
-      const a = f(t);
-      const b = dF(t);
+      const a = f(t, ...vals);
+      const b = dF(t, ...vals);
       if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
       if (Math.abs(a - b) > 1e-7 * (1 + Math.abs(a))) return false;
       checked++;

@@ -1,0 +1,34 @@
+/** Multiple integrals and coordinate systems (Phase 3b) — math side. */
+import { definePlugin } from '../plugin-api';
+import { visual } from '../../visualization/scene-model';
+import { multivariableBuiltins, wrapExisting, BoundsValue } from './builtins';
+import type { RegionValue } from './region';
+
+const SYS: Record<string, string> = { cartesian: '', polar: 'polar ', cylindrical: 'cylindrical ', spherical: 'spherical ' };
+
+export const multivariableMath = definePlugin({
+  name: 'multivariable',
+  install(api) {
+    multivariableBuiltins.forEach((b) => api.registerBuiltin(b));
+    wrapExisting((b) => api.registerBuiltin(b));
+    api.registerValueKind({
+      kind: 'region',
+      latex: (v) => (v as unknown as RegionValue).latex,
+      typeLabel: (v) => {
+        const r = v as unknown as RegionValue;
+        return `${SYS[r.system]}region in ℝ${r.dim === 2 ? '²' : '³'}`;
+      },
+    });
+    api.registerValueKind({
+      kind: 'bounds',
+      latex: (v) => (v as unknown as BoundsValue).latex,
+      typeLabel: () => 'iterated bounds',
+    });
+    api.registerDefaultVisual('region', (v, ctx) => {
+      const r = v as unknown as RegionValue;
+      return r.dim === 2
+        ? [visual('region', { fn: r.test, rel: '<=' }, ctx.name, 'region')]
+        : [visual('solid', { test: r.test, box: r.box, key: r.key }, ctx.name, 'solid')];
+    });
+  },
+});

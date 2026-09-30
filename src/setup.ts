@@ -6,6 +6,7 @@ import { coreAnalysisMath } from './plugins/core-calculus/analysis-builtins';
 import { linearAlgebraMath } from './plugins/linear-algebra/plugin';
 import { vectorCalculusMath } from './plugins/vector-calculus/plugin';
 import { graphingMath } from './plugins/core-calculus/graphing';
+import { multivariableMath } from './plugins/multivariable/plugin';
 import './plugins/core-calculus/analyzers';
 import './plugins/linear-algebra/analyzers';
 import './plugins/vector-calculus/analyzers';
@@ -17,4 +18,5 @@ export function installMathLab() {
   installPlugin(graphingMath);
   installPlugin(linearAlgebraMath);
   installPlugin(vectorCalculusMath);
+  installPlugin(multivariableMath);
 }

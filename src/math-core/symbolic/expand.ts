@@ -64,6 +64,29 @@ export function polyCoeffs(e: Expr, v: string): number[] | null {
   return coeffs.length ? coeffs : [0];
 }
 
+/**
+ * Coefficients [c0, c1, …] of e as a polynomial in v whose coefficients are expressions in the other
+ * symbols (a² sin²θ …), or null when v also appears in a non-polynomial position.
+ */
+export function polyCoeffsExpr(e: Expr, v: string): Expr[] | null {
+  const buckets: Expr[][] = [];
+  for (const t of terms(expand(e))) {
+    let k = 0;
+    const rest: Expr[] = [];
+    for (const f of factors(t)) {
+      if (f.type === 'sym' && f.name === v) k += 1;
+      else if (f.type === 'bin' && f.op === '^' && f.left.type === 'sym' && f.left.name === v && f.right.type === 'num' && Number.isInteger(f.right.value) && f.right.value >= 0) k += f.right.value;
+      else if (dependsOn(f, v)) return null;
+      else rest.push(f);
+    }
+    (buckets[k] ??= []).push(rest.length ? mulList(rest) : num(1));
+  }
+  const out: Expr[] = [];
+  for (let i = 0; i < buckets.length; i++) out.push(buckets[i] ? addList(buckets[i]) : num(0));
+  while (out.length > 1 && out[out.length - 1].type === 'num' && (out[out.length - 1] as { value: number }).value === 0) out.pop();
+  return out.length ? out : [num(0)];
+}
+
 /** Exact real roots of a polynomial of degree ≤ 2 (null for higher degree). */
 export function quadraticRoots(c: number[]): number[] | null {
   if (c.length > 3) return null;

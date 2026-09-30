@@ -39,7 +39,7 @@ export const TYPE_HINTS = new Set([
 ]);
 const KEYWORDS = new Set(['at', 'from', 'to', 'over', 'draggable', 'hidden', 'fixed', 'toward', 'along', 'as', 'order', 'wrt', 'with']);
 /** Clause words that end a command's main argument. */
-const CLAUSES = ['at', 'from', 'to', 'toward', 'along', 'as', 'order', 'wrt', 'with', 'onto', 'in', 'around', 'across', 'through', 'on', 'inside'];
+const CLAUSES = ['at', 'from', 'to', 'toward', 'along', 'as', 'order', 'wrt', 'with', 'onto', 'in', 'around', 'across', 'through', 'on', 'inside', 'over'];
 
 /** Hook for plugin syntax. `match` sees the statement's tokens (without newline/eof). */
 export interface StatementRule {
@@ -558,10 +558,10 @@ function parseCoreStatement(toks: Token[], span: Span, modifiers: string[], opts
   const lhs = p.parseExpr(BP.eq);
   if (p.isOp('=')) {
     p.next();
-    let rhs = p.withStops(['for'], () => p.parseExpr(0));
-    // R = x^2 + y^2 <= 1: a named region
+    let rhs = p.withStops(['for', 'and'], () => p.parseExpr(0));
+    // R = x^2 + y^2 <= 1, D = 0 <= x <= 1 and x^2 <= y <= x: a named region
     const relR = parseRelation(p);
-    if (relR) rhs = { type: 'eq', left: rhs, right: relR.rhs, rel: relR.rel, span: { from: spanOf(rhs).from, to: spanOf(relR.rhs).to } };
+    if (relR) rhs = parseConstraints(p, rhs, relR);
     // C(t) = (cos t, sin t) for t in [0, 2π]; S(u,v) = … for u in [0, 2π], v in [0, π]
     const ranges: [string, Expr, Expr][] = [];
     if (p.isIdent('for')) {
@@ -587,11 +587,12 @@ function parseCoreStatement(toks: Token[], span: Span, modifiers: string[], opts
     // x^2 + y^2 = 1: an implicit curve
     return { kind: 'expr', value: { type: 'eq', left: lhs, right: rhs, span: { from: spanOf(lhs).from, to: spanOf(rhs).to } }, span, modifiers };
   }
-  // y < x^2, x^2 + y^2 >= 1: a region
+  // y < x^2, x^2 + y^2 >= 1, 0 <= x <= 1 and y >= 0: a region
   const rel = parseRelation(p);
   if (rel) {
+    const value = parseConstraints(p, lhs, rel);
     p.expectEnd();
-    return { kind: 'expr', value: { type: 'eq', left: lhs, right: rel.rhs, rel: rel.rel, span: { from: spanOf(lhs).from, to: spanOf(rel.rhs).to } }, span, modifiers };
+    return { kind: 'expr', value, span, modifiers };
   }
   p.expectEnd();
   return { kind: 'expr', value: lhs, span, modifiers };
@@ -607,7 +608,37 @@ function parseRelation(p: ExprParser): { rel: Relation; rhs: Expr } | undefined 
     p.next();
     rel = t.text === '<' ? '<=' : '>=';
   }
-  return { rel, rhs: p.parseExpr(0) };
+  return { rel, rhs: p.withStops(['and', 'for'], () => p.parseExpr(0)) };
+}
+
+/**
+ * After `a rel b`: chains `a ≤ b ≤ c` (nested inequalities) and conjunctions joined by `and` or `,`.
+ * One inequality stays an `eq` node; several become `region(…)`.
+ */
+function parseConstraints(p: ExprParser, left: Expr, first: { rel: Relation; rhs: Expr }): Expr {
+  const mk = (l: Expr, r: { rel: Relation; rhs: Expr }): Expr => ({ type: 'eq', left: l, right: r.rhs, rel: r.rel, span: { from: spanOf(l).from, to: spanOf(r.rhs).to } });
+  const items: Expr[] = [];
+  let cur = mk(left, first);
+  for (;;) {
+    const more = parseRelation(p);
+    if (more) {
+      cur = mk(cur, more);
+      continue;
+    }
+    if (p.isIdent('and') || p.isOp(',')) {
+      const sep = p.next();
+      items.push(cur);
+      const l = p.withStops(['and', 'for'], () => p.parseExpr(0));
+      const r = parseRelation(p);
+      if (!r) throw new MathSyntaxError(`Expected an inequality after '${sep.text}'`, spanOf(l).from, Math.max(spanOf(l).to, spanOf(l).from + 1));
+      cur = mk(l, r);
+      continue;
+    }
+    break;
+  }
+  items.push(cur);
+  if (items.length === 1) return items[0];
+  return { type: 'call', callee: sym('region'), args: items, span: { from: spanOf(items[0]).from, to: spanOf(items[items.length - 1]).to } };
 }
 
 /** Parse a single expression (used by tests and tools). */
