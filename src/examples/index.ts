@@ -219,6 +219,12 @@ export const examples: Example[] = [
     cells: ['C = r <= 1 + cos(θ)', 'S = 1 <= r <= 2 and 0 <= θ <= π/4', 'integrate (x^2 + y^2)^(-3/2) over S'],
   },
   {
+    id: 'polar-map',
+    title: 'Polar coordinates as a map — the grid bends, det J = r',
+    course: 'Multivariable Calculus',
+    cells: ['T(r, θ) = (r cos(θ), r sin(θ))', 'S(ρ, φ, θ) = (ρ sin(φ) cos(θ), ρ sin(φ) sin(θ), ρ cos(φ))', 'det(jacobian S)'],
+  },
+  {
     id: 'solid-ball',
     title: 'Solids — half ball in spherical coordinates, a cone',
     course: 'Multivariable Calculus',

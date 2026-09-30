@@ -334,3 +334,89 @@ function niceStep(x: number): number {
   const q = x / p;
   return (q < 1.5 ? 1 : q < 3.5 ? 2 : q < 7.5 ? 5 : 10) * p;
 }
+
+// ------------------------------------------------------------------ coordinate map grid
+
+type Map2 = (u: number, v: number) => number[];
+
+function mapBox(fn: FunctionValue, ranges: Box): Box {
+  const T = fn.eval as Map2;
+  let [x0, x1, y0, y1] = [Infinity, -Infinity, Infinity, -Infinity];
+  const [[u0, u1], [v0, v1]] = ranges;
+  for (let i = 0; i <= 24; i++)
+    for (let j = 0; j <= 24; j++) {
+      const u = u0 + ((u1 - u0) * i) / 24, v = v0 + ((v1 - v0) * j) / 24;
+      for (const p of [[u, v], T(u, v)]) {
+        if (!p.every(Number.isFinite)) continue;
+        x0 = Math.min(x0, p[0]);
+        x1 = Math.max(x1, p[0]);
+        y0 = Math.min(y0, p[1]);
+        y1 = Math.max(y1, p[1]);
+      }
+    }
+  return [[x0, x1], [y0, y1]];
+}
+registerFrameHint('coordmap', (p) => {
+  const b = mapBox(p.fn as FunctionValue, p.ranges as Box);
+  return { r: Math.max(1.5, extent(b)), dim: 2, box: b };
+});
+
+registerDrawer2D('coordmap', {
+  layer: 2,
+  draw(a) {
+    const { fn, ranges, timeline } = a.item.visual.props as { fn: FunctionValue; ranges: Box; timeline: string };
+    const { ctx, view, theme } = a;
+    const s = Math.max(0, Math.min(1, a.timeline(timeline, 1)));
+    const T = fn.eval as Map2;
+    const P = (u: number, v: number): [number, number] => {
+      const q = T(u, v);
+      return [(1 - s) * u + s * q[0], (1 - s) * v + s * q[1]];
+    };
+    const [[u0, u1], [v0, v1]] = ranges;
+    const N = 12;
+    const line = (pts: [number, number][], color: string, w: number) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      let pen = false;
+      for (const [x, y] of pts) {
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          pen = false;
+          continue;
+        }
+        if (pen) ctx.lineTo(view.sx(x), view.sy(y));
+        else ctx.moveTo(view.sx(x), view.sy(y));
+        pen = true;
+      }
+      ctx.stroke();
+    };
+    const [c1, c2] = ['#4cc9f0', '#f4a261'];
+    for (let i = 0; i <= N; i++) {
+      const u = u0 + ((u1 - u0) * i) / N;
+      line(Array.from({ length: 81 }, (_, k) => P(u, v0 + ((v1 - v0) * k) / 80)), withAlpha(c1, 0.8), i === 0 || i === N ? 1.8 : 1.1);
+      const v = v0 + ((v1 - v0) * i) / N;
+      line(Array.from({ length: 81 }, (_, k) => P(u0 + ((u1 - u0) * k) / 80, v)), withAlpha(c2, 0.8), i === 0 || i === N ? 1.8 : 1.1);
+    }
+    // one cell and its image: area ≈ |det J| Δu Δv
+    const du = (u1 - u0) / N, dv = (v1 - v0) / N;
+    const ua = u0 + du * Math.round(N * 0.66), va = v0 + dv * Math.round(N * 0.16);
+    const cell: [number, number][] = [];
+    for (let k = 0; k <= 8; k++) cell.push(P(ua + (du * k) / 8, va));
+    for (let k = 0; k <= 8; k++) cell.push(P(ua + du, va + (dv * k) / 8));
+    for (let k = 8; k >= 0; k--) cell.push(P(ua + (du * k) / 8, va + dv));
+    for (let k = 8; k >= 0; k--) cell.push(P(ua, va + (dv * k) / 8));
+    ctx.fillStyle = withAlpha('#ffd166', 0.6);
+    ctx.beginPath();
+    cell.forEach(([x, y], k) => (k ? ctx.lineTo(view.sx(x), view.sy(y)) : ctx.moveTo(view.sx(x), view.sy(y))));
+    ctx.closePath();
+    ctx.fill();
+    // |det J| at the cell by central differences
+    const h = 1e-5;
+    const Tu = [(T(ua + h, va)[0] - T(ua - h, va)[0]) / (2 * h), (T(ua + h, va)[1] - T(ua - h, va)[1]) / (2 * h)];
+    const Tv = [(T(ua, va + h)[0] - T(ua, va - h)[0]) / (2 * h), (T(ua, va + h)[1] - T(ua, va - h)[1]) / (2 * h)];
+    const det = Math.abs(Tu[0] * Tv[1] - Tu[1] * Tv[0]);
+    const scale = (1 - s) + s * det;
+    const [lx, ly] = P(ua + du, va + dv);
+    drawLabel(ctx, `area ≈ ${+scale.toFixed(3)} · Δ${fn.params[0]} Δ${fn.params[1]}`, view.sx(lx) + 8, view.sy(ly) - 8, '#ffd166', theme, 13);
+  },
+});

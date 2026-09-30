@@ -4,6 +4,8 @@ import { visual } from '../../visualization/scene-model';
 import { multivariableBuiltins, wrapExisting, BoundsValue } from './builtins';
 import type { RegionValue } from './region';
 import { visualBuiltins } from './visuals';
+import { coordGrid, detOfFunctions } from './coordmaps';
+import { getBuiltin } from '../../math-core/builtins';
 
 const SYS: Record<string, string> = { cartesian: '', polar: 'polar ', cylindrical: 'cylindrical ', spherical: 'spherical ' };
 
@@ -12,6 +14,9 @@ export const multivariableMath = definePlugin({
   install(api) {
     multivariableBuiltins.forEach((b) => api.registerBuiltin(b));
     visualBuiltins.forEach((b) => api.registerBuiltin(b));
+    api.registerBuiltin(coordGrid);
+    const det = getBuiltin('det');
+    if (det) api.registerBuiltin(detOfFunctions(det));
     wrapExisting((b) => api.registerBuiltin(b));
     api.registerValueKind({
       kind: 'region',

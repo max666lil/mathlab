@@ -28,6 +28,7 @@ const SYNTAX: [string, string][] = [
   ['R = x^2 + y^2 <= 1 · D = 0 <= x <= 1 and x^2 <= y <= x · S = 1 <= r <= 2 and 0 <= θ <= π/4 · E = ρ <= 2', 'regions and solids (Cartesian, polar, cylindrical, spherical)'],
   ['integrate f over R [in polar] [order dx dy] · area R · volume E · average f over R · mass δ over R · centroid R', 'multiple integrals (exact when possible; polar / spherical chosen for round regions)'],
   ['bounds R [order dx dy] · strips R · riemann f over R · polargrid R', 'iterated bounds, strip sweep, Riemann boxes, the r dr dθ cell'],
+  ['T(r, θ) = (r cos(θ), r sin(θ)) · jacobian T · det(jacobian T) · coordgrid T', 'coordinate maps: Jacobian, area scale, the bending grid'],
   ['x^2 + y^2 = 9 · y < x^2 · r = 1 + cos(θ) · 10! · nCr(5,2) · mean([…])', 'graphing-calculator features'],
   ['show derivative f · hide contours · show level f = 3', 'representation control (basics are shown automatically)'],
   ['compare f with taylor f at 0 order 4', 'overlay two functions and their difference'],

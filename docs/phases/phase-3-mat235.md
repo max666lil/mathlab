@@ -194,8 +194,10 @@ Hughes-Hallett ch. 16):
   boxes under a see-through surface framed on the region); 3-D solids by marching tetrahedra with their
   shadow on the floor; explanations `iterated` and `polar`.
 
-Next (3b.3): coordinate maps `T(u,v) = (…)` as objects (Jacobian matrix-valued function, the (u, v) grid
-mapped to the curved grid with |det J| cells animated), `integrate … using T`, solids of revolution.
+3b.3 shipped: coordinate maps `T(u, v) = (…)` / `T(u, v, w) = (…)` (non-linear tuple maps) with the
+Jacobian, `det(jacobian T)` simplified (r, ρ² sin φ — `trigSimplify` merges sin² + cos² inside products)
+and the animated grid (the (u, v) rectangle bending into the curved grid, one cell with area ≈ |det J| Δu Δv).
+Still open: `integrate … using T` over a region in the map's own parameters, solids of revolution.
 
 - **Goal**: make ∬ f dA and ∭ f dV geometric; make dA = r dr dθ something you *see*.
 - **Objects**: Region (inequalities; type I / II descriptions; polar / cylindrical / spherical

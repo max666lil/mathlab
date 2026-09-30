@@ -138,7 +138,8 @@ describe('subspaces, vector lists, systems, linear maps', () => {
   });
   it('nonlinear vector functions are not linear maps', () => {
     const { an } = setup('F(x,y) = (x^2, y)');
-    expect(an.plan()).toBeFalsy();
+    // analysed as a (non-linear) coordinate map, not as a linear map
+    expect(an.plan()?.typeLabel).toMatch(/coordinate map/);
   });
 });
 

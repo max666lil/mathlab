@@ -194,3 +194,82 @@ export function powS(b: Expr, e: Expr): Expr {
   }
   return { type: 'bin', op: '^', left: b, right: e };
 }
+
+/**
+ * sin²u + cos²u = 1 inside products: terms that differ only by a factor sin²u vs cos²u (with the same
+ * coefficient) merge — r cos²θ + r sin²θ → r, ρ² sin³φ cos²θ + ρ² sin³φ sin²θ → ρ² sin³φ, repeatedly.
+ */
+export function trigSimplify(e: Expr): Expr {
+  let cur = simplify(e);
+  for (let round = 0; round < 8; round++) {
+    const terms: Expr[] = [];
+    flatten(expandProducts(cur), '+', terms);
+    const parts = terms.map((t) => {
+      const [c, rest] = splitCoef(t);
+      const fs: Expr[] = [];
+      if (rest) flatten(rest, '*', fs);
+      return { c, fs };
+    });
+    let merged = false;
+    outer: for (let i = 0; i < parts.length; i++) {
+      for (let a = 0; a < parts[i].fs.length; a++) {
+        const u = sq(parts[i].fs[a], 'sin');
+        if (!u) continue;
+        const others = parts[i].fs.filter((_, k) => k !== a).map(key).sort().join('*');
+        for (let j = 0; j < parts.length; j++) {
+          if (j === i || Math.abs(parts[j].c - parts[i].c) > 1e-12 * Math.max(1, Math.abs(parts[i].c))) continue;
+          const b = parts[j].fs.findIndex((f) => sq(f, 'cos') === u);
+          if (b < 0) continue;
+          if (parts[j].fs.filter((_, k) => k !== b).map(key).sort().join('*') !== others) continue;
+          const keep = parts[i].fs.filter((_, k) => k !== a);
+          const next = parts.filter((_, k) => k !== i && k !== j).map((p) => mulList([num(p.c), ...p.fs]));
+          next.push(mulList([num(parts[i].c), ...keep]));
+          cur = addList(next);
+          merged = true;
+          break outer;
+        }
+      }
+    }
+    if (!merged) break;
+  }
+  return cur;
+}
+
+/** key of u when f = name(u)^2 */
+function sq(f: Expr, name: string): string | null {
+  if (f.type === 'bin' && f.op === '^' && f.right.type === 'num' && f.right.value === 2 && f.left.type === 'call' && f.left.callee.type === 'sym' && f.left.callee.name === name && f.left.args.length === 1) return key(f.left.args[0]);
+  return null;
+}
+
+/** Distribute products over sums and split trig powers ≥ 3 into sinⁿ⁻² · sin² so pairs can meet. */
+function expandProducts(e: Expr): Expr {
+  const split = (x: Expr): Expr[] => {
+    if (x.type === 'bin' && x.op === '^' && x.right.type === 'num' && Number.isInteger(x.right.value) && x.right.value > 2 && x.left.type === 'call' && x.left.callee.type === 'sym' && (x.left.callee.name === 'sin' || x.left.callee.name === 'cos'))
+      return [powS(x.left, num(x.right.value - 2)), { type: 'bin', op: '^', left: x.left, right: num(2) }];
+    return [x];
+  };
+  const terms: Expr[] = [];
+  const dist = (x: Expr): Expr[] => {
+    if (x.type === 'bin' && x.op === '+') return [...dist(x.left), ...dist(x.right)];
+    if (x.type === 'bin' && x.op === '*') {
+      const l = dist(x.left);
+      const r = dist(x.right);
+      return l.flatMap((a) => r.map((b) => ({ type: 'bin', op: '*', left: a, right: b }) as Expr));
+    }
+    return [x];
+  };
+  for (const t of dist(e)) {
+    const fs: Expr[] = [];
+    flatten(t, '*', fs);
+    // keep the split form (not re-merged by mulList) so sin² stays visible as a factor
+    const pieces = fs.flatMap(split);
+    let coef = 1;
+    const rest: Expr[] = [];
+    for (const p of pieces) {
+      if (p.type === 'num') coef *= p.value;
+      else rest.push(p);
+    }
+    terms.push(rest.length ? rest.reduce((a, b) => ({ type: 'bin', op: '*', left: a, right: b }), num(coef) as Expr) : num(coef));
+  }
+  return terms.reduce((a, b) => ({ type: 'bin', op: '+', left: a, right: b }));
+}

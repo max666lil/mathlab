@@ -6,6 +6,9 @@
 import { registerAnalyzer, AnalysisPlan, FactSpec, SectionSpec } from '../../runtime/analysis';
 import { symbolLatex } from '../../math-core/symbolic/print';
 import { asRegion, roundness } from './region';
+import { isCoordMap } from './coordmaps';
+import { valueLatex } from '../../math-core/values';
+import type { PointValue } from '../../math-core/values';
 
 registerAnalyzer({
   id: 'region',
@@ -68,6 +71,51 @@ registerAnalyzer({
       typeLabel,
       layout,
       title,
+      sections,
+      facts,
+      relations: [],
+      diagnostics: [],
+    };
+  },
+});
+
+// ------------------------------------------------------------------ coordinate maps T(u, v) = (x, y)
+
+registerAnalyzer({
+  id: 'coordinate-map',
+  focusOnEdit: true,
+  // linear maps are recognised first by the linear-algebra plugin; curves and surfaces have other shapes
+  recognizes: (v) => isCoordMap(v),
+  plan(T, value, ws): AnalysisPlan {
+    const f = value as import('../../math-core/values').FunctionValue;
+    const n = f.params.length;
+    const P = ws
+      .statements()
+      .find((s) => s.name && ws.value(s.id)?.kind === 'point' && (ws.value(s.id) as PointValue).coords.length === n)?.name;
+    const sections: SectionSpec[] = [
+      { id: 'overview', title: 'Summary', summary: true, why: 'polar' },
+      ...(n === 2 ? [{ id: 'grid', title: 'Grid picture', defaultOpen: true }] : []),
+    ];
+    const facts: FactSpec[] = [
+      { id: 'jacobian', title: 'Jacobian', expr: `jacobian ${T}`, tier: 0, section: 'overview', pinName: 'J' },
+      { id: 'det', title: n === 2 ? 'Area scale det J' : 'Volume scale det J', expr: `det(jacobian ${T})`, tier: 0, section: 'overview', pinName: 'detJ' },
+      ...(n === 2 ? [{ id: 'grid', title: 'Grid', expr: `coordgrid ${T}`, tier: 1 as const, section: 'grid', visual: 'auto' as const }] : []),
+    ];
+    if (P) {
+      sections.push({ id: 'at', title: `At ${P}` });
+      facts.push(
+        { id: 'JP', title: `J(${P})`, expr: `jacobian ${T} at ${P}`, tier: 1, section: 'at', pinName: 'JP' },
+        { id: 'detP', title: `det J(${P})`, expr: `det(jacobian ${T} at ${P})`, tier: 1, section: 'at' },
+      );
+    }
+    return {
+      object: T,
+      typeLabel: `coordinate map ℝ${n === 2 ? '²' : '³'} → ℝ${n === 2 ? '²' : '³'}`,
+      layout:
+        n === 2
+          ? { canvasTitle: `Map ${T}`, views: [{ id: 'plane', label: '2D', renderer: 'plane' }], defaultView: 'plane' }
+          : { canvasTitle: `Map ${T}`, views: [{ id: 'space', label: '3D', renderer: 'scene' }], defaultView: 'space' },
+      title: `${symbolLatex(T)}(${f.params.map(symbolLatex).join(', ')}) = ${valueLatex(value).split(' = ').pop()}`,
       sections,
       facts,
       relations: [],

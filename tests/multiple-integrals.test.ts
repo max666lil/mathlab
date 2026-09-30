@@ -220,3 +220,26 @@ describe('power reduction in antiderivatives (polar areas)', () => {
     expect(last('integrate sin(x) cos(x) from 0 to π/2').value.value).toBeCloseTo(0.5, 12);
   });
 });
+
+describe('coordinate maps and the Jacobian (3b.3)', () => {
+  it('det J: r for polar, ρ² sin φ for spherical, ab for the ellipse map', () => {
+    const polar = last('T(r, θ) = (r cos(θ), r sin(θ))', 'det(jacobian T)').value;
+    expect(polar.kind).toBe('function');
+    expect(toText(polar.expr)).toBe('r');
+    const sph = last('S(ρ, φ, θ) = (ρ sin(φ) cos(θ), ρ sin(φ) sin(θ), ρ cos(φ))', 'det(jacobian S)').value;
+    expect(toText(sph.expr)).toBe('ρ^2*sin(φ)');
+    expect(toText(last('E(s, t) = (3s, 2t)', 'det(jacobian E)').value.expr)).toBe('6');
+    // numbers still work
+    expect(last('det [[1, 2], [3, 4]]').value.value).toBe(-2);
+  });
+  it('analyzer: non-linear plane maps get the grid picture; linear maps stay in linear algebra', () => {
+    const ws = new Workspace(['T(r, θ) = (r cos(θ), r sin(θ))']);
+    const an = new AnalysisService(ws);
+    const plan = an.plan()!;
+    expect(plan.typeLabel).toMatch(/coordinate map/);
+    an.flushNow();
+    expect(ws.sceneItems().some((i) => i.visual.vtype === 'coordmap' && i.visible)).toBe(true);
+    const lin = new AnalysisService(new Workspace(['L(x, y) = (x + y, 2y)'])).plan()!;
+    expect(lin.typeLabel).not.toMatch(/coordinate map/);
+  });
+});
