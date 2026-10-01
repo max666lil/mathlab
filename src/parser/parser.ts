@@ -237,7 +237,7 @@ export class ExprParser {
         case '(': {
           if (isCallable(left)) {
             this.next();
-            const args = this.parseList(')');
+            const args = this.parseList(')', true);
             const close = this.expectOp(')');
             return { type: 'call', callee: left, args, span: { from, to: close.to } };
           }
@@ -250,11 +250,13 @@ export class ExprParser {
     return { type: 'bin', op: '*', left, right, span: { from, to: spanOf(right).to } };
   }
 
-  private parseList(close: string): Expr[] {
+  /** Comma-separated items; call arguments may be comparisons: P(X > 1), P(1 < X <= 2). */
+  private parseList(close: string, relations = false): Expr[] {
     const items: Expr[] = [];
     if (this.isOp(close)) return items;
     for (;;) {
-      items.push(this.parseExpr(0));
+      const item = this.withStops(relations ? ['and'] : [], () => this.parseExpr(0));
+      items.push(relations ? (this.condition(item) ?? item) : item);
       if (this.isOp(',')) {
         this.next();
         continue;
@@ -469,7 +471,14 @@ export class ExprParser {
         rel = rel === '<' ? '<=' : '>=';
       }
       const right = this.withStops(['and'], () => this.parseExpr(BP.eq));
-      return { type: 'eq', left, right, ...(rel === '=' ? {} : { rel }), span: { from: spanOf(left).from, to: spanOf(right).to } };
+      const cmp: Expr = { type: 'eq', left, right, ...(rel === '=' ? {} : { rel }), span: { from: spanOf(left).from, to: spanOf(right).to } };
+      // a chain a ≤ X ≤ b nests: ((a ≤ X) ≤ b)
+      const t2 = this.peek();
+      if (t2.kind === 'op' && ['<', '>', '<=', '>=', '≤', '≥'].includes(t2.text)) {
+        const more = one(right);
+        if (more && more.type === 'eq') return { ...more, left: cmp };
+      }
+      return cmp;
     };
     // `a = b` was already parsed as an equation by the expression parser
     let c: Expr | undefined = first.type === 'eq' && !first.rel ? first : one(first);
@@ -659,6 +668,14 @@ function parseCoreStatement(toks: Token[], span: Span, modifiers: string[], opts
   if (first.kind === 'ident' && TYPE_HINTS.has(first.text) && toks[1]?.kind === 'ident' && t2?.kind === 'op' && (t2.text === '=' || t2.text === '(' || t2.text === '∈')) {
     typeHint = first.text;
     p.next();
+  }
+  // X ~ Normal(0, 1): a random variable (the distribution object, named)
+  if (p.isIdent() && p.isOp('~', 1)) {
+    const nameTok = p.next();
+    p.next();
+    const value = p.parseExpr(0);
+    p.expectEnd();
+    return { kind: 'assign', name: nameTok.text, nameSpan: { from: nameTok.from, to: nameTok.to }, value, typeHint: 'random', span, modifiers };
   }
   // slider shorthand: a ∈ [lo, hi]
   if (p.isIdent() && p.isOp('∈', 1)) {

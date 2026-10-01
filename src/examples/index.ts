@@ -267,6 +267,30 @@ export const examples: Example[] = [
     cells: ['E = x^2 + y^2 + z^2 <= 4 and z >= 0', 'K = sqrt(x^2 + y^2) <= z <= 3', 'mass z over K'],
   },
   {
+    id: 'normal-rv',
+    title: 'Random variable — N(64, 0.78): P(a < X ≤ b) under sliders, percentiles, CLT',
+    course: 'Probability & Statistics',
+    cells: ['X ~ Normal(64, 0.78)', 'a = slider(61, 67, 63)', 'b = slider(61, 67, 65)', 'quantile(X, 0.995)'],
+  },
+  {
+    id: 'binomial-rv',
+    title: 'Binomial(15, 0.2) — pmf bars, P(X ≤ 8), cdf step function',
+    course: 'Probability & Statistics',
+    cells: ['X ~ Binomial(15, 0.2)', 'P(X <= 8)', 'E(X)', 'Var(X)'],
+  },
+  {
+    id: 'exponential-clt',
+    title: 'The central limit theorem — means of an exponential (skewed) population',
+    course: 'Probability & Statistics',
+    cells: ['T ~ Exponential(0.5)', 'clt(T)'],
+  },
+  {
+    id: 'dataset-fuel',
+    title: 'Data — fuel efficiency (Devore Ex 1.16): fourths, outliers, histogram, boxplot, normal plot',
+    course: 'Probability & Statistics',
+    cells: ['D = [31.0, 27.8, 38.3, 27.0, 23.4, 30.0, 30.1, 21.5, 25.4, 34.5]'],
+  },
+  {
     id: 'script-clt',
     title: 'Script — the central limit theorem by simulation',
     course: 'Probability & Statistics',

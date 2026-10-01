@@ -162,14 +162,14 @@ const sorted = (x: SV) => Array.from(toArr(x).d).sort((a, b) => a - b);
 const medianOf = (s: number[]) => (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2);
 
 /** Tukey hinges: medians of the lower and upper halves, the median in both halves when n is odd. */
-function hingesOf(s: number[]): [number, number] {
+export function hingesOf(s: number[]): [number, number] {
   const n = s.length;
   const h = Math.ceil(n / 2);
   return [medianOf(s.slice(0, h)), medianOf(s.slice(n - h))];
 }
 
 /** Devore's trimmed mean x̄_tr(α): α% from each end, interpolating when nα is not whole. */
-function trimmed(s: number[], eachPct: number): number {
+export function trimmed(s: number[], eachPct: number): number {
   const n = s.length;
   const k = (n * eachPct) / 100;
   const mean = (j: number) => {
@@ -188,7 +188,7 @@ function newFigure(it: Interpreter) {
 }
 
 /** Boxplot of one sample at height y (Devore's mild / extreme outliers beyond 1.5 / 3 fourth spreads). */
-function boxSeries(s: number[], y: number): Series[] {
+export function boxSeries(s: number[], y: number): Series[] {
   const [q1, q3] = hingesOf(s);
   const med = medianOf(s);
   const fs = q3 - q1;

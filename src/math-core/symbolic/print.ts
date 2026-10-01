@@ -23,10 +23,12 @@ export function formatNumber(x: number, digits = 4): string {
 export function asFraction(x: number): [number, number] | null {
   // near-integers (round-off) are integers, never 4/2
   if (Number.isInteger(x) || Math.abs(x - Math.round(x)) < 1e-12 * Math.max(1, Math.abs(x))) return null;
+  // short decimals stay as typed when their fraction would be awkward (0.78, not 39/50); 1/2, 2/3 stay fractions
+  const shortDecimal = Math.abs(x * 10000 - Math.round(x * 10000)) < 1e-8 * Math.max(1, Math.abs(x));
   for (let q = 2; q <= 720; q++) {
     const p = Math.round(x * q);
     if (Math.abs(p) > 1e6) return null;
-    if (Math.abs(p / q - x) < 1e-12 * Math.max(1, Math.abs(x))) return [p, q];
+    if (Math.abs(p / q - x) < 1e-12 * Math.max(1, Math.abs(x))) return shortDecimal && q > 12 ? null : [p, q];
   }
   return null;
 }
