@@ -70,6 +70,31 @@ export interface ParserOptions {
 
 const BP = { eq: 5, add: 10, at: 15, mul: 20, neg: 25, pow: 40, postfix: 50 } as const;
 
+function mentions(e: unknown, name: string): boolean {
+  if (!e || typeof e !== 'object') return false;
+  const o = e as { type?: string; name?: string };
+  if (o.type === 'sym' && o.name === name) return true;
+  return Object.entries(o).some(([k, v]) => k !== 'span' && (Array.isArray(v) ? v.some((x) => mentions(x, name)) : typeof v === 'object' && mentions(v, name)));
+}
+
+/**
+ * `P(…) = value` states a probability (rather than defining a function P) when the argument is an
+ * event expression (A and B, B | A, not A), or a capitalised name the right side does not use.
+ */
+function isProbFact(lhs: Expr, rhs: Expr): boolean {
+  if (lhs.type !== 'call' || lhs.callee.type !== 'sym' || !['P', 'Pr'].includes(lhs.callee.name) || lhs.args.length !== 1) return false;
+  const a = lhs.args[0];
+  if (a.type === 'sym') return /^\p{Lu}/u.test(a.name) && !mentions(rhs, a.name);
+  return a.type === 'call' && a.callee.type === 'sym' && ['and', 'or', 'not', 'given'].includes(a.callee.name);
+}
+
+/** An expression that reads as an event (a comparison or a combination of events), not arithmetic. */
+function isEventish(e: Expr): boolean {
+  if (e.type === 'eq') return true;
+  if (e.type === 'sym') return true;
+  return e.type === 'call' && e.callee.type === 'sym' && ['and', 'or', 'not', 'given'].includes(e.callee.name);
+}
+
 export class ExprParser {
   private i = 0;
   private noImplicitFn = 0;
@@ -250,13 +275,21 @@ export class ExprParser {
     return { type: 'bin', op: '*', left, right, span: { from, to: spanOf(right).to } };
   }
 
-  /** Comma-separated items; call arguments may be comparisons: P(X > 1), P(1 < X <= 2). */
+  /**
+   * Comma-separated items; call arguments may be comparisons and events:
+   * P(X > 1), P(1 < X <= 2), P(A and not B), P(A ∪ B), P(B | A), P(X > 3 | X > 1).
+   */
   private parseList(close: string, relations = false): Expr[] {
     const items: Expr[] = [];
     if (this.isOp(close)) return items;
     for (;;) {
-      const item = this.withStops(relations ? ['and'] : [], () => this.parseExpr(0));
-      items.push(relations ? (this.condition(item) ?? item) : item);
+      let item = relations ? this.eventOr() : this.parseExpr(0);
+      if (relations && this.isOp('|')) {
+        this.next();
+        const given = this.eventOr();
+        item = { type: 'call', callee: sym('given'), args: [item, given], span: { from: spanOf(item).from, to: spanOf(given).to } };
+      }
+      items.push(item);
       if (this.isOp(',')) {
         this.next();
         continue;
@@ -452,7 +485,54 @@ export class ExprParser {
   }
 
   /** first [= | != | ≠ | < | ≤ | > | ≥ second] [and …] — undefined when no comparison follows. */
-  private condition(first: Expr): Expr | undefined {
+  // events: or / ∪ binds loosest, then and / ∩, then not / ¬ and complements A', Aᶜ, A^c
+  private eventOr(): Expr {
+    let e = this.eventAnd();
+    while (this.isIdent('or') || this.isOp('∪')) {
+      this.next();
+      const r = this.eventAnd();
+      e = { type: 'call', callee: sym('or'), args: [e, r], span: { from: spanOf(e).from, to: spanOf(r).to } };
+    }
+    return e;
+  }
+  private eventAnd(): Expr {
+    let e = this.eventNot();
+    while (this.isIdent('and') || this.isOp('∩')) {
+      this.next();
+      const r = this.eventNot();
+      e = { type: 'call', callee: sym('and'), args: [e, r], span: { from: spanOf(e).from, to: spanOf(r).to } };
+    }
+    return e;
+  }
+  private eventNot(): Expr {
+    const t = this.peek();
+    if ((t.kind === 'ident' && t.text === 'not') || (t.kind === 'op' && t.text === '¬')) {
+      this.next();
+      const a = this.eventNot();
+      return { type: 'call', callee: sym('not'), args: [a], span: { from: t.from, to: spanOf(a).to } };
+    }
+    // (A or B): a parenthesised event — unless the parenthesis is arithmetic, (X + 1) > 2
+    if (t.kind === 'op' && t.text === '(') {
+      const save = this.i;
+      try {
+        this.next();
+        const inner = this.eventOr();
+        const close = this.expectOp(')');
+        const nx = this.peek();
+        const continues = nx.kind === 'op' && !['|', ')', ','].includes(nx.text) && nx.text !== '∩' && nx.text !== '∪';
+        if (!continues && !(nx.kind === 'ident' && !['and', 'or'].includes(nx.text)) && isEventish(inner)) return { ...inner, span: { from: t.from, to: close.to } };
+      } catch (e) {
+        if (!(e instanceof MathSyntaxError)) throw e;
+      }
+      this.i = save;
+    }
+    return this.withStops(['and', 'or'], () => {
+      const item = this.parseExpr(0);
+      return this.condition(item, false) ?? item;
+    });
+  }
+
+  private condition(first: Expr, ands = true): Expr | undefined {
     const one = (left: Expr): Expr | undefined => {
       const t = this.peek();
       let rel: Relation | '=' | undefined;
@@ -483,7 +563,7 @@ export class ExprParser {
     // `a = b` was already parsed as an equation by the expression parser
     let c: Expr | undefined = first.type === 'eq' && !first.rel ? first : one(first);
     if (!c) return undefined;
-    while (this.isIdent('and')) {
+    while (ands && this.isIdent('and')) {
       this.next();
       const l = this.withStops(['and'], () => this.parseExpr(BP.eq));
       const more = l.type === 'eq' && !l.rel ? l : one(l);
@@ -673,8 +753,10 @@ function parseCoreStatement(toks: Token[], span: Span, modifiers: string[], opts
   if (p.isIdent() && p.isOp('~', 1)) {
     const nameTok = p.next();
     p.next();
-    const value = p.parseExpr(0);
+    const rhs = p.parseExpr(0);
     p.expectEnd();
+    // rv(…) gives the distribution of a family call or of an expression in random variables (Y ~ 2X + 3)
+    const value: Expr = { type: 'call', callee: sym('rv'), args: [rhs], span: spanOf(rhs) };
     return { kind: 'assign', name: nameTok.text, nameSpan: { from: nameTok.from, to: nameTok.to }, value, typeHint: 'random', span, modifiers };
   }
   // slider shorthand: a ∈ [lo, hi]
@@ -709,6 +791,11 @@ function parseCoreStatement(toks: Token[], span: Span, modifiers: string[], opts
       }
     }
     p.expectEnd();
+    // P(A) = 0.3, P(B | A) = 0.95, P(A and B) = 0.1: a probability fact about events
+    if (isProbFact(lhs, rhs)) {
+      const event = (lhs as Extract<Expr, { type: 'call' }>).args[0];
+      return { kind: 'custom', rule: 'probfact', data: { kind: 'value', event, value: rhs, exprs: [rhs] }, span, modifiers };
+    }
     if (lhs.type === 'sym') return { kind: 'assign', name: lhs.name, nameSpan: spanOf(lhs), value: rhs, typeHint, span, modifiers };
     if (lhs.type === 'call' && lhs.callee.type === 'sym' && lhs.args.every((a) => a.type === 'sym')) {
       const params = lhs.args.map((a) => (a as Extract<Expr, { type: 'sym' }>).name);

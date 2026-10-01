@@ -46,7 +46,7 @@ registerAnalyzer({
     return {
       object: X,
       typeLabel: `${d.discrete ? 'discrete' : 'continuous'} random variable`,
-      layout: PLOT(`${X} ~ ${d.family === 'pmf' ? 'pmf' : d.family}`),
+      layout: PLOT(`${X} ~ ${d.family === 'derived' ? 'distribution' : d.family}`),
       title: `${symbolLatex(X)} \\sim ${valueLatex(value)}`,
       sections, facts, relations: [], diagnostics: [],
     };

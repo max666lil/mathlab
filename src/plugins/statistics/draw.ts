@@ -66,12 +66,17 @@ function densityCurve(a: Draw2DArgs, X: DistributionValue, color: string, width:
 function bars(a: Draw2DArgs, X: DistributionValue, color: string, shade?: [number, number]) {
   const { ctx, view } = a;
   const [x0, x1] = view.xRange;
-  for (let k = Math.ceil(Math.max(x0, X.dist.lo)); k <= Math.min(x1, X.dist.hi); k++) {
+  // derived pmfs (X̄, sums with non-integer steps) list their values; families live on the integers
+  const sup = X.dist.support;
+  const pts = sup ? sup.filter((k) => k >= x0 && k <= x1) : [];
+  if (!sup) for (let k = Math.ceil(Math.max(x0, X.dist.lo)); k <= Math.min(x1, X.dist.hi); k++) pts.push(k);
+  const gap = sup && sup.length > 1 ? Math.min(...sup.slice(1).map((v, i) => v - sup[i])) : 1;
+  for (const k of pts) {
     const p = X.dist.pdf(k);
     if (!(p > 1e-12)) continue;
     const inside = shade && k >= shade[0] - 1e-9 && k <= shade[1] + 1e-9;
     ctx.fillStyle = withAlpha(inside ? '#ffd166' : color, inside ? 0.85 : 0.6);
-    const w = Math.max(2, (view.sx(k + 0.4) - view.sx(k - 0.4)));
+    const w = Math.max(2, view.sx(k + 0.4 * gap) - view.sx(k - 0.4 * gap));
     ctx.fillRect(view.sx(k) - w / 2, view.sy(p), w, view.sy(0) - view.sy(p));
   }
 }
@@ -206,5 +211,154 @@ registerDrawer2D('cltplot', {
     const approx = { ...X, discrete: false, dist: normal(X.dist.mean, Math.sqrt(X.dist.variance / n)) } as DistributionValue;
     densityCurve(a, approx, '#ffd166', 2.2);
     drawLabel(a.ctx, `sample means, n = ${n}   (curve: N(μ, σ/√n))`, 14, 18, a.theme.text, a.theme, 13);
+  },
+});
+// ------------------------------------------------------------------ tree diagram of a probability space
+
+interface TreeProps {
+  names: string[];
+  atoms: (number | undefined)[];
+  highlight?: number[];
+  given?: number[];
+}
+const treeDepth = (p: TreeProps) => Math.min(p.names.length, 3);
+registerFrameHint('probtree', (p) => {
+  const k = treeDepth(p as unknown as TreeProps);
+  return { r: 1, dim: 2, box: [[-0.25, k + 1.35], [-0.5, 2 ** k - 0.5]], free: true, bare: true };
+});
+
+registerDrawer2D('probtree', {
+  layer: 0,
+  draw(a) {
+    const P = a.item.visual.props as unknown as TreeProps;
+    const { ctx, view, theme } = a;
+    const k = treeDepth(P);
+    const n = P.names.length;
+
+    // probability of the outcomes agreeing with `bits` on the first d events (sum over the rest)
+    const mass = (bits: number, d: number, filter?: number[]) => {
+      let s = 0;
+      for (let w = 0; w < P.atoms.length; w++) {
+        if ((w & ((1 << d) - 1)) !== bits) continue;
+        if (filter && !filter[w]) continue;
+        const v = P.atoms[w];
+        if (v === undefined) return undefined;
+        s += v;
+      }
+      return s;
+    };
+    const fmt = (x: number | undefined) => (x === undefined || !Number.isFinite(x) ? '?' : String(+x.toPrecision(4)));
+    const leaves = 2 ** k;
+    // node position: level d, index among 2^d nodes (bit set = event occurs, drawn above)
+    const pos = (d: number, idx: number): [number, number] => {
+      const span = leaves / 2 ** d;
+      return [d, leaves - 1 - (idx * span + (span - 1) / 2)];
+    };
+    const nameOf = (i: number, occurs: boolean) => (occurs ? P.names[i] : `${P.names[i]}ᶜ`);
+    ctx.lineWidth = 1.6;
+    for (let d = 0; d < k; d++)
+      for (let idx = 0; idx < 2 ** d; idx++) {
+        // idx encodes the path: bit j (from the top) = event j occurs? — reversed into atom bits
+        const bits = pathBits(idx, d);
+        const parent = mass(bits, d);
+        const [x0, y0] = pos(d, idx);
+        for (const occurs of [true, false]) {
+          const child = (idx << 1) | (occurs ? 0 : 1);
+          const cb = bits | (occurs ? 1 << d : 0);
+          const cm = mass(cb, d + 1);
+          const [x1, y1] = pos(d + 1, child);
+          ctx.strokeStyle = withAlpha(theme.text, 0.45);
+          ctx.beginPath();
+          ctx.moveTo(view.sx(x0) + 4, view.sy(y0));
+          ctx.lineTo(view.sx(x1) - 4, view.sy(y1));
+          ctx.stroke();
+          const cond = parent === undefined || cm === undefined ? undefined : parent > 0 ? cm / parent : NaN;
+          const mx = view.sx((x0 + x1) / 2), my = view.sy((y0 + y1) / 2);
+          drawLabel(ctx, fmt(cond), mx, my - 10, theme.textDim, theme, 12, 'center');
+          drawLabel(ctx, nameOf(d, occurs), view.sx(x1) + 6, view.sy(y1) - 12, theme.text, theme, 13);
+        }
+      }
+    // leaves: joint probabilities, the asked event highlighted
+    for (let idx = 0; idx < leaves; idx++) {
+      const bits = pathBits(idx, k);
+      const [x, y] = pos(k, idx);
+      const m = mass(bits, k);
+      const inEvent = rowsMatch(P.highlight, bits, k, n);
+      const inGiven = rowsMatch(P.given, bits, k, n);
+      const label = Array.from({ length: k }, (_, i) => nameOf(i, ((bits >> i) & 1) === 1)).join('∩');
+      const px = view.sx(x + 0.18), py = view.sy(y);
+      if (inEvent || inGiven) {
+        ctx.fillStyle = withAlpha(inEvent ? '#ffd166' : '#5b8cff', inEvent ? 0.28 : 0.16);
+        ctx.fillRect(px - 6, py - 13, view.sx(x + 1.25) - px, 26);
+      }
+      drawLabel(ctx, `${label}  ${fmt(m)}`, px, py, inEvent ? '#ffd166' : theme.text, theme, 13);
+    }
+    if (n > k) drawLabel(ctx, `(first ${k} of ${n} events shown)`, view.sx(0), view.sy(-0.4), theme.textDim, theme, 11);
+  },
+});
+
+/** Atom bits of the tree path with index idx at depth d (the first branch is the top bit of idx). */
+function pathBits(idx: number, d: number): number {
+  let bits = 0;
+  for (let j = 0; j < d; j++) if (((idx >> (d - 1 - j)) & 1) === 0) bits |= 1 << j;
+  return bits;
+}
+
+/** Is a leaf (fixing the first k events) entirely inside the event (for every value of the others)? */
+function rowsMatch(ind: number[] | undefined, bits: number, k: number, n: number): boolean {
+  if (!ind) return false;
+  let any = false;
+  for (let w = 0; w < 1 << n; w++) {
+    if ((w & ((1 << k) - 1)) !== bits) continue;
+    if (!ind[w]) return false;
+    any = true;
+  }
+  return any;
+}
+// ------------------------------------------------------------------ law of large numbers
+
+registerFrameHint('llnplot', (p) => {
+  const { means, mu, sd } = p as { means: number[]; mu: number; sd: number };
+  const n = means.length;
+  const k0 = Math.min(n - 1, 9);
+  const tail = means.slice(k0);
+  const band = 2.2 * sd / Math.sqrt(k0 + 1);
+  const lo = Math.min(mu - band, ...tail), hi = Math.max(mu + band, ...tail);
+  return { r: 1, dim: 2, box: [[0, n], [lo, hi]], free: true, exclusive: true };
+});
+
+registerDrawer2D('llnplot', {
+  layer: 2,
+  draw(a) {
+    const { means, mu, sd, sname } = a.item.visual.props as { means: number[]; mu: number; sd: number; sname: string };
+    const { ctx, view, theme } = a;
+    const n = means.length;
+    // E ± 2σ/√k: where the running mean should be (CLT)
+    ctx.fillStyle = withAlpha(a.item.color, 0.12);
+    ctx.beginPath();
+    for (let k = 1; k <= n; k += Math.max(1, Math.floor(n / 400))) ctx.lineTo(view.sx(k), view.sy(mu + (2 * sd) / Math.sqrt(k)));
+    for (let k = n; k >= 1; k -= Math.max(1, Math.floor(n / 400))) ctx.lineTo(view.sx(k), view.sy(mu - (2 * sd) / Math.sqrt(k)));
+    ctx.closePath();
+    ctx.fill();
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = withAlpha(theme.text, 0.6);
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(view.sx(0), view.sy(mu));
+    ctx.lineTo(view.sx(n), view.sy(mu));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = a.item.color;
+    ctx.lineWidth = a.selected ? 2.6 : 2;
+    ctx.beginPath();
+    const step = Math.max(1, Math.floor(n / 1500));
+    for (let k = 0; k < n; k += step) {
+      const x = view.sx(k + 1), y = view.sy(means[k]);
+      if (k === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    drawLabel(ctx, `E(${sname}) = ${+mu.toPrecision(4)}`, view.sx(n) - 6, view.sy(mu) - 12, theme.textDim, theme, 12, 'right');
+    drawLabel(ctx, `x̄ₙ = ${+means[n - 1].toPrecision(4)}`, view.sx(n) - 6, view.sy(means[n - 1]) + 14, a.item.color, theme, 12, 'right');
   },
 });

@@ -5,7 +5,7 @@
  */
 import { Expr, Span, freeSymbols } from '../math-core/ast';
 import { parseProgram, Statement, spanOf } from '../parser/parser';
-import { getBuiltin, EvalError } from '../math-core/builtins';
+import { getBuiltin, getCustomStatement, EvalError, PROBFACT } from '../math-core/builtins';
 import { getScalarFunction } from '../math-core/scalar-functions';
 import { symbolLatex, formatNumber, toText } from '../math-core/symbolic/print';
 import { MathValue, FunctionValue, PointValue, VectorValue, MatrixValue, ScalarValue, ShowValue, point, vector } from '../math-core/values';
@@ -71,9 +71,21 @@ function statementExprs(st: Statement): Expr[] {
       return [st.value];
     case 'animate':
       return [st.from, st.to, ...(st.duration ? [st.duration] : [])];
+    case 'custom':
+      return ((st.data as { exprs?: Expr[] } | undefined)?.exprs ?? []).filter(Boolean);
     default:
       return [];
   }
+}
+
+
+
+/** Does the expression ask a probability, P(…) / Pr(…)? */
+function callsP(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false;
+  const o = e as { type?: string; callee?: { type?: string; name?: string } };
+  if (o.type === 'call' && o.callee?.type === 'sym' && (o.callee.name === 'P' || o.callee.name === 'Pr')) return true;
+  return Object.entries(o).some(([k, v]) => k !== 'span' && (Array.isArray(v) ? v.some(callsP) : typeof v === 'object' && callsP(v)));
 }
 
 function roundTo(x: number, decimals: number) {
@@ -116,6 +128,8 @@ export class MathDocument {
     for (const cell of this.cells) {
       this.parseCell(cell.source).forEach((stmt, index) => {
         let name = stmt.kind === 'funcdef' || stmt.kind === 'assign' ? stmt.name : stmt.kind === 'custom' || stmt.kind === 'block' ? stmt.name : undefined;
+        // probability facts (P(B | A) = 0.95, independent A, B) are anonymous nodes every P(…) reads
+        if (stmt.kind === 'custom' && stmt.rule === 'probfact') name = `${PROBFACT}${cell.id}#${index}`;
         let id = `${cell.id}#${index}`;
         if (name && !taken.has(name)) {
           id = name;
@@ -151,6 +165,11 @@ export class MathDocument {
       info.deps = this.dependencies(info.stmt, names);
       info.input = this.inputSpec(info);
     }
+    // statements asking P(…) of events see every probability fact
+    const facts = infos.filter((i) => i.name?.startsWith(PROBFACT)).map((i) => i.name!);
+    if (facts.length)
+      for (const info of infos)
+        if (!(info.stmt.kind === 'custom' && info.stmt.rule === 'probfact') && statementExprs(info.stmt).some(callsP)) info.deps = [...new Set([...info.deps, ...facts])];
     this.statements = infos;
     return infos;
   }
@@ -231,7 +250,7 @@ export class MathDocument {
       volatile: info.stmt.kind === 'block' && info.stmt.block.blockKind === 'r',
       compute: (get) => {
         const allowed = new Set(info.deps);
-        const scope: Scope = { lookup: (n) => (allowed.has(n) ? get(n) : undefined) };
+        const scope: Scope = { lookup: (n) => (allowed.has(n) ? get(n) : undefined), names: () => info.deps };
         return evaluateStatement(info, new Evaluator(scope), firstByName);
       },
     }));
@@ -340,6 +359,15 @@ export function evaluateStatement(info: StatementInfo, ev: Evaluator, firstByNam
         const value = s.vars[v];
         if (!value) throw new EvalError(`${v} is not assigned when the script finishes`, st.span);
         return value;
+      }
+      const custom = getCustomStatement(st.rule);
+      if (custom) {
+        try {
+          return custom(st.data, ev);
+        } catch (e) {
+          if (e instanceof EvalError && !e.span) throw new EvalError(e.message, st.span);
+          throw e;
+        }
       }
       throw new EvalError(`Statement '${st.rule}' has no evaluator`, st.span);
     }

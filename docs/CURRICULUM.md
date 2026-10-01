@@ -206,9 +206,30 @@ analyzer (density with the mean, shaded P(a < X ≤ b) under sliders, cdf, simul
 datasets (`summary`, `histogram`, `boxplot`, `normplot`). **Real R**: `R name … end` blocks run in webR
 (R compiled to WebAssembly, downloaded once on first use), so Devore's R code runs unchanged; worksheet
 numbers / lists it mentions are passed in, its variables, printed output and plots come back.
-Next: transformations Y = g(X) (cdf method / change of variables with the picture), joint pmf tables
-and joint densities over regions (3b), covariance / correlation, conditional distributions, the
-bivariate normal, order statistics; Devore ch. 7–8 (estimation, confidence intervals).
+
+### Shipped (Phase 5 part 2 — the rest of the STA237 syllabus)
+
+STA237's topic list (probability spaces, random variables, pmf / pdf / cdf, expectation and variance,
+independence, conditional probability, LLN, CLT, sampling distributions, simulation) is now covered:
+
+- **Probability spaces of events** (`statistics/events.ts`): facts `P(A) = 0.3`, `P(B | A) = 0.9`,
+  `P(B | not A) = 0.2`, `independent A, B`, `disjoint A, C`; queries `P(A | B)`, `P(A and not B)`,
+  `P(A ∪ B)` … solved exactly (2^k atoms, every fact a linear equation, independence linear once a
+  marginal is known; a probability is reported only when the facts determine it, contradictions are
+  errors). Bayes / total-probability derivations and a tree diagram with the event highlighted.
+- **Functions of random variables** (`statistics/derived.ts`): `Y ~ 2X + 3`, `S ~ X1 + X2`,
+  `M ~ max(D1, D2)`, `W ~ Z^2`, `Xbar ~ mean(X, n)`, `sum(X, n)`. Closure rules (normal combinations,
+  Poisson / binomial / gamma / χ² / negative-binomial sums, affine uniform / exponential / gamma),
+  exact convolution or enumeration for discrete variables, the transformation theorem for monotone
+  g(X), one numerical integral for two continuous variables, seeded Monte Carlo (labelled heuristic)
+  only as the last resort. `DiscreteUniform(a, b)` for dice.
+- **E[g(X)], Var of combinations**: `E(X^2)`, `Var(2X - Y)` (linearity with the rule shown, sums over
+  the pmf, ∫ g f dx). **Events about variables**: `P(X + Y > 3)`, `P(X > Y)`, `P(X > 3 | X > 1)`,
+  `P(X < 1 or X > 3)` (interval algebra on one variable, products for independent ones).
+- **LLN**: `lln(X [, n])` running mean with the E ± 2σ/√n band (an exclusive plot with its own axes).
+
+Not in STA237 (left for STA238): joint densities with covariance / correlation, conditional
+distributions, the bivariate normal, order statistics, Devore ch. 7–8 (estimation, confidence intervals).
 
 ## 6. Linear programming and games (Phase 7, new)
 

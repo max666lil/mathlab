@@ -177,6 +177,8 @@ export function entryLatex(x: number, exact: boolean | undefined): string {
 function fracOrDecimal(x: number): string {
   const q = toFrac(x);
   if (!q || q.d > 100000n) return numberLatex(x);
+  // terminating decimals with an unfamiliar denominator stay decimal: 0.02097, not 2097/100000
+  if (q.d > 12n && 1000000n % q.d === 0n) return numberLatex(x, 8);
   const n = q.n < 0n ? -q.n : q.n;
   return `${q.n < 0n ? '-' : ''}\\frac{${n}}{${q.d}}`;
 }
@@ -202,7 +204,12 @@ registerValueKind({
   latex: (v) => {
     const x = (v as ScalarValue).value;
     if (Number.isNaN(x)) return '\\text{undefined}';
-    if (v.certainty === 'exact' && !Number.isInteger(x)) return entryLatex(x, true);
+    if (v.certainty === 'exact' && !Number.isInteger(x)) {
+      const s = entryLatex(x, true);
+      // an awkward exact fraction (11/233) also reads as a decimal
+      const q = /^-?\\frac\{(\d+)\}\{(\d+)\}$/.exec(s);
+      return q && +q[2] > 12 ? `${s} \\approx ${numberLatex(x, 4)}` : s;
+    }
     // a numeric value that matches a closed form: "4.712 ≈ 3π/2" (it stays numeric)
     if (v.certainty === 'numeric' && !Number.isInteger(x) && Math.abs(x) > 1e-9) {
       const r = recognize(x);

@@ -442,6 +442,7 @@ export class Workspace {
     }
     // 2. the worksheet
     const hides: string[] = [];
+    const focusIsDist = !!this.focus && this.value(this.focus)?.kind === 'distribution';
     for (const info of this.doc.statements) {
       const v = this.value(info.id);
       if (!v) continue;
@@ -477,13 +478,18 @@ export class Workspace {
           sv.forEach((visual, i) => add(`${info.id}#${i}`, info.id, visual, keysFor(visual, [info.id], info.id), info.id, this.visibility.get(`${info.id}#auto`) ?? !info.hidden));
           continue;
         }
-        push(info.id, v, !info.hidden, info.name);
+        // several random variables would pile their densities on one plot: the analysed one is drawn,
+        // the others wait for their toggle
+        push(info.id, v, !info.hidden && (v.kind !== 'distribution' || info.name === this.focus), info.name);
       } else if (!info.name && info.stmt.kind === 'expr' && geometric) {
         // a command such as `tangent f at P` shows its result
         const refs = [...freeSymbols(info.stmt.value)].filter(named);
+        // P(S ≥ 10) plots S: while another random variable is analysed it waits for its toggle
+        const otherVariable = focusIsDist && !refs.includes(this.focus!);
         toVisuals(v, { nodeId: info.id }).forEach((visual, i) => {
           const primary = (visual.props.sourceId as string | undefined) ?? refs[refs.length - 1] ?? info.id;
-          add(`${info.id}#${i}`, info.id, visual, keysFor(visual, refs, primary), primary, !info.hidden);
+          const def = !info.hidden && !(otherVariable && visual.vtype === 'distplot');
+          add(`${info.id}#${i}`, info.id, visual, keysFor(visual, refs, primary), primary, this.visibility.get(`${info.id}#auto`) ?? def);
         });
       }
     }

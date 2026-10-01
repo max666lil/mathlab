@@ -22,6 +22,8 @@ export { EvalError };
 
 export interface Scope {
   lookup(name: string): MathValue | undefined;
+  /** the names this scope can see (when it is a fixed set, e.g. a statement's dependencies) */
+  names?(): string[];
 }
 
 /** Variables that may appear free in an expression to make it an anonymous function. */
@@ -31,6 +33,10 @@ const spanErr = (msg: string, e: Expr) => new EvalError(msg, e.span);
 
 export class Evaluator implements EvalContext {
   constructor(private scope: Scope) {}
+
+  names(): string[] {
+    return this.scope.names?.() ?? [];
+  }
 
   lookup(name: string): MathValue | undefined {
     const v = this.scope.lookup(name);

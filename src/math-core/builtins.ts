@@ -16,6 +16,22 @@ export interface EvalContext {
   /** evaluate, lifting expressions in x, y, z, t to anonymous functions */
   evaluateOrLift(e: Expr): MathValue;
   lookup(name: string): MathValue | undefined;
+  /** names visible to the statement being evaluated (its dependencies), when known */
+  names?(): string[];
+}
+
+/**
+ * Evaluators of plugin statements (`custom` statements from a statement rule or the core parser),
+ * keyed by rule: P(B | A) = 0.95 (rule 'probfact') is evaluated by the statistics plugin.
+ */
+const customStatements = new Map<string, (data: unknown, ctx: EvalContext) => MathValue>();
+/** Name prefix of the anonymous nodes holding probability facts (P(B | A) = 0.95). */
+export const PROBFACT = '\u2119fact:';
+export function registerCustomStatement(rule: string, fn: (data: unknown, ctx: EvalContext) => MathValue) {
+  customStatements.set(rule, fn);
+}
+export function getCustomStatement(rule: string) {
+  return customStatements.get(rule);
 }
 
 /** Keyword clause values (command syntax), e.g. limit f as x -> 0 → { wrt: x, approach: 0 }. */

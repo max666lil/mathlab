@@ -227,13 +227,24 @@ export interface SceneFrame {
   seeThrough?: boolean;
   /** independent x and y scales (data plots: histograms, time series) */
   free?: boolean;
+  /** no coordinate grid or axes (diagrams such as probability trees) */
+  bare?: boolean;
 }
 
 /** A visual that knows how much of the plane / space it needs (e.g. a transformed unit cell). */
-export type FrameHint = (props: Record<string, unknown>) => { r: number; dim: number; box?: Range[]; free?: boolean } | undefined;
+export type FrameHint = (props: Record<string, unknown>) => { r: number; dim: number; box?: Range[]; free?: boolean; bare?: boolean; exclusive?: boolean } | undefined;
 const frameHints = new Map<string, FrameHint>();
 export function registerFrameHint(vtype: string, hint: FrameHint) {
   frameHints.set(vtype, hint);
+}
+
+/**
+ * Plots with axes of their own (a running mean against n) cannot share the plane with densities:
+ * while one is visible, the 2-D view shows only such plots.
+ */
+export function exclusivePlots<T extends { visible: boolean; visual: { vtype: string; props: Record<string, unknown> } }>(items: T[]): T[] {
+  const ex = items.filter((i) => i.visible && frameHints.get(i.visual.vtype)?.(i.visual.props)?.exclusive);
+  return ex.length ? ex : items;
 }
 
 export function sceneFrame(surface: FunctionValue | undefined, xr: Range = DEFAULT_RANGE, yr: Range = DEFAULT_RANGE): SceneFrame {
@@ -305,8 +316,10 @@ export function frameFromItems(items: { visible: boolean; visual: { vtype: strin
   let box: Range[] | null = null;
   let allBoxes = true;
   let free = false;
+  let bare = true;
   for (const i of items) {
     const h = i.visible ? frameHints.get(i.visual.vtype)?.(i.visual.props) : undefined;
+    if (i.visible) bare = bare && !!h?.bare;
     if (h && h.r > 0) {
       r = Math.max(r, h.r);
       dim = Math.max(dim, h.dim);
@@ -318,7 +331,7 @@ export function frameFromItems(items: { visible: boolean; visual: { vtype: strin
   if (r > 0 && dim === 2 && box && allBoxes) {
     if (free) {
       const padF = (b: Range): Range => [b[0] - (b[1] - b[0]) * 0.08, b[1] + (b[1] - b[0]) * 0.08];
-      return { xr: padF(box[0]), yr: padF(box[1]), zLo: -1, zHi: 1, free };
+      return { xr: padF(box[0]), yr: padF(box[1]), zLo: -1, zHi: 1, free, ...(bare ? { bare } : {}) };
     }
     const pad = (b: Range): Range => [b[0] - (b[1] - b[0]) * 0.15 - 0.2, b[1] + (b[1] - b[0]) * 0.15 + 0.2];
     return { xr: pad(box[0]), yr: pad(box[1]), zLo: -1, zHi: 1 };

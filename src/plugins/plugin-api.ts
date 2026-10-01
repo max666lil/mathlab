@@ -8,7 +8,7 @@
  *     install(api) { api.registerBuiltin({...}); api.registerValueKind({...}); }
  *   });
  */
-import { registerBuiltin, Builtin } from '../math-core/builtins';
+import { registerBuiltin, Builtin, registerCustomStatement, EvalContext } from '../math-core/builtins';
 import { registerScalarFunction, ScalarFunction } from '../math-core/scalar-functions';
 import { registerValueKind, ValueKindSpec, MathValue, VisualValue } from '../math-core/values';
 import { registerStatementRule, StatementRule } from '../parser/parser';
@@ -22,6 +22,8 @@ export interface PluginAPI {
   registerScalarFunction(f: ScalarFunction): void;
   registerValueKind(k: ValueKindSpec): void;
   registerStatementRule(r: StatementRule): void;
+  /** evaluator of `custom` statements with this rule (from a statement rule or the core parser) */
+  registerCustomStatement(rule: string, fn: (data: unknown, ctx: EvalContext) => MathValue): void;
   registerDerivativeRule(name: string, rule: (u: Expr) => Expr): void;
   registerLatexFunctionName(name: string, latex: string): void;
   registerDefaultVisual(kind: string, rule: (v: MathValue, ctx: VisualContext) => VisualValue[] | undefined): void;
@@ -39,6 +41,7 @@ const api: PluginAPI = {
   registerScalarFunction,
   registerValueKind,
   registerStatementRule,
+  registerCustomStatement,
   registerDerivativeRule,
   registerLatexFunctionName,
   registerDefaultVisual,

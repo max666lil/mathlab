@@ -159,6 +159,8 @@ export interface Dist {
   variance: number;
   /** a draw given uniform(0,1) and standard-normal sources */
   sample(u: () => number, z: () => number): number;
+  /** the values of a discrete distribution that is not on the integers (derived pmfs) */
+  support?: number[];
 }
 
 /** Quantile of a continuous distribution: bracket + bisection on the cdf. */

@@ -8,11 +8,22 @@
 import { Expr, num, sym } from '../../math-core/ast';
 import { Builtin, EvalContext, EvalError, expectNumber } from '../../math-core/builtins';
 import { FunctionValue, MathValue, scalar } from '../../math-core/values';
-import { numberLatex, symbolLatex, toLatex } from '../../math-core/symbolic/print';
+import { numberLatex, symbolLatex, toLatex, toText } from '../../math-core/symbolic/print';
 import { compileScalar } from '../../math-core/compile';
 import { parseExpression } from '../../parser/parser';
 import * as D from '../../math-core/distributions';
 import { visual } from '../../visualization/scene-model';
+import { isEventQuery, eventProbability } from './events';
+import { rvProbability, momentOf } from './derived';
+
+/** How a P(…) argument reads in a plot legend: P(X + Y > 3) → "X + Y". */
+function rvLabel(e: Expr): string {
+  let x = e;
+  while (x.type === 'call' && x.callee.type === 'sym' && ['given', 'and', 'or', 'not'].includes(x.callee.name)) x = x.args[0];
+  while (x.type === 'eq' && x.left.type === 'eq') x = x.left;
+  if (x.type === 'eq') return toText(x.left.type === 'num' ? x.right : x.left);
+  return 'X';
+}
 
 export interface DistributionValue {
   kind: 'distribution';
@@ -24,7 +35,9 @@ export interface DistributionValue {
   /** symbolic density (x as the variable) when the family has a closed form */
   pdfSrc?: string;
   key: string;
-  certainty: 'exact';
+  certainty: 'exact' | 'numeric' | 'heuristic';
+  /** how a derived variable's distribution was obtained (Y ~ 2X + 3, S ~ X1 + X2) */
+  evidence?: string;
   [k: string]: unknown;
 }
 
@@ -95,13 +108,14 @@ const FAMILIES: Family[] = [
   { name: 'StudentT', tex: 't', args: 1, make: ([v]) => D.studentT(v), check: ([v]) => (pos(v) ? undefined : 'ν must be positive') },
   { name: 'FDist', tex: 'F', args: 2, make: ([a, b]) => D.fDist(a, b), check: ([a, b]) => (pos(a) && pos(b) ? undefined : 'ν₁, ν₂ must be positive') },
   { name: 'Binomial', tex: '\\operatorname{Bin}', args: 2, make: ([n, p]) => D.binomial(n, p), check: ([n, p]) => (Number.isInteger(n) && n >= 0 && prob(p) ? undefined : 'Binomial(n, p): n a whole number, 0 ≤ p ≤ 1') },
+  { name: 'DiscreteUniform', tex: '\\operatorname{DU}', args: 2, make: ([a, b]) => finite(Array.from({ length: b - a + 1 }, (_, i) => a + i), Array(b - a + 1).fill(1 / (b - a + 1))), check: ([a, b]) => (Number.isInteger(a) && Number.isInteger(b) && a <= b && b - a < 1e5 ? undefined : 'DiscreteUniform(a, b): whole numbers a ≤ b (a fair die is DiscreteUniform(1, 6))') },
   { name: 'Bernoulli', tex: '\\operatorname{Bernoulli}', args: 1, make: ([p]) => D.binomial(1, p), check: ([p]) => (prob(p) ? undefined : '0 ≤ p ≤ 1') },
   { name: 'Poisson', tex: '\\operatorname{Poisson}', args: 1, make: ([m]) => D.poisson(m), check: ([m]) => (pos(m) ? undefined : 'μ must be positive') },
   { name: 'Geometric', tex: '\\operatorname{Geom}', args: 1, make: ([p]) => shifted(D.geometricFailures(p), 1, 'Geom'), check: ([p]) => (p > 0 && p <= 1 ? undefined : '0 < p ≤ 1 (X counts trials up to the first success)') },
   { name: 'NegBinomial', tex: '\\operatorname{NB}', args: 2, make: ([r, p]) => shifted(D.negbinFailures(r, p), r, 'NB'), check: ([r, p]) => (Number.isInteger(r) && r > 0 && p > 0 && p <= 1 ? undefined : 'NegBinomial(r, p): X counts trials up to the r-th success') },
   { name: 'Hypergeometric', tex: '\\operatorname{Hyp}', args: 3, make: ([n, M, N]) => D.hypergeometric(n, M, N), check: ([n, M, N]) => (Number.isInteger(n) && Number.isInteger(M) && Number.isInteger(N) && n <= N && M <= N ? undefined : 'Hypergeometric(n, M, N): n drawn from N with M successes') },
 ];
-const ALIASES: Record<string, string> = { Unif: 'Uniform', Exp: 'Exponential', Bin: 'Binomial', Geom: 'Geometric', NB: 'NegBinomial', Hyp: 'Hypergeometric', ChiSq: 'ChiSquared', Chi2: 'ChiSquared' };
+const ALIASES: Record<string, string> = { Unid: 'DiscreteUniform', Unif: 'Uniform', Exp: 'Exponential', Bin: 'Binomial', Geom: 'Geometric', NB: 'NegBinomial', Hyp: 'Hypergeometric', ChiSq: 'ChiSquared', Chi2: 'ChiSquared' };
 
 export function makeDistribution(family: string, params: number[]): DistributionValue {
   const fam = FAMILIES.find((f) => f.name === family)!;
@@ -151,7 +165,7 @@ const ctorBuiltins: Builtin[] = [
 // ------------------------------------------------------------------ probabilities
 
 /** P(X ≤ b), P(X < b), P(X = b) for discrete or continuous X. */
-function cdfStrict(d: D.Dist, b: number, strict: boolean): number {
+export function cdfStrict(d: D.Dist, b: number, strict: boolean): number {
   const F = d.cdf(b);
   if (!strict || !d.discrete) return F;
   return F - d.pdf(b);
@@ -214,12 +228,22 @@ const P: Builtin = {
   name: 'P', minArgs: 1, maxArgs: 1, argModes: ['raw'], category: 'statistics', signature: 'P(X > a) · P(a < X ≤ b) · P(X = k)',
   doc: 'Probability of an event about a random variable.',
   apply: (_a, ctx, raw) => {
-    const c = readCondition(raw[0], ctx);
+    // events of a probability space: P(A ∩ B), P(B | A) — names that are not random variables
+    if (isEventQuery(raw[0], ctx)) return eventProbability(raw[0], ctx);
+    // anything beyond "X compared with constants" (sums, conditions, and / or): the general engine
+    let c: ReturnType<typeof readCondition>;
+    try {
+      c = readCondition(raw[0], ctx);
+      expectDist(ctx.lookup(c.X));
+    } catch (e) {
+      if (!(e instanceof EvalError)) throw e;
+      return rvProbability(raw[0], ctx, rvLabel(raw[0]));
+    }
     const X = expectDist(ctx.lookup(c.X));
     const p = probability(X.dist, c);
     const shade = c.eq === undefined && c.ne === undefined ? [c.lo?.value ?? -Infinity, c.hi?.value ?? Infinity] : [c.eq ?? c.ne!, c.eq ?? c.ne!];
     return scalar(p, {
-      certainty: X.family === 'pmf' ? 'exact' : 'numeric',
+      certainty: X.family === 'pmf' || X.family === 'DiscreteUniform' ? 'exact' : X.family === 'derived' ? X.certainty : 'numeric',
       evidence: X.discrete ? 'sum of the pmf over the event' : 'difference of cdf values (F(b) − F(a))',
       derivation: `P\\left(${toLatex(raw[0])}\\right)`,
       visuals: [visual('distplot', { dist: X, shade, sname: c.X }, `P(${c.X})`, 'probability')],
@@ -229,8 +253,14 @@ const P: Builtin = {
 
 function momentBuiltin(name: string, what: 'mean' | 'variance' | 'sd' | 'median', doc: string): Builtin {
   return {
-    name, minArgs: 1, maxArgs: 1, category: 'statistics', signature: `${name}(X)`, doc,
-    apply: ([x], _ctx, raw) => {
+    name, minArgs: 1, maxArgs: 1, argModes: ['raw'], category: 'statistics', signature: `${name}(X) · ${name}(2X + 3) · ${name}(X^2)`, doc,
+    apply: (_a, ctx, raw) => {
+      // E(X^2), Var(2X - Y): expectations of functions of random variables
+      if (raw[0].type !== 'sym' && what !== 'median') {
+        const m = momentOf(raw[0], what, ctx);
+        return scalar(m.value, { certainty: m.certainty, evidence: m.evidence, derivation: m.derivation });
+      }
+      const x = ctx.evaluate(raw[0]);
       const X = expectDist(x);
       const v = what === 'mean' ? X.dist.mean : what === 'variance' ? X.dist.variance : what === 'sd' ? Math.sqrt(X.dist.variance) : D.quantileOf(X.dist, 0.5);
       const nm = raw[0]?.type === 'sym' ? raw[0].name : 'X';
@@ -282,7 +312,7 @@ const cdfB: Builtin = {
 };
 
 /** Seeded draws: the same object always gives the same sample. */
-function seeded(key: string) {
+export function seeded(key: string) {
   let h = 2166136261;
   for (const ch of key) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
   let s = h >>> 0;

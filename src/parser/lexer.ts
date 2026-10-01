@@ -30,7 +30,7 @@ const SUPERSCRIPTS: Record<string, string> = {
 };
 
 const MULTI_OPS = ['<=', '>=', '**', '->'];
-const SINGLE_OPS = '+-*/^()[]{},=<>.:;|·×∇∈⟨⟩~!≤≥≠';
+const SINGLE_OPS = '+-*/^()[]{},=<>.:;|·×∇∈⟨⟩~!≤≥≠∩∪¬';
 
 const isDigit = (c: string) => c >= '0' && c <= '9';
 const isIdentStart = (c: string) => /[\p{L}_]/u.test(c) && !(c in SUPERSCRIPTS) && c !== '∇' && c !== '∈' && c !== 'ᵀ';

@@ -8,7 +8,7 @@ import { getDrawer2D, Handle2D, Hit2D } from './registry2d';
 import type { Presentation } from '../presentation';
 import type { SceneItem } from '../scene-model';
 import { withAlpha } from '../colormap';
-import { frameFromItems, SceneFrame } from '../sampling';
+import { frameFromItems, exclusivePlots, SceneFrame } from '../sampling';
 import { getTheme, onThemeChange, MATH_FONT, UI_FONT } from '../theme';
 import { formatNumber, toText } from '../../math-core/symbolic/print';
 
@@ -95,8 +95,10 @@ export class PlaneView {
   }
 
   private draw() {
-    const items = this.ws.sceneItems();
-    this.frame = frameFromItems(items, this.ws.focus ? this.ws.value(this.ws.focus) : undefined);
+    const all = this.ws.sceneItems();
+    const items = exclusivePlots(all);
+    // an exclusive plot has its own axes: no analysed function frames it
+    this.frame = frameFromItems(items, items === all && this.ws.focus ? this.ws.value(this.ws.focus) : undefined);
     const graph = this.frame.graph;
     this.view.equal = !this.frame.free && (!graph || !!this.frame.equal);
     // refit when the object changes, not when a parameter inside it moves
@@ -112,7 +114,7 @@ export class PlaneView {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = theme.bg;
     ctx.fillRect(0, 0, this.view.width, this.view.height);
-    this.drawGrid();
+    if (!this.frame.bare) this.drawGrid();
     const handles: Handle2D[] = [];
     const hits: Hit2D[] = [];
     this.itemsById = new Map(items.map((i) => [i.id, i]));
@@ -135,7 +137,7 @@ export class PlaneView {
     this.handles = handles;
     this.hits = hits;
     this.drawAngle(items);
-    this.drawAxesLabels();
+    if (!this.frame.bare) this.drawAxesLabels();
     this.drawHover();
     if (this.cache.size > 64) this.cache.clear();
   }

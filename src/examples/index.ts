@@ -267,6 +267,48 @@ export const examples: Example[] = [
     cells: ['E = x^2 + y^2 + z^2 <= 4 and z >= 0', 'K = sqrt(x^2 + y^2) <= z <= 3', 'mass z over K'],
   },
   {
+    id: 'bayes-test',
+    title: 'Bayes — a test for a rare disease: P(D | +) from P(D), P(+ | D), P(+ | Dᶜ), with the tree',
+    course: 'Probability & Statistics',
+    cells: ['P(D) = 0.001', 'P(T | D) = 0.99', 'P(T | not D) = 0.02', 'P(D | T)', 'P(T)'],
+  },
+  {
+    id: 'independent-events',
+    title: 'Independent vs mutually exclusive events: P(A ∪ B) both ways',
+    course: 'Probability & Statistics',
+    cells: ['p = slider(0, 1, 0.3)', 'P(A) = p', 'P(B) = 0.4', 'independent A, B', 'P(A or B)', 'P(A and not B)'],
+  },
+  {
+    id: 'dice-sum',
+    title: 'Two dice — the pmf of the sum and of the maximum (exact), E(D₁D₂)',
+    course: 'Probability & Statistics',
+    cells: ['D1 ~ DiscreteUniform(1, 6)', 'D2 ~ DiscreteUniform(1, 6)', 'S ~ D1 + D2', 'M ~ max(D1, D2)', 'P(S >= 10)', 'E(D1 D2)'],
+  },
+  {
+    id: 'linear-combination',
+    title: 'Linear combinations — E(2X − Y), V(2X − Y) by linearity; P(X > Y)',
+    course: 'Probability & Statistics',
+    cells: ['X ~ Normal(5, 1)', 'Y ~ Exponential(0.25)', 'W ~ 2X - Y', 'E(2X - Y)', 'Var(2X - Y)', 'P(X > Y)'],
+  },
+  {
+    id: 'sampling-mean',
+    title: 'Sampling distribution of X̄ — exponential lifetimes: X̄ is Gamma, sd σ/√n (slide n)',
+    course: 'Probability & Statistics',
+    cells: ['X ~ Exponential(0.5)', 'n = slider(1, 50, 30, 1)', 'Xbar ~ mean(X, n)', 'P(Xbar > 2.5)', 'E(Xbar)', 'SD(Xbar)'],
+  },
+  {
+    id: 'lln-coin',
+    title: 'Law of large numbers — the proportion of heads settles at p (toggle the plot to see the pmf)',
+    course: 'Probability & Statistics',
+    cells: ['p = slider(0, 1, 0.5)', 'C ~ Bernoulli(p)', 'lln(C, 5000)'],
+  },
+  {
+    id: 'transformation',
+    title: 'Transformations — Y = −ln(U)/2 is Exp(2) (inverse cdf), W = Z² is χ²(1); memoryless P(T > 3 | T > 1)',
+    course: 'Probability & Statistics',
+    cells: ['U ~ Uniform(0, 1)', 'Y ~ -ln(U)/2', 'P(Y > 1)', 'Z ~ Normal(0, 1)', 'W ~ Z^2', 'P(W <= 3.84)', 'T ~ Exponential(1)', 'P(T > 3 | T > 1)'],
+  },
+  {
     id: 'normal-rv',
     title: 'Random variable — N(64, 0.78): P(a < X ≤ b) under sliders, percentiles, CLT',
     course: 'Probability & Statistics',

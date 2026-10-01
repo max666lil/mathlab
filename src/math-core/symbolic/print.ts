@@ -244,6 +244,29 @@ export function symbolLatex(name: string): string {
 }
 
 /** LaTeX for a number. `fractions` renders simple rationals as \frac (used for symbolic coefficients). */
+/** LaTeX of an event: and → ∩, or → ∪, not / A' → complement, given → ∣ (comparisons as usual). */
+function eventL(e: Expr, L: (e: Expr) => string, ctx: 'top' | 'and' = 'top'): string {
+  if (e.type === 'sym') {
+    const c = /^(.*?)(?:'|ᶜ)$/u.exec(e.name);
+    return c ? `${symbolLatex(c[1])}^{c}` : symbolLatex(e.name);
+  }
+  if (e.type !== 'call' || e.callee.type !== 'sym') return L(e);
+  const [a, b] = e.args;
+  switch (e.callee.name) {
+    case 'given':
+      return `${eventL(a, L)} \\mid ${eventL(b, L)}`;
+    case 'and':
+      return e.args.map((x) => eventL(x, L, 'and')).join(' \\cap ');
+    case 'or': {
+      const s = e.args.map((x) => eventL(x, L)).join(' \\cup ');
+      return ctx === 'and' ? `\\left(${s}\\right)` : s;
+    }
+    case 'not':
+      return a.type === 'sym' ? `${eventL(a, L)}^{c}` : `\\left(${eventL(a, L)}\\right)^{c}`;
+  }
+  return L(e);
+}
+
 export function numberLatex(x: number, digits = 4, fractions = false): string {
   const f = fractions ? asFraction(x) : null;
   if (f) return `${f[0] < 0 ? '-' : ''}\\frac{${Math.abs(f[0])}}{${f[1]}}`;
@@ -333,6 +356,9 @@ export function toLatex(e: Expr, digits = 4): string {
         if (e.args.length % 2) rows.push(`${L(e.args[e.args.length - 1])}, & \\text{otherwise}`);
         return `\\begin{cases} ${rows.join(' \\\\ ')} \\end{cases}`;
       }
+      // probabilities of events: P(A ∩ Bᶜ), P(B ∣ A), P(X > 3 ∣ X > 1)
+      if ((name === 'P' || name === 'Pr') && e.args.length === 1) return `P\\left(${eventL(e.args[0], L)}\\right)`;
+      if (name === 'given' || name === 'or' || name === 'not') return eventL(e, L);
       if (name === 'and') return e.args.map(L).join(',\\ ');
       const cmd = name ? commandLatex.get(name) : undefined;
       if (cmd && e.args.length === 1) {
