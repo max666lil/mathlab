@@ -220,7 +220,7 @@ export function newtonSystem(F: (p: number[]) => number[], seeds: number[][], J?
   return { solutions, residuals, seeds: seeds.length };
 }
 
-function solve(A: number[][], b: number[]): number[] | null {
+export function solve(A: number[][], b: number[]): number[] | null {
   const n = b.length;
   const M = A.map((r, i) => [...r, b[i]]);
   for (let i = 0; i < n; i++) {

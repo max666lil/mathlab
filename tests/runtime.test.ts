@@ -22,6 +22,22 @@ describe('graph', () => {
     expect(g.value('c')).toBe(15);
     expect(bCount).toBe(1);
   });
+  it('redefinition reuses unchanged nodes and recomputes changed ones and their dependents', () => {
+    const g = new Graph<number>();
+    const count: Record<string, number> = { a: 0, b: 0, c: 0, d: 0 };
+    const defs = (aVal: number) => [
+      { id: 'a', deps: [], sig: `a=${aVal}`, compute: () => (count.a++, aVal) },
+      { id: 'b', deps: [], sig: 'b=10', compute: () => (count.b++, 10) },
+      { id: 'c', deps: ['a'], sig: 'c=a+1', compute: (get: (id: string) => number) => (count.c++, get('a') + 1) },
+      { id: 'd', deps: ['b'], sig: 'd=b*2', volatile: true, compute: (get: (id: string) => number) => (count.d++, get('b') * 2) },
+    ];
+    g.define(defs(1));
+    g.define(defs(1));
+    expect(count).toEqual({ a: 1, b: 1, c: 1, d: 2 });
+    g.define(defs(5));
+    expect(count).toEqual({ a: 2, b: 1, c: 2, d: 3 });
+    expect(g.value('c')).toBe(6);
+  });
   it('reports cycles', () => {
     const g = new Graph<number>();
     g.define([

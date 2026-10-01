@@ -227,12 +227,22 @@ export class MathDocument {
       id: info.id,
       deps: info.deps,
       input: !!info.input,
+      sig: this.signature(info),
+      volatile: info.stmt.kind === 'block' && info.stmt.block.blockKind === 'r',
       compute: (get) => {
         const allowed = new Set(info.deps);
         const scope: Scope = { lookup: (n) => (allowed.has(n) ? get(n) : undefined) };
         return evaluateStatement(info, new Evaluator(scope), firstByName);
       },
     }));
+  }
+
+  /** What a statement computes: its own source text (plus name and dependencies). */
+  private signature(info: StatementInfo): string {
+    const st = info.stmt;
+    if (st.kind === 'custom') return `custom|${st.rule}|${JSON.stringify(st.data)}`;
+    const src = this.cell(info.cellId)?.source.slice(st.span.from, st.span.to) ?? '';
+    return `${st.kind}|${info.name ?? ''}|${src}|${st.modifiers.join(',')}`;
   }
 
   /**

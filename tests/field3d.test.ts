@@ -63,6 +63,10 @@ describe('Lagrange multipliers (3a, Hughes-Hallett §15.3)', () => {
     expect(mx.coords[1]).toBeCloseTo(1.26, 6);
     expect(mx.value).toBeCloseTo(2, 2);
     expect(mx.lambdas[0]).toBeCloseTo(0.53, 2);
+    // the corners (where ∇P is undefined) are candidates too: P = 0 there
+    const corners = o.candidates.filter((c: any) => c.where === 'corner').map((c: any) => c.coords);
+    expect(corners).toEqual(expect.arrayContaining([[0, 3.78], [3.78, 0]]));
+    expect(best(o, 'minimum').value).toBe(0);
   });
   it('an inequality constraint: (x−1)² + (y−2)² on x² + y² ≤ 45 → min 0 inside, max 80 on the boundary', () => {
     const o = last('maximize (x - 1)^2 + (y - 2)^2 subject to x^2 + y^2 <= 45').value;

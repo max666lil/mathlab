@@ -6,7 +6,7 @@ import type { SceneItem } from '../../visualization/scene-model';
 import type { FunctionValue } from '../../math-core/values';
 import { registerFrameHint, sampleGrid, cachedLevelSet } from '../../visualization/sampling';
 import { withAlpha, colormap } from '../../visualization/colormap';
-import { isosurface } from '../../visualization/marching';
+import { isosurfaceCached } from '../../visualization/marching';
 import { compileScalar } from '../../math-core/compile';
 import { parseExpression } from '../../parser/parser';
 import { drawLabel } from '../core-calculus/draw-util';
@@ -44,7 +44,7 @@ class Solid3D implements Visual3D {
       const d = (h - l) * 0.04 + 1e-3;
       return [l - d, h + d] as [number, number];
     });
-    const iso = isosurface(G, pb, 44);
+    const iso = isosurfaceCached(`solid|${test.key}`, G, pb, 44);
     const m = ctx.map;
     const pos = new Float32Array(iso.positions.length);
     const v = new THREE.Vector3();
@@ -446,7 +446,7 @@ class Isosurface3D implements Visual3D {
     const hi = Math.max(...levels);
     const n = flat ? 12 : levels.length > 2 ? 34 : 44;
     levels.forEach((c) => {
-      const iso = isosurface((x, y, z) => F(x, y, z) - c, box, n);
+      const iso = isosurfaceCached(`level|${fn.key}|${c}`, (x, y, z) => F(x, y, z) - c, box, n);
       if (!iso.positions.length) return;
       const m = ctx.map;
       const pos = new Float32Array(iso.positions.length);

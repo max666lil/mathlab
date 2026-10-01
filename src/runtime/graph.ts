@@ -14,6 +14,14 @@ export interface NodeDef<V> {
   input?: boolean;
   /** Reserved: expensive nodes (Monte Carlo) may later be computed off the main thread. */
   heavy?: boolean;
+  /**
+   * What the node computes (its source text). On `define`, a node whose signature and dependencies are
+   * unchanged — and whose dependencies were not recomputed — keeps its previous value instead of being
+   * computed again (an edit in one row does not re-run every script and solver in the document).
+   */
+  sig?: string;
+  /** always recompute (results that arrive asynchronously, e.g. R blocks) */
+  volatile?: boolean;
 }
 
 export interface NodeState<V> {
@@ -42,11 +50,31 @@ export class Graph<V> {
   private listeners = new Set<(changed: string[]) => void>();
 
   define(defs: NodeDef<V>[]) {
+    const old = this.nodes;
     this.nodes = new Map(defs.map((d) => [d.id, { def: d, version: 0 }]));
     this.dependents = new Map(defs.map((d) => [d.id, []]));
     for (const d of defs) for (const dep of d.deps) this.dependents.get(dep)?.push(d.id);
     this.order = this.topoSort();
-    this.recompute(this.order);
+    // incremental: keep the values of unchanged nodes whose inputs did not change
+    const changed = new Set<string>();
+    for (const id of this.order) {
+      const n = this.nodes.get(id)!;
+      const o = old.get(id);
+      const d = n.def;
+      const same =
+        o && !d.volatile && d.sig !== undefined && o.def.sig === d.sig && !(n.error instanceof CycleError) && !(o.error instanceof CycleError) &&
+        o.def.deps.length === d.deps.length && d.deps.every((x, i) => x === o.def.deps[i] && !changed.has(x)) &&
+        d.deps.every((x) => this.nodes.has(x) === old.has(x));
+      if (same) {
+        n.value = o!.value;
+        n.error = o!.error;
+        n.version = o!.version;
+      } else {
+        this.computeNode(n);
+        changed.add(id);
+      }
+    }
+    this.emit(this.order);
   }
 
   private topoSort(): string[] {
@@ -93,13 +121,6 @@ export class Graph<V> {
     n.version++;
   }
 
-  private recompute(ids: string[]) {
-    for (const id of ids) {
-      const n = this.nodes.get(id);
-      if (n) this.computeNode(n);
-    }
-    this.emit(ids);
-  }
 
   /** All transitive dependents of `ids`, in topological order (excluding the ids themselves). */
   descendants(ids: string[]): string[] {

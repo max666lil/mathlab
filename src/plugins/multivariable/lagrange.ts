@@ -10,7 +10,7 @@ import { Expr, num, sub } from '../../math-core/ast';
 import { Builtin, EvalContext, EvalError, expectFunction } from '../../math-core/builtins';
 import { FunctionValue, MathValue, entryLatex } from '../../math-core/values';
 import { toLatex, symbolLatex } from '../../math-core/symbolic/print';
-import { newtonSystem, gridSeeds } from '../../math-core/numeric/roots';
+import { newtonSystem, gridSeeds, solve } from '../../math-core/numeric/roots';
 import { visual } from '../../visualization/scene-model';
 import { gradOf, asScalarField } from '../core-calculus/math';
 import { bindEnv } from '../core-calculus/analysis-builtins';
@@ -90,6 +90,12 @@ export function optimize(ctx: EvalContext, f: FunctionValue, consRaw: Expr, sens
   const box: [number, number][] = Array.from({ length: n }, () => [-3, 3]);
   const found: Candidate[] = [];
   const add = (c: Candidate) => {
+    // clean Newton round-off (3.77999999996 → 3.78)
+    c.coords = c.coords.map((x) => {
+      const r = Math.round(x * 1e8) / 1e8;
+      return Math.abs(x - r) < 1e-9 * Math.max(1, Math.abs(x)) ? r : x;
+    });
+    c.value = F(...c.coords);
     if (!c.coords.every(Number.isFinite) || !Number.isFinite(c.value) || !feasible(c.coords)) return;
     if (found.some((q) => q.coords.every((x, i) => Math.abs(x - c.coords[i]) < 1e-6))) return;
     found.push(c);
@@ -98,18 +104,37 @@ export function optimize(ctx: EvalContext, f: FunctionValue, consRaw: Expr, sens
     const act = [...cons.map((c, i) => (c.kind === '=' ? i : -1)).filter((i) => i >= 0), ...active];
     if (act.length > n) continue;
     const m = act.length;
+    // n active constraints pin down vertices (corners of the feasible set): candidates whatever ∇f is there
+    if (m === n) {
+      const V = newtonSystem((x) => act.map((j) => gs[j].G(...x)), gridSeeds(box, 4));
+      for (const x0 of V.solutions) {
+        const x = x0.map((c) => (Math.abs(c) < 1e-12 ? 0 : c));
+        add({ coords: x, lambdas: act.map(() => NaN), value: F(...x), where: 'corner' });
+      }
+      continue;
+    }
     // ∇f − Σ λⱼ ∇gⱼ = 0, gⱼ = 0 for the active constraints
     const R = (u: number[]) => {
       const x = u.slice(0, n);
       const lam = u.slice(n);
       const g0 = gf(...x);
-      const res = g0.map((v, k) => v - act.reduce((s, j, q) => s + lam[q] * gs[j].dG(...x)[k], 0));
+      const dGs = act.map((j) => gs[j].dG(...x));
+      const res = g0.map((v, k) => v - dGs.reduce((s, d, q) => s + lam[q] * d[k], 0));
       for (const j of act) res.push(gs[j].G(...x));
       return res;
     };
-    const lamSeeds = m === 0 ? [[]] : m === 1 ? [[-2], [-0.5], [0.5], [2]] : [[-1, -1], [1, 1], [-1, 1], [1, -1]];
+    // λ seeded by least squares at each starting point (∇f ≈ Σ λⱼ∇gⱼ), one Newton run per point
+    const lamAt = (x: number[]): number[][] => {
+      if (m === 0) return [[]];
+      const A = act.map((j) => gs[j].dG(...x));
+      const g0 = gf(...x);
+      const N = A.map((a) => A.map((b) => a.reduce((s, v, k) => s + v * b[k], 0)));
+      const rhs = A.map((a) => a.reduce((s, v, k) => s + v * g0[k], 0));
+      const lam = [...N.flat(), ...rhs].every(Number.isFinite) ? solve(N, rhs) : null;
+      return lam && lam.every(Number.isFinite) ? [lam] : [act.map(() => 1), act.map(() => -1)];
+    };
     const xSeeds = n === 2 ? [...gridSeeds(box, 7), ...gridSeeds([[-12, 12], [-12, 12]], 4)] : gridSeeds([[-2.5, 2.5], [-2.5, 2.5], [-2.5, 2.5]], 4);
-    const seeds = xSeeds.flatMap((x) => lamSeeds.map((l) => [...x, ...l]));
+    const seeds = xSeeds.flatMap((x) => lamAt(x).map((l) => [...x, ...l]));
     const r = newtonSystem(R, seeds);
     for (const u of r.solutions) {
       const x = u.slice(0, n).map((c) => (Math.abs(c) < 1e-12 ? 0 : c));
