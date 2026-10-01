@@ -106,7 +106,11 @@ describe('language', () => {
   it('all examples evaluate without errors', () => {
     for (const ex of examples) {
       const ws = run(ex.cells);
-      for (const s of ws.statements()) expect(ws.node(s.id)?.error?.message ?? null, `${ex.id}:${s.id}`).toBeNull();
+      // R blocks run in webR, in the browser only: here they are still waiting for R
+      for (const s of ws.statements()) {
+        const msg = ws.node(s.id)?.error?.message ?? null;
+        expect(msg && /waiting for R|^R:/.test(msg) ? null : msg, `${ex.id}:${s.id}`).toBeNull();
+      }
     }
   });
 });
