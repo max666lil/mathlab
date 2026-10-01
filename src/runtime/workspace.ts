@@ -136,7 +136,11 @@ export class Workspace {
     this.rebuild();
   }
 
-  loadDocument(sources: string[]) {
+  /** The saved worksheet (see worksheets.ts) the document was opened from, if any. */
+  worksheetId: string | null = null;
+
+  loadDocument(sources: string[], worksheetId: string | null = null) {
+    this.worksheetId = worksheetId;
     this.doc = new MathDocument(sources);
     this.window3d.clear(); // a new document starts with default 3-D domains
     this.focus = null;

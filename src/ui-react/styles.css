@@ -182,6 +182,12 @@ select { max-width: 360px; }
 .modebar .mode.active .mode-num { color: var(--accent); border-color: var(--accent); }
 .mode-hint { height: 26px; flex: none; display: flex; align-items: center; justify-content: center; font-size: 12.5px; color: var(--dim); border-bottom: 1px solid var(--border); background: var(--panel); letter-spacing: 0.1px; }
 .toolbar .toolbar-right select { max-width: 220px; }
+.toolbar-right { align-items: center; }
+.ws-name { display: flex; gap: 4px; align-items: center; }
+.ws-name input { background: var(--chip); border: 1px solid var(--accent); border-radius: 6px; padding: 3px 8px; color: inherit; width: 170px; font: inherit; }
+.toolbar button.dirty { border-color: var(--accent); }
+.toolbar button.danger { border-color: #e5484d; color: #e5484d; }
+.ws-flash { font-size: 12px; opacity: 0.7; }
 
 /* ---------------- tabs */
 .panel-header.tabs { gap: 2px; padding: 0 6px; }

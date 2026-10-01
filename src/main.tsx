@@ -11,12 +11,21 @@ import './plugins/statistics';
 import { Workspace } from './runtime/workspace';
 import { AnalysisService } from './runtime/analysis';
 import { examples } from './examples';
+import { loadDraft, saveDraft, getWorksheet } from './runtime/worksheets';
 import { startClock } from './visualization/animation/clock';
 import { App } from './ui-react/App';
 import { Presentation } from './visualization/presentation';
 
 installMathLab();
-const ws = new Workspace(examples[0].cells);
+// reopen the last document (a reload does not lose work); otherwise the first demo
+const draft = loadDraft();
+const ws = new Workspace(draft && draft.cells.some((c) => c.trim()) ? draft.cells : examples[0].cells);
+if (draft?.worksheetId && getWorksheet(draft.worksheetId)) ws.worksheetId = draft.worksheetId;
+let draftTimer: ReturnType<typeof setTimeout> | undefined;
+ws.on('doc', () => {
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(() => saveDraft({ cells: ws.doc.cells.map((c) => c.source), worksheetId: ws.worksheetId ?? undefined }), 500);
+});
 const analysis = new AnalysisService(ws);
 const pres = new Presentation(ws);
 startClock(ws, pres);
