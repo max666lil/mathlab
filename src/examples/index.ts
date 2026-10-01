@@ -260,6 +260,16 @@ export const examples: Example[] = [
     ],
   },
   {
+    id: 'script-devore',
+    title: 'Script — Devore: boxplot, normal plot and a compound Poisson simulation (R functions)',
+    course: 'Probability & Statistics',
+    cells: [
+      "script fuel\n  x = [31.0 27.8 38.3 27.0 23.4 30.0 30.1 21.5 25.4 34.5];\n  five = fivenum(x)\n  s = sd(x)\n  boxplot(x)\n  title('Fuel efficiency (Ex 1.16)')\nend",
+      "script packages\n  rng(1); N = 10000; small = 0;\n  for i = 1:N\n    x = rpois(1, 5);\n    p = sum(sample(c(1, 2, 3, 4), x, TRUE, c(.4, .3, .2, .1)));\n    small = small + (p <= 10);\n  end\n  phat = small / N\n  se = sqrt(phat * (1 - phat) / N)\nend",
+      "script tables\n  p1 = pbinom(8, 15, .2)\n  p2 = dhyper(2, 5, 20, 10)\n  p3 = 1 - pgamma(15, 2, 1/2.5)\n  z = qnorm(.995, 64, .78)\nend",
+    ],
+  },
+  {
     id: 'script-birthday',
     title: 'Script — Monte Carlo: the birthday problem',
     course: 'Probability & Statistics',

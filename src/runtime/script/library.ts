@@ -6,6 +6,7 @@ import { Arr, SV, Fn, ScriptError, isArr, isFn, toArr, num, simplifyValue } from
 import type { Interpreter, Series } from './interp';
 import { integrateNumeric } from '../../math-core/numeric/quad';
 import { brent } from '../../math-core/numeric/roots';
+import { BOOK_LIBRARY } from './library-books';
 
 type LibFn = (args: SV[], nout: number, it: Interpreter) => SV[];
 
@@ -667,3 +668,6 @@ export const LIBRARY: Record<string, LibFn> = {
     return [];
   },
 };
+// the course-book functions (distributions, descriptive statistics, numerical calculus); Devore's
+// conventions take precedence where MATLAB and the book differ (iqr from hinges)
+Object.assign(LIBRARY, BOOK_LIBRARY);

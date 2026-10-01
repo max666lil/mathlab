@@ -379,14 +379,15 @@ export class Interpreter {
     this.tick();
     const local = this.functions.get(name);
     if (local) return this.callFunction(local, args, nout);
-    const lib = LIBRARY[name];
-    if (lib) return lib(args, Math.max(1, nout), this);
+    // worksheet objects shadow library functions (a user's euler(…) wins over the built-in one)
     const w = this.host.lookup(name);
     if (w !== undefined) {
       if (isFn(w)) return w.call(args, nout);
       if (!args.length) return [w];
       return [getIndex(toArr(w, 'an array to index'), args)];
     }
+    const lib = LIBRARY[name];
+    if (lib) return lib(args, Math.max(1, nout), this);
     const b = this.host.callBuiltin?.(name, args);
     if (b !== undefined) return [b];
     throw new ScriptError(`undefined name '${name}'`, pos);

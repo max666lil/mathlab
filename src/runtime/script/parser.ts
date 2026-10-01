@@ -461,7 +461,12 @@ export class ScriptParser {
         const args: SExpr[] = [];
         try {
           while (!this.isOp(')')) {
-            args.push(this.expr());
+            // R-style named argument: pgamma(15, 2, scale = 2.5) → …, 'scale', 2.5
+            if (this.isId() && this.isOp('=', 1) && !this.isOp('=', 2)) {
+              const nm = this.next().v;
+              this.next();
+              args.push({ t: 'str', v: nm }, this.expr());
+            } else args.push(this.expr());
             if (this.isOp(',')) this.next();
             else if (!this.isOp(')')) throw new ScriptSyntaxError(`expected ',' or ')'`, this.peek().pos);
           }

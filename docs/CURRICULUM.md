@@ -50,7 +50,23 @@ callable from the worksheet (symbolic when a one-line body is plain arithmetic),
 worksheet nodes with dependencies, random-dependent results marked as simulation evidence (taint tracking
 through data and control flow), lambdas returned as symbolic functions, MLL builtins callable from
 scripts, figures with free axes. Not yet: worker execution, `switch`, cell arrays, structs, strings
-beyond basics, `ode45` (Phase 4).
+beyond basics.
+
+Course-book functions (`src/runtime/script/library-books.ts`, distributions in
+`src/math-core/distributions.ts`, tests `tests/script-books.test.ts` with the books' numbers):
+- Devore (R, as written in the book): `d/p/q/r` + `binom pois hyper nbinom geom norm exp gamma weibull
+  lnorm beta unif chisq t f` with R's parameterizations (`pgamma(x, α, rate)` or `scale = β`,
+  `dhyper(x, m, n, k)`, `dnbinom` counts failures), `sample`, `c`, `seq`, `rep`, `sd`, `replicate`,
+  `TRUE/FALSE`, named arguments;
+- the same under MATLAB names (`binopdf … frnd`, `hygepdf(x, M, K, N)`, `expcdf(x, mean)`,
+  `gamcdf(x, a, scale)`, `wblcdf(x, scale, shape)`), `randsample`, `unidrnd`;
+- Devore ch. 1: `fivenum` / `hinges` / `iqr` (medians of halves), `trimmean`, `boxplot` (mild / extreme),
+  `normplot` / `qqnorm` ((i − .5)/n), `stem`, `tabulate`, `corr`, `cov`;
+- Hughes-Hallett: `leftsum rightsum midsum trapsum simpsum` (SIMP = (2·MID + TRAP)/3), `euler`, `ode45`,
+  `newton`, `bisection`, `partialsums`, `fourier`, `slopefield`, `quiver`, `fminsearch`, `fminbnd`,
+  `integral2`, `meshgrid`.
+Still to add with Phase 7: `linprog`, `simplex` (tableaux), `twophase`, `dualsimplex`, `transport`,
+`hungarian`, `branchbound`, `pureNash`, `zerosum`.
 
 MATLAB's strengths that matter here: arrays are values, element-wise operations, ranges, 1-based
 indexing, short functions, `plot` / `hist` one-liners. MathLab adopts that syntax inside **blocks**; the
