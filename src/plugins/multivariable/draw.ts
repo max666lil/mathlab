@@ -5,7 +5,7 @@ import { registerVisual3D, Visual3D, Ctx3D, disposeObject, setOpacity, FatSegmen
 import type { SceneItem } from '../../visualization/scene-model';
 import type { FunctionValue } from '../../math-core/values';
 import { registerFrameHint, sampleGrid, cachedLevelSet } from '../../visualization/sampling';
-import { withAlpha } from '../../visualization/colormap';
+import { withAlpha, colormap } from '../../visualization/colormap';
 import { isosurface } from '../../visualization/marching';
 import { compileScalar } from '../../math-core/compile';
 import { parseExpression } from '../../parser/parser';
@@ -418,5 +418,153 @@ registerDrawer2D('coordmap', {
     const scale = (1 - s) + s * det;
     const [lx, ly] = P(ua + du, va + dv);
     drawLabel(ctx, `area ≈ ${+scale.toFixed(3)} · Δ${fn.params[0]} Δ${fn.params[1]}`, view.sx(lx) + 8, view.sy(ly) - 8, '#ffd166', theme, 13);
+  },
+});
+
+// ------------------------------------------------------------------ 3-D scalar fields: level surfaces, slices
+
+registerFrameHint('isosurface', (p) => ({ r: Math.min(60, Math.max(1.5, Math.ceil(extent(p.box as Box) * 1.15 * 2) / 2)), dim: 3 }));
+registerFrameHint('sliceplane', (p) => ({ r: Math.min(60, Math.max(1.5, Math.ceil(extent(p.box as Box) * 1.15 * 2) / 2)), dim: 3 }));
+
+class Isosurface3D implements Visual3D {
+  object = new THREE.Group();
+  private meshes: THREE.Mesh[] = [];
+  private key = '';
+  update(item: SceneItem, ctx: Ctx3D, selected: boolean) {
+    const { fn, levels, box, solid, flat } = item.visual.props as { fn: FunctionValue; levels: number[]; box: Box; solid?: boolean; flat?: boolean };
+    const key = `${fn.key}|${levels}|${box}|${ctx.map.key()}|${item.color}|${selected}`;
+    if (key === this.key) return;
+    this.key = key;
+    for (const m of this.meshes) {
+      this.object.remove(m);
+      m.geometry.dispose();
+      (m.material as THREE.Material).dispose();
+    }
+    this.meshes = [];
+    const F = fn.eval as G3;
+    const lo = Math.min(...levels);
+    const hi = Math.max(...levels);
+    const n = flat ? 12 : levels.length > 2 ? 34 : 44;
+    levels.forEach((c) => {
+      const iso = isosurface((x, y, z) => F(x, y, z) - c, box, n);
+      if (!iso.positions.length) return;
+      const m = ctx.map;
+      const pos = new Float32Array(iso.positions.length);
+      const v = new THREE.Vector3();
+      for (let i = 0; i < pos.length; i += 3) {
+        m.v(iso.positions[i], iso.positions[i + 1], iso.positions[i + 2], v);
+        pos[i] = v.x;
+        pos[i + 1] = v.y;
+        pos[i + 2] = v.z;
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      g.setAttribute('normal', new THREE.BufferAttribute(iso.normals, 3));
+      const rgb: [number, number, number] = [0, 0, 0];
+      const color = solid || flat || levels.length === 1 ? new THREE.Color(item.color) : new THREE.Color().setRGB(...colormap(hi > lo ? (c - lo) / (hi - lo) : 0.5, rgb), THREE.SRGBColorSpace);
+      const opacity = levels.length > 1 ? 0.38 : flat ? 0.55 : 0.62;
+      const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.05, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: levels.length === 1 && !flat });
+      setOpacity(mat, selected ? Math.min(0.85, opacity + 0.2) : opacity);
+      const mesh = new THREE.Mesh(g, mat);
+      mesh.renderOrder = 2;
+      this.meshes.push(mesh);
+      this.object.add(mesh);
+    });
+  }
+  dispose() {
+    disposeObject(this.object);
+  }
+}
+registerVisual3D('isosurface', () => new Isosurface3D());
+
+class SlicePlane3D implements Visual3D {
+  object = new THREE.Group();
+  private mesh: THREE.Mesh;
+  private key = '';
+  constructor() {
+    const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: true, opacity: 0.85 });
+    setOpacity(mat, 0.85);
+    this.mesh = new THREE.Mesh(new THREE.BufferGeometry(), mat);
+    this.object.add(this.mesh);
+  }
+  update(item: SceneItem, ctx: Ctx3D) {
+    const { fn, axis, at, box } = item.visual.props as { fn: FunctionValue; axis: number; at: number; box: Box };
+    const key = `${fn.key}|${axis}|${at}|${box}|${ctx.map.key()}`;
+    if (key === this.key) return;
+    this.key = key;
+    const F = fn.eval as G3;
+    const n = 60;
+    const others = [0, 1, 2].filter((k) => k !== axis);
+    const vals: number[] = [];
+    const pts: number[][] = [];
+    for (let j = 0; j <= n; j++)
+      for (let i = 0; i <= n; i++) {
+        const p = [0, 0, 0];
+        p[axis] = at;
+        p[others[0]] = box[others[0]][0] + ((box[others[0]][1] - box[others[0]][0]) * i) / n;
+        p[others[1]] = box[others[1]][0] + ((box[others[1]][1] - box[others[1]][0]) * j) / n;
+        pts.push(p);
+        vals.push(F(p[0], p[1], p[2]));
+      }
+    const finite = vals.filter(Number.isFinite).sort((a, b) => a - b);
+    const lo = finite[Math.floor(finite.length * 0.02)] ?? 0;
+    const hi = finite[Math.floor(finite.length * 0.98)] ?? 1;
+    const pos = new Float32Array(pts.length * 3);
+    const col = new Float32Array(pts.length * 3);
+    const rgb: [number, number, number] = [0, 0, 0];
+    const v = new THREE.Vector3();
+    const tmp = new THREE.Color();
+    pts.forEach((p, k) => {
+      ctx.map.v(p[0], p[1], p[2], v);
+      pos.set([v.x, v.y, v.z], k * 3);
+      colormap(hi > lo ? Math.max(0, Math.min(1, (vals[k] - lo) / (hi - lo))) : 0.5, rgb);
+      tmp.setRGB(rgb[0], rgb[1], rgb[2], THREE.SRGBColorSpace);
+      col.set([tmp.r, tmp.g, tmp.b], k * 3);
+    });
+    const idx: number[] = [];
+    for (let j = 0; j < n; j++)
+      for (let i = 0; i < n; i++) {
+        const a = j * (n + 1) + i;
+        if ([a, a + 1, a + n + 1, a + n + 2].some((q) => !Number.isFinite(vals[q]))) continue;
+        idx.push(a, a + 1, a + n + 2, a, a + n + 2, a + n + 1);
+      }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    g.setIndex(idx);
+    this.mesh.geometry.dispose();
+    this.mesh.geometry = g;
+  }
+  dispose() {
+    disposeObject(this.object);
+  }
+}
+registerVisual3D('sliceplane', () => new SlicePlane3D());
+
+// ------------------------------------------------------------------ Lagrange: the level curve sweeps to the optimum
+
+registerFrameHint('levelsweep', (p) => (p.box ? { r: extent(p.box as Box), dim: 2, box: p.box as Box } : undefined));
+
+registerDrawer2D('levelsweep', {
+  layer: 3,
+  draw(a) {
+    const { fn, from, to, timeline } = a.item.visual.props as { fn: FunctionValue; from: number; to: number; timeline: string };
+    const t = Math.max(0, Math.min(1, a.timeline(timeline, 1)));
+    const c = from + (to - from) * t;
+    const { ctx, view, theme } = a;
+    const q = (v: number) => +v.toPrecision(6);
+    const grid = sampleGrid(fn, [q(view.xRange[0]), q(view.xRange[1])], [q(view.yRange[0]), q(view.yRange[1])], 200);
+    ctx.strokeStyle = '#ffd166';
+    ctx.lineWidth = t >= 0.999 ? 3 : 2.2;
+    ctx.setLineDash(t >= 0.999 ? [] : [6, 4]);
+    const segs = cachedLevelSet(grid, c);
+    ctx.beginPath();
+    for (let k = 0; k + 3 < segs.length; k += 4) {
+      ctx.moveTo(view.sx(segs[k]), view.sy(segs[k + 1]));
+      ctx.lineTo(view.sx(segs[k + 2]), view.sy(segs[k + 3]));
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if (segs.length) drawLabel(ctx, `${fn.label ?? 'f'} = ${+c.toPrecision(4)}`, view.sx(segs[0]) + 6, view.sy(segs[1]) - 10, '#ffd166', theme, 13);
   },
 });

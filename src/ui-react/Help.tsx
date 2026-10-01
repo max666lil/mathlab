@@ -29,6 +29,8 @@ const SYNTAX: [string, string][] = [
   ['integrate f over R [in polar] [order dx dy] · area R · volume E · average f over R · mass δ over R · centroid R', 'multiple integrals (exact when possible; polar / spherical chosen for round regions)'],
   ['bounds R [order dx dy] · strips R · riemann f over R · polargrid R', 'iterated bounds, strip sweep, Riemann boxes, the r dr dθ cell'],
   ['T(r, θ) = (r cos(θ), r sin(θ)) · jacobian T · det(jacobian T) · coordgrid T', 'coordinate maps: Jacobian, area scale, the bending grid'],
+  ['T(x,y,z) = … · critical T · levelsurface(T, c) · sliceplane(T, z, c) · tangent T at P · x^2 + y^2 - z^2 = 1', '3-D scalar fields and implicit surfaces'],
+  ['maximize f subject to g = c [and h <= d] · minimize … · lagrange f subject to …', 'Lagrange multipliers (equality and inequality constraints, 2 or 3 variables)'],
   ['script name … end · function y = f(x) … end · for / while / if … end', 'MATLAB-style scripts (Shift+Enter or Enter inside a block adds lines); script variables become worksheet objects'],
   ['[1 2; 3 4] · 1:0.1:2 · v(end) · A(:, 2) · .* ./ .^ · @(x) x.^2 · rng(1) · rand · randn · randi', 'arrays, ranges, indexing, element-wise ops, anonymous functions, seeded random numbers'],
   ['plot · scatter · bar · hist · histogram(v, 30, \'Normalization\', \'pdf\') · fprintf · disp · integral · fzero · trapz · polyfit', 'script output, figures and numerical tools'],

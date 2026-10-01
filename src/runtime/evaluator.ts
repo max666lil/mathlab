@@ -146,7 +146,10 @@ export class Evaluator implements EvalContext {
     const d: Expr = { type: 'bin', op: '-', left: e.left, right: e.right };
     const free = [...liftCandidates(d)].filter((n) => !this.lookup(n) && !getBuiltin(n) && !getScalarFunction(n));
     const vars = new Set(free.flatMap((n) => (LIFT_VARS.includes(n) ? [n] : [...n].filter((c) => LIFT_VARS.includes(c) && !this.lookup(c)))));
-    if (vars.has('z')) throw spanErr('Implicit surfaces in x, y, z arrive with 3-D scalar fields (Phase 3a)', e);
+    // x² + y² + z² = 4: a surface in space
+    const surf = getBuiltin('implicitsurface');
+    if (vars.has('z') && !e.rel && surf) return surf.apply([], this, [e], { values: {}, raw: {} });
+    if (vars.has('z')) throw spanErr('an inequality in x, y, z is a solid region — name it, e.g. E = x^2 + y^2 + z^2 <= 4', e);
     if (vars.has('t')) throw spanErr(`'t' is a parameter — for a curve write (x(t), y(t))`, e);
     if (!vars.size) {
       const a = this.num(this.evaluate(e.left), e.left);

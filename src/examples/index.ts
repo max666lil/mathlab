@@ -195,6 +195,30 @@ export const examples: Example[] = [
     cells: ['F(x,y,z) = <-y, x, z>', 'H(u,v) = (cos u sin v, sin u sin v, cos v) for u in [0, 2π], v in [0, π/2]'],
   },
   {
+    id: 'earth-field',
+    title: 'Temperature inside the Earth — level spheres, slice, gradient ⟂ level surface',
+    course: 'Multivariable Calculus',
+    cells: ['T(x,y,z) = 6000 - 5700 (x^2 + y^2 + z^2)', 'P = point(0.6, 0.3, 0.4)', 'c = slider(-2, 2, 0)'],
+  },
+  {
+    id: 'quadrics',
+    title: 'Level surfaces of x² + y² − z²: hyperboloids and a cone',
+    course: 'Multivariable Calculus',
+    cells: ['f(x,y,z) = x^2 + y^2 - z^2', 'x^2 + y^2 - z^2 = 1', 'x^2 + y^2 - z^2 = -1'],
+  },
+  {
+    id: 'lagrange',
+    title: 'Lagrange multipliers — the level curve touches the constraint (∇f ∥ ∇g)',
+    course: 'Multivariable Calculus',
+    cells: ['f(x,y) = 4 - x^2 - 2y^2', 'L = maximize f subject to x^2 + y^2 = 1'],
+  },
+  {
+    id: 'lagrange-budget',
+    title: 'Lagrange — production x^(2/3) y^(1/3) on a budget line (λ = shadow price)',
+    course: 'Multivariable Calculus',
+    cells: ['P(x,y) = x^(2/3) y^(1/3)', 'B = maximize P subject to x + y = 3.78 and x >= 0 and y >= 0'],
+  },
+  {
     id: 'piecewise-clairaut',
     title: 'Piecewise — mixed partials that differ: f_xy(0,0) ≠ f_yx(0,0)',
     course: 'Multivariable Calculus',

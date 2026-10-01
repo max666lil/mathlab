@@ -274,7 +274,14 @@ class ArrowVisual implements Visual3D {
     this.lifted.setColor(color);
     if (anchor.length === 3 && vec.length === 3) {
       this.floor.group.visible = false;
-      this.lifted.set(m.v(anchor[0], anchor[1], anchor[2]), m.v(anchor[0] + vec[0], anchor[1] + vec[1], anchor[2] + vec[2]), r * 1.3);
+      this.object.visible = true;
+      // a huge vector (∇T = 9000 units) is drawn at a readable length, keeping its direction
+      const L = Math.hypot(...vec);
+      const cap = 0.3 * m.size;
+      const k = L > cap ? cap / L : 1;
+      const v3 = vec.map((c) => c * k);
+      this.lifted.group.visible = true;
+      this.lifted.set(m.v(anchor[0], anchor[1], anchor[2]), m.v(anchor[0] + v3[0], anchor[1] + v3[1], anchor[2] + v3[2]), r * 1.3);
       return;
     }
     if (anchor.length !== 2 || vec.length !== 2) {

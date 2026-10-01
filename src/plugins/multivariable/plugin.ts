@@ -5,6 +5,8 @@ import { multivariableBuiltins, wrapExisting, BoundsValue } from './builtins';
 import type { RegionValue } from './region';
 import { visualBuiltins } from './visuals';
 import { coordGrid, detOfFunctions } from './coordmaps';
+import { field3dBuiltins, field3dWrappers, ImplicitSurface } from './field3d';
+import { lagrangeBuiltins, optimumLatex, OptimumValue } from './lagrange';
 import { getBuiltin } from '../../math-core/builtins';
 
 const SYS: Record<string, string> = { cartesian: '', polar: 'polar ', cylindrical: 'cylindrical ', spherical: 'spherical ' };
@@ -15,6 +17,16 @@ export const multivariableMath = definePlugin({
     multivariableBuiltins.forEach((b) => api.registerBuiltin(b));
     visualBuiltins.forEach((b) => api.registerBuiltin(b));
     api.registerBuiltin(coordGrid);
+    field3dBuiltins.forEach((b) => api.registerBuiltin(b));
+    lagrangeBuiltins.forEach((b) => api.registerBuiltin(b));
+    api.registerValueKind({ kind: 'optimum', latex: (v) => optimumLatex(v as unknown as OptimumValue), typeLabel: () => 'constrained optimum' });
+    field3dWrappers(getBuiltin).forEach((b) => api.registerBuiltin(b));
+    api.registerValueKind({ kind: 'implicitsurface', latex: (v) => (v as unknown as ImplicitSurface).latex, typeLabel: () => 'surface in ℝ³' });
+    api.registerValueKind({ kind: 'equation3', latex: (v) => (v as unknown as { latex: string }).latex, typeLabel: () => 'plane in ℝ³' });
+    api.registerDefaultVisual('implicitsurface', (v, ctx) => {
+      const s = v as unknown as ImplicitSurface;
+      return [visual('isosurface', { fn: s.fn, levels: [0], box: s.box, solid: true }, ctx.name, 'surface')];
+    });
     const det = getBuiltin('det');
     if (det) api.registerBuiltin(detOfFunctions(det));
     wrapExisting((b) => api.registerBuiltin(b));

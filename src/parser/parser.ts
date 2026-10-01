@@ -42,7 +42,7 @@ export const TYPE_HINTS = new Set([
 ]);
 const KEYWORDS = new Set(['at', 'from', 'to', 'over', 'draggable', 'hidden', 'fixed', 'toward', 'along', 'as', 'order', 'wrt', 'with']);
 /** Clause words that end a command's main argument. */
-const CLAUSES = ['at', 'from', 'to', 'toward', 'along', 'as', 'order', 'wrt', 'with', 'onto', 'in', 'around', 'across', 'through', 'on', 'inside', 'over'];
+const CLAUSES = ['at', 'from', 'to', 'toward', 'along', 'as', 'order', 'wrt', 'with', 'onto', 'in', 'around', 'across', 'through', 'on', 'inside', 'over', 'subject'];
 
 /** Hook for plugin syntax. `match` sees the statement's tokens (without newline/eof). */
 export interface StatementRule {
@@ -400,6 +400,15 @@ export class ExprParser {
           case 'along':
             kwargs.push(['toward', value()]);
             break;
+          case 'subject': {
+            // subject to g = c [and h <= d …]
+            if (this.isIdent('to')) this.next();
+            const first = this.withStops(['and'], () => this.parseExpr(BP.eq));
+            const cond = this.condition(first) ?? first;
+            end = spanOf(cond).to || end;
+            kwargs.push(['subject', cond]);
+            break;
+          }
           default:
             kwargs.push([k.text, value()]);
         }

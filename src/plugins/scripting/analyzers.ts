@@ -10,7 +10,6 @@ registerAnalyzer({
     const s = value as unknown as ScriptValue;
     const vars = Object.keys(s.vars);
     const facts: FactSpec[] = [
-      { id: 'script', title: name, expr: name, tier: 0, section: 'overview', visual: 'always', hidden: true },
       ...vars.map((v) => ({ id: `var:${v}`, title: v, expr: v, tier: 0 as const, section: 'vars' })),
     ];
     return {

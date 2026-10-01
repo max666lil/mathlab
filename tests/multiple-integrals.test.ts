@@ -195,7 +195,7 @@ describe('region analysis (3b engine)', () => {
   it('an unbounded region is only drawn', () => {
     const { plan } = analysis(['U = y >= x^2']);
     expect(plan.typeLabel).toMatch(/unbounded/);
-    expect(plan.facts.length).toBe(1);
+    expect(plan.facts.length).toBe(0);
   });
   it('f(x, y) with a region in the worksheet gets "Over R"', () => {
     const { plan, an } = analysis(['R = 0 <= x <= 1 and 0 <= y <= 2', 'f(x,y) = x y'], 'f');
