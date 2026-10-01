@@ -83,3 +83,27 @@ describe('level curves with a slider, coordinate-map pictures', () => {
     expect(plan.facts.find((x) => x.id === 'grid')?.expr).toBe('coordgrid T');
   });
 });
+describe('writing polar functions the way students do', () => {
+  it('theta spelled out, either parameter order, sliders stay symbolic', () => {
+    expect(last('f(r, theta) = r^2 sin(theta)', 'grad f').value.role).toBe('polar-gradient');
+    const g = last('f(θ, r) = r cos(θ)', 'grad f').value;
+    expect(g.role).toBe('polar-gradient');
+    expect(valueLatex(g)).toMatch(/\\left\\langle 1,\\ 0 \\right\\rangle_\{xy\}/);
+    expect(toText(last('a = slider(0, 3, 1)', 'f(r, θ) = a r^2', 'grad f').value.polar.er)).toMatch(/a/);
+    expect(last('r = slider(0, 3, 1)', 'f(r, θ) = r^2 sin(θ)', 'grad f').value.role).toBe('polar-gradient');
+  });
+  it('a point is a place (x, y): f(P) and grad f at P use its polar coordinates', () => {
+    expect(last('f(r, θ) = r^2 sin(θ)', 'P = point(1, 1)', 'f(P)').value.value).toBeCloseTo(Math.SQRT2, 12);
+    expect(last('f(r, θ) = r^2 sin(θ)', 'f(2, π/2)').value.value).toBeCloseTo(4, 12);
+    const v = last('f(r, θ) = r^2 sin(θ)', 'P = point(1, 1)', 'grad f at P').value;
+    expect(v.kind).toBe('vector');
+    expect(v.comps[0]).toBeCloseTo(Math.SQRT1_2, 10);
+    expect(v.comps[1]).toBeCloseTo(3 * Math.SQRT1_2, 10);
+    expect(v.anchor).toEqual([1, 1]);
+    expect(v.derivation).toMatch(/\\mathbf\{e\}_r/);
+  });
+  it('tidy displays: e_r alone, 1/r² as a fraction', () => {
+    expect(valueLatex(last('f(r, θ) = r', 'grad f').value)).toMatch(/= \\mathbf\{e\}_\{r\}/);
+    expect(valueLatex(last('f(r, θ) = 1/r', 'grad f').value)).toMatch(/-\\frac\{1\}\{r\^\{2\}\}\\,\\mathbf\{e\}_\{r\}/);
+  });
+});

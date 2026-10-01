@@ -448,6 +448,22 @@ export class Evaluator implements EvalContext {
     if (args.length === 1 && (args[0].kind === 'point' || args[0].kind === 'vector')) {
       coords = args[0].kind === 'point' ? (args[0] as PointValue).coords : (args[0] as VectorValue).comps;
     } else coords = args.map((a) => this.num(a, e));
+    // a point is a place (x, y) in the plane: a function of (r, θ) reads its polar coordinates
+    if (args.length === 1 && args[0].kind === 'point' && coords.length === 2 && f.params.length === 2 && f.params.includes('r') && f.params.includes('θ')) {
+      const [x, y] = coords;
+      const r = Math.hypot(x, y);
+      let t = Math.atan2(y, x);
+      if (t < 0) t += 2 * Math.PI;
+      const certainty = f.certainty ?? (f.expr ? 'exact' : 'numeric');
+      if (f.role === 'polar-gradient') {
+        // components along e_r, e_θ at P, turned into an arrow of the plane anchored at P
+        const [a, b] = f.eval(r, t) as number[];
+        const comps = [a * Math.cos(t) - b * Math.sin(t), a * Math.sin(t) + b * Math.cos(t)];
+        const n = (v: number) => +v.toFixed(4);
+        return vector(comps, [x, y], { role: 'gradient', certainty, derivation: `${f.label ?? '\\nabla f'} = ${n(a)}\\,\\mathbf{e}_r + ${n(b)}\\,\\mathbf{e}_\\theta \\text{ at } r = ${n(r)},\\ \\theta = ${n(t)}` });
+      }
+      coords = f.params[0] === 'r' ? [r, t] : [t, r];
+    }
     if (coords.length !== f.params.length)
       throw spanErr(`${f.label ?? 'function'} takes ${f.params.length} input(s), got ${coords.length}`, e);
     const out = f.eval(...coords);

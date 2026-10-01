@@ -17,7 +17,8 @@ import { simplify, trigSimplify } from '../../math-core/symbolic/simplify';
 import { toLatex, toText } from '../../math-core/symbolic/print';
 import { FunctionValue, MathValue } from '../../math-core/values';
 import { visual } from '../../visualization/scene-model';
-import { fromCartesian } from '../multivariable/coords';
+import { fromCartesian, tidy as collectIn } from '../multivariable/coords';
+import { expand } from '../../math-core/symbolic/expand';
 import { bindEnv } from './analysis-builtins';
 
 const call = (name: string, ...args: Expr[]): Expr => ({ type: 'call', callee: sym(name), args });
@@ -26,13 +27,36 @@ const R = sym('r'), TH = sym('θ');
 /** A scalar function of (r, θ): a field on the plane written in polar coordinates. */
 export function isPolarField(v: MathValue | undefined): boolean {
   const f = v as FunctionValue;
-  return v?.kind === 'function' && f.out === 'scalar' && f.params.length === 2 && f.params[0] === 'r' && f.params[1] === 'θ' && f.role !== 'polar';
+  return v?.kind === 'function' && f.out === 'scalar' && f.params.length === 2 && f.params.includes('r') && f.params.includes('θ') && f.role !== 'polar';
 }
 
+/** f as (r, θ) ↦ value whatever the order of its parameters. */
+export function polarEval(f: FunctionValue): (r: number, t: number) => number {
+  const g = f.eval as (a: number, b: number) => number;
+  return f.params[0] === 'r' ? g : (r, t) => g(t, r);
+}
+
+/** The shortest of a few equivalent forms (2r sin θ cos θ − r cos θ sin θ → r sin θ cos θ). */
 const tidy = (e: Expr) => {
-  const s = trigSimplify(simplify(e));
-  return toText(s).length <= toText(simplify(e)).length ? s : simplify(e);
+  const cands = [simplify(e), trigSimplify(simplify(e)), trigSimplify(simplify(expand(e))), collectIn(e, 'r'), viaSinCos(e)];
+  return cands.reduce((best, c) => (toText(c).length < toText(best).length ? c : best));
 };
+
+/** Treat sin θ and cos θ as two letters while collecting terms (cos θ sin θ − sin θ cos θ → 0). */
+function viaSinCos(e: Expr): Expr {
+  const S = '\u00a7s', C = '\u00a7c';
+  const isTrig = (n: Expr, f: string) => n.type === 'call' && n.callee.type === 'sym' && n.callee.name === f && n.args.length === 1 && n.args[0].type === 'sym' && n.args[0].name === 'θ';
+  const to = (n: Expr): Expr => {
+    if (isTrig(n, 'sin')) return sym(S);
+    if (isTrig(n, 'cos')) return sym(C);
+    if (n.type === 'bin') return { ...n, left: to(n.left), right: to(n.right) };
+    if (n.type === 'neg') return { ...n, arg: to(n.arg) };
+    if (n.type === 'call') return { ...n, args: n.args.map(to) };
+    return n;
+  };
+  const back = mapExpr(simplify(expand(to(e))), (n) => (n.type === 'sym' && n.name === S ? call('sin', TH) : n.type === 'sym' && n.name === C ? call('cos', TH) : n));
+  return trigSimplify(simplify(back));
+}
 
 /** f(x, y) in polar coordinates (x² + y² → r², sin² + cos² = 1). */
 export function polarForm(ctx: EvalContext, f: FunctionValue): FunctionValue {
@@ -78,7 +102,8 @@ export interface PolarGradient extends FunctionValue {
 /** ∇f = f_r e_r + (1/r) f_θ e_θ for f(r, θ), with its Cartesian components. */
 export function polarGradient(ctx: EvalContext, f: FunctionValue): PolarGradient {
   if (!isPolarField(f) || !f.expr) throw new EvalError('the polar gradient needs f(r, θ) given by a formula');
-  const e = bindEnv(f.expr, f.env);
+  // parameters (sliders a, b …) stay symbolic: ∇(a r²) = 2a r e_r
+  const e = f.expr;
   const fr = tidy(diff(e, 'r'));
   const fth = tidy(diff(e, 'θ'));
   const eth = tidy(bin('/', fth, R));
@@ -87,14 +112,22 @@ export function polarGradient(ctx: EvalContext, f: FunctionValue): PolarGradient
   const cx = tidy(bin('-', bin('*', fr, call('cos', TH)), bin('*', eth, call('sin', TH))));
   const cy = tidy(bin('+', bin('*', fr, call('sin', TH)), bin('*', eth, call('cos', TH))));
   const label = `\\nabla ${f.label ?? 'f'}`;
-  const base = ctx.makeFunction({ type: 'vec', items: [fr, eth] }, ['r', 'θ'], { label, role: 'polar-gradient', base: f });
-  const cxy = ctx.makeFunction({ type: 'vec', items: [cx, cy] }, ['r', 'θ']);
+  const base = ctx.makeFunction({ type: 'vec', items: [fr, eth] }, ['r', 'θ'], { label, role: 'polar-gradient', base: f, env: f.env });
+  const cxy = ctx.makeFunction({ type: 'vec', items: [cx, cy] }, ['r', 'θ'], { env: f.env });
   const C = cxy.eval as (r: number, t: number) => number[];
   const cartesianField = {
     kind: 'function', params: ['x', 'y'], out: 'vector', env: {}, label, role: 'gradient', key: `pgradxy|${base.key}`,
     eval: (x: number, y: number) => C(Math.hypot(x, y), Math.atan2(y, x)),
   } as unknown as FunctionValue;
-  const term = (c: Expr, v: string) => (c.type === 'num' && c.value === 0 ? '' : `${c.type === 'bin' && (c.op === '+' || c.op === '-') ? `\\left(${toLatex(c)}\\right)` : toLatex(c)}\\,\\mathbf{e}_{${v}}`);
+  // display: negative powers as fractions, unit coefficients dropped
+  const frac = (c: Expr) =>
+    mapExpr(c, (n) => (n.type === 'bin' && n.op === '^' && n.right.type === 'num' && n.right.value < 0 ? bin('/', num(1), n.right.value === -1 ? n.left : bin('^', n.left, num(-n.right.value))) : n));
+  const term = (c: Expr, v: string) => {
+    if (c.type === 'num' && c.value === 0) return '';
+    if (c.type === 'num' && Math.abs(c.value) === 1) return `${c.value < 0 ? '-' : ''}\\mathbf{e}_{${v}}`;
+    const t = toLatex(frac(c));
+    return `${c.type === 'bin' && (c.op === '+' || c.op === '-') ? `\\left(${t}\\right)` : t}\\,\\mathbf{e}_{${v}}`;
+  };
   const polarTex = [term(fr, 'r'), term(eth, '\\theta')].filter(Boolean).join(' + ').replace(/\+ -/g, '- ') || '0';
   const display = `${label} = ${polarTex} = \\left\\langle ${toLatex(cx)},\\ ${toLatex(cy)} \\right\\rangle_{xy}`;
   return {
@@ -122,7 +155,8 @@ export function polarView(ctx: EvalContext, f: FunctionValue, at?: number[]): Ma
   const r0 = Math.hypot(x0, y0);
   if (r0 < 1e-9) throw new EvalError('at the origin e_r and e_θ are not defined (θ has no value there)');
   const t0 = Math.atan2(y0, x0);
-  const F = polar ? (x: number, y: number) => (f.eval as (r: number, t: number) => number)(Math.hypot(x, y), Math.atan2(y, x)) : (f.eval as (x: number, y: number) => number);
+  const fp = polar ? polarEval(f) : undefined;
+  const F = fp ? (x: number, y: number) => fp(Math.hypot(x, y), Math.atan2(y, x)) : (f.eval as (x: number, y: number) => number);
   // f_r and f_θ at P: derivatives along the ray and along the circle
   const h = 1e-5 * Math.max(1, r0);
   const at2 = (r: number, t: number) => F(r * Math.cos(t), r * Math.sin(t));

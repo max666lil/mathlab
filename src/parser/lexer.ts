@@ -33,6 +33,7 @@ const MULTI_OPS = ['<=', '>=', '**', '->'];
 const SINGLE_OPS = '+-*/^()[]{},=<>.:;|·×∇∈⟨⟩~!≤≥≠∩∪¬';
 
 const isDigit = (c: string) => c >= '0' && c <= '9';
+const GREEK_WORDS: Record<string, string> = { theta: 'θ', phi: 'φ', rho: 'ρ' };
 const isIdentStart = (c: string) => /[\p{L}_]/u.test(c) && !(c in SUPERSCRIPTS) && c !== '∇' && c !== '∈' && c !== 'ᵀ';
 const isIdentPart = (c: string) => isIdentStart(c) || isDigit(c) || c === "'";
 
@@ -109,6 +110,8 @@ export function lex(src: string): Token[] {
       while (i < src.length && isIdentPart(src[i])) i++;
       const text = src.slice(start, i);
       if (text === 'π' || text === 'pi') push('ident', 'π', start, i);
+      // spelled-out Greek coordinate names are the same variables (Desmos does the same): theta → θ
+      else if (text in GREEK_WORDS) push('ident', GREEK_WORDS[text], start, i);
       else push('ident', text, start, i);
       continue;
     }
