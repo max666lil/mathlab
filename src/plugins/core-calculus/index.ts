@@ -6,4 +6,5 @@ import './draw2d';
 import './visuals3d';
 import './draw-graphing';
 import './visuals3d-extra';
+import './polar-draw';
 export { coreCalculusMath } from './math';

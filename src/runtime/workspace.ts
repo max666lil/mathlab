@@ -122,6 +122,15 @@ export class Workspace {
     return cell.id;
   }
 
+  /** Insert a row above another (an "add slider" fix for an unknown name). */
+  insertCellBefore(cellId: string, source: string): string {
+    const cell = { id: newCellId(), source };
+    const i = Math.max(0, this.doc.cells.findIndex((c) => c.id === cellId));
+    this.doc.cells.splice(i, 0, cell);
+    this.rebuild();
+    return cell.id;
+  }
+
   removeCell(cellId: string) {
     this.doc.cells = this.doc.cells.filter((c) => c.id !== cellId);
     this.rebuild();
@@ -481,9 +490,11 @@ export class Workspace {
         // several random variables would pile their densities on one plot: the analysed one is drawn,
         // the others wait for their toggle
         push(info.id, v, !info.hidden && (v.kind !== 'distribution' || info.name === this.focus), info.name);
-      } else if (!info.name && info.stmt.kind === 'expr' && geometric) {
-        // a command such as `tangent f at P` shows its result
-        const refs = [...freeSymbols(info.stmt.value)].filter(named);
+      } else if (!info.name && (info.stmt.kind === 'expr' || info.stmt.kind === 'funcdef') && geometric) {
+        // a command such as `tangent f at P` shows its result; a second f(x, y) = c row its level curve
+        const st = info.stmt;
+        const refs = [...freeSymbols(st.kind === 'expr' ? st.value : st.body)].filter(named);
+        if (st.kind === 'funcdef' && named(st.name)) refs.unshift(st.name);
         // P(S ≥ 10) plots S: while another random variable is analysed it waits for its toggle
         const otherVariable = focusIsDist && !refs.includes(this.focus!);
         toVisuals(v, { nodeId: info.id }).forEach((visual, i) => {

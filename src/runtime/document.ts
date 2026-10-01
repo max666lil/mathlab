@@ -163,6 +163,8 @@ export class MathDocument {
         continue;
       }
       info.deps = this.dependencies(info.stmt, names);
+      // a second f(x, y) = … row is the level curve of the first f: it reads f
+      if (st.kind === 'funcdef' && !info.name && names.has(st.name) && !info.deps.includes(st.name)) info.deps.push(st.name);
       info.input = this.inputSpec(info);
     }
     // statements asking P(…) of events see every probability fact
@@ -300,7 +302,15 @@ export function evaluateStatement(info: StatementInfo, ev: Evaluator, firstByNam
     case 'error':
       throw new EvalError(st.message, st.errorSpan);
     case 'funcdef': {
-      if (!info.name) throw new EvalError(`'${st.name}' is already defined`, st.nameSpan);
+      if (!info.name) {
+        // f(x, y) = c with f already defined: like Desmos, the level curve f(x, y) = c
+        const prev = ev.lookup(st.name) as FunctionValue | undefined;
+        if (prev?.kind === 'function' && prev.out === 'scalar' && prev.params.length === st.params.length && prev.params.length <= 3) {
+          const left: Expr = { type: 'call', callee: { type: 'sym', name: st.name }, args: st.params.map((p) => ({ type: 'sym', name: p })) };
+          return ev.relation({ type: 'eq', left, right: st.body });
+        }
+        throw new EvalError(`'${st.name}' is already defined`, st.nameSpan);
+      }
       // r(θ) = …: a polar curve
       const polar = st.name === 'r' && st.params.length === 1 && st.params[0] === 'θ';
       const fn = ev.makeFunction(st.body, st.params, { label: symbolLatex(st.name), role: polar ? 'polar' : undefined });

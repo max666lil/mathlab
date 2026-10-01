@@ -255,7 +255,7 @@ export const vectorCalculusBuiltins: Builtin[] = [
     apply: ([fv], ctx, raw) => {
       const f = fv as FunctionValue;
       if (f?.kind !== 'function' || f.out !== 'vector' || !f.expr || (f.expr.type !== 'vec' && f.expr.type !== 'tuple')) throw new EvalError('jacobian needs a vector-valued function');
-      return { ...ctx.makeFunction(jacobianExpr(f), f.params, { label: `J_{${f.label ?? nameOf(raw)}}`, role: 'jacobian', env: f.env }), certainty: 'exact' };
+      return { ...ctx.makeFunction(jacobianExpr(f), f.params, { label: `J_{${f.label ?? nameOf(raw)}}`, role: 'jacobian', env: f.env, base: f }), certainty: 'exact' };
     },
   },
   {

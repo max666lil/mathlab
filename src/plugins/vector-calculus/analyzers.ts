@@ -28,7 +28,7 @@ registerAnalyzer({
   id: 'vector-field',
   focusOnEdit: true,
   // angle brackets mean vectors attached to points; T(x, y) = (…) is a point map (linear maps: Phase 2)
-  recognizes: (v) => isField(v) && (v as FunctionValue).expr!.type === 'vec',
+  recognizes: (v) => isField(v) && (v as FunctionValue).expr!.type === 'vec' && v.role !== 'polar-gradient',
   plan(F, value, ws): AnalysisPlan {
     const f = value as FunctionValue;
     const n = f.params.length;

@@ -53,6 +53,9 @@ registerDefaultVisual('vector', (v, ctx) => {
 });
 registerDefaultVisual('function', (v, ctx) => {
   const f = v as FunctionValue;
+  // a gradient in the polar basis is drawn through its Cartesian twin (arrows in the xy-plane)
+  const twin = (f as { cartesianField?: FunctionValue }).cartesianField;
+  if (f.role === 'polar-gradient' && twin) return [visual('field2', { fn: twin }, ctx.name, 'gradient')];
   // parametric (x(t), y(t)[, z(t)]) and polar r(θ) curves
   if ((f.out === 'vector' && f.params.length === 1) || f.role === 'polar') return [visual('curve', { fn: f, polar: f.role === 'polar' }, ctx.name, v.role === 'polar' ? 'curve' : (v.role ?? 'curve'))];
   if (f.out === 'scalar' && f.params.length === 2)

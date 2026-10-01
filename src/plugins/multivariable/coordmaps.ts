@@ -10,6 +10,7 @@ import { simplify, addList, mulList, trigSimplify } from '../../math-core/symbol
 import { diff } from '../../math-core/symbolic/diff';
 import { visual } from '../../visualization/scene-model';
 import { bindEnv } from '../core-calculus/analysis-builtins';
+import { toText } from '../../math-core/symbolic/print';
 
 /** A tuple-bodied map with as many components as parameters (2 or 3). */
 export function isCoordMap(v: MathValue | undefined): v is FunctionValue {
@@ -73,8 +74,17 @@ export const coordGrid: Builtin = {
   name: 'coordgrid', command: true, minArgs: 1, maxArgs: 1, argModes: ['value'], category: 'multivariable',
   signature: 'coordgrid T', doc: 'The (u, v) grid morphing into its image under a plane map T, with one cell and its area |det J| Δu Δv.',
   apply: ([tv], _ctx, raw) => {
-    if (!isCoordMap(tv) || tv.params.length !== 2) throw new EvalError('coordgrid needs a plane map T(u, v) = (x, y)');
+    if (!isCoordMap(tv)) throw new EvalError('coordgrid needs a coordinate map T(u, v) = (x, y) or T(u, v, w) = (x, y, z)');
     const name = raw[0]?.type === 'sym' ? raw[0].name : 'T';
-    return visual('coordmap', { fn: tv, ranges: mapRanges(tv), timeline: `coordmap:${name}`, stops: [`(${tv.params.join(', ')})`, `${name}(${tv.params.join(', ')})`], stages: tv.key, captions: [`cell areas × |det J|`] }, `grid of ${name}`, 'coordmap');
+    let detText = '';
+    try {
+      detText = toText(trigSimplify(detExpr(jacobianRows(tv))));
+    } catch {
+      /* numeric label only */
+    }
+    const stops = [`(${tv.params.join(', ')})`, `${name}(${tv.params.join(', ')})`];
+    if (tv.params.length === 3)
+      return visual('coordmap3', { fn: tv, ranges: mapRanges(tv), timeline: `coordmap:${name}`, stops, stages: tv.key, detText, captions: [`cell volumes × |det J|`] }, `grid of ${name}`, 'coordmap');
+    return visual('coordmap', { fn: tv, ranges: mapRanges(tv), timeline: `coordmap:${name}`, stops, stages: tv.key, detText, captions: [`cell areas × |det J|`] }, `grid of ${name}`, 'coordmap');
   },
 };

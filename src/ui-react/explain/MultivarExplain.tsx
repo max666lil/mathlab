@@ -8,7 +8,7 @@ import { Tex } from '../Tex';
 import { numberLatex, symbolLatex } from '../../math-core/symbolic/print';
 import type { MathValue } from '../../math-core/values';
 
-export const MULTIVAR_TOPICS = new Set(['iterated', 'polar']);
+export const MULTIVAR_TOPICS = new Set(['iterated', 'polar', 'polar-gradient']);
 
 export function MultivarExplain({ topic }: { topic: string }) {
   const an = useAnalysis();
@@ -20,6 +20,45 @@ export function MultivarExplain({ topic }: { topic: string }) {
     return spec ? (an.fact(plan, spec, true).value as MathValue & { latex?: string; derivation?: string; value?: number }) : undefined;
   };
   const R = symbolLatex(plan.object);
+  if (topic === 'polar-gradient') {
+    const g = fact('gradpolar') ?? fact('gradient');
+    const radial = (g as { polar?: { radial?: boolean } } | undefined)?.polar?.radial;
+    return (
+      <div className="explain">
+        <div className="explain-title">The same gradient, written with “outward” and “around”</div>
+        <LiveFormula tex={`\\mathbf e_r = (\\cos\\theta, \\sin\\theta),\\quad \\mathbf e_\\theta = (-\\sin\\theta, \\cos\\theta) \\qquad \\nabla f = f_r\\,\\mathbf e_r + \\frac{1}{r}\\,f_\\theta\\,\\mathbf e_\\theta`} parts={[]} />
+        <p>
+          (x, y) says “so far along x, so far along y”; (r, θ) says “this far from the origin, in this direction”. The two directions of polar coordinates move
+          with the point: e<sub>r</sub> points away from the origin, e<sub>θ</sub> around the circle (e<sub>r</sub> turned 90° counter-clockwise). Both are unit vectors.
+        </p>
+        <p>
+          The gradient measures how fast f changes <b>per unit of distance</b>. Along e<sub>r</sub> a step dr is a distance dr, so the rate is f<sub>r</sub>. But θ is an
+          angle: turning by dθ at radius r covers the arc ds = r dθ (the orange arc). Per unit of distance the change is f<sub>θ</sub> dθ / (r dθ) = f<sub>θ</sub> / r —
+          that is the 1/r.
+        </p>
+        <p>
+          On the canvas the two parts are drawn head to tail at the point and add up to ∇f (gold). It is the same vector as (f<sub>x</sub>, f<sub>y</sub>); the
+          summary also gives its x and y components.
+        </p>
+        {radial && (
+          <p>
+            Here f depends on r only, so f<sub>θ</sub> = 0 and ∇f = f′(r) e<sub>r</sub>: the contours are circles r = const and the gradient points straight out,
+            perpendicular to them.
+          </p>
+        )}
+        {g && <LiveFormula tex={(g as { display?: string }).display ?? ''} parts={[]} />}
+        <table className="explain-table">
+          <tbody>
+            <tr><td></td><td>Cartesian</td><td>Polar</td></tr>
+            <tr><td>position</td><td><Tex tex="(x, y)" /></td><td><Tex tex="(r, \theta)" /></td></tr>
+            <tr><td>directions</td><td><Tex tex="\mathbf e_x, \mathbf e_y" /></td><td><Tex tex="\mathbf e_r, \mathbf e_\theta" /></td></tr>
+            <tr><td>lengths</td><td><Tex tex="dx,\ dy" /></td><td><Tex tex="dr,\ r\,d\theta" /></td></tr>
+            <tr><td>rates</td><td><Tex tex="f_x,\ f_y" /></td><td><Tex tex="f_r,\ \tfrac{1}{r} f_\theta" /></td></tr>
+          </tbody>
+        </table>
+      </div>
+    );
+  }
   if (topic === 'polar') {
     const b = fact('polarBounds');
     const m = fact('polarMeasure');

@@ -13,6 +13,7 @@ import { numberLatex, symbolLatex } from '../../math-core/symbolic/print';
 import { FunctionValue, MathValue, PlaneValue, SliceValue, scalar } from '../../math-core/values';
 import { visual } from '../../visualization/scene-model';
 import { definePlugin } from '../plugin-api';
+import { isPolarField, polarGradient, gradInPolar, polarBuiltins } from './polar';
 
 type Scalar = (...x: number[]) => number;
 
@@ -128,9 +129,19 @@ function rangeArg(v: MathValue | undefined): [number, number] | undefined {
 
 const calculus: Builtin[] = [
   {
-    name: 'grad', minArgs: 1, maxArgs: 1, argModes: [F], prefix: true, category: 'calculus',
-    signature: 'grad(f)', doc: 'Gradient ∇f — a vector field. Evaluate with `grad(f) at P`.',
-    apply: ([f], ctx) => gradOf(ctx, expectFunction(f)),
+    name: 'grad', minArgs: 1, maxArgs: 1, argModes: [F], prefix: true, command: true, keywords: { in: RAW }, category: 'calculus',
+    signature: 'grad(f) · grad f in polar', doc: 'Gradient ∇f — a vector field. For f(r, θ) (or with `in polar`): ∇f = f_r e_r + (1/r) f_θ e_θ. Evaluate with `grad(f) at P`.',
+    apply: ([f], ctx, _raw, kw) => {
+      const fn = expectFunction(f);
+      const sys = kw?.raw.in;
+      if (sys) {
+        if (sys.type !== 'sym' || sys.name !== 'polar') throw new EvalError('grad f in polar (other coordinate systems: write f in their variables)');
+        return gradInPolar(ctx, fn);
+      }
+      // a function of (r, θ) lives on the plane: its gradient is taken in the polar basis
+      if (isPolarField(fn)) return polarGradient(ctx, fn);
+      return gradOf(ctx, fn);
+    },
   },
   {
     name: 'hessian', minArgs: 1, maxArgs: 1, argModes: [F], prefix: true, category: 'calculus',
@@ -230,7 +241,13 @@ const visuals: Builtin[] = [
         return visual('level', { fn: f, value: c }, `${f.label ?? 'f'} = ${L(c)}`, 'level');
       }
       const f = asScalarField(ctx.toFunction(r0));
-      const d = localData(ctx, f, pointArg(kw.values.at ?? P, f));
+      // level f at 4: the level value itself (a circle of radius 2 for x² + y²)
+      const atV = kw.values.at ?? P;
+      if (atV?.kind === 'scalar') {
+        const c = expectNumber(atV);
+        return visual('level', { fn: f, value: c }, `${f.label ?? 'f'} = ${L(c)}`, 'level');
+      }
+      const d = localData(ctx, f, pointArg(atV, f));
       return visual('level', { fn: f, at: d.p, value: d.f0, g: d.g }, `level ${f.label ?? 'f'} = ${L(d.f0)}`, 'level');
     },
   },
@@ -326,7 +343,7 @@ const pointNameLatex = (raw: Expr) => (raw.type === 'sym' ? symbolLatex(raw.name
 export const coreCalculusMath = definePlugin({
   name: 'core-calculus',
   install(api) {
-    [...calculus, ...visuals].forEach((b) => api.registerBuiltin(b));
+    [...calculus, ...visuals, ...polarBuiltins].forEach((b) => api.registerBuiltin(b));
     api.registerLatexFunctionName('grad', '\\nabla');
     api.registerLatexFunctionName('hessian', 'H');
     api.registerLatexFunctionName('tangent_plane', '\\operatorname{T}');

@@ -37,6 +37,8 @@ function outputLatex(info: StatementInfo, v: MathValue, math: boolean): string {
   const st = info.stmt;
   if (v.kind === 'function') {
     const f = v as FunctionValue;
+    // a value that carries its own display (∇f in the polar basis) is shown as such
+    if (f.display) return f.display;
     const plusC = f.role === 'antiderivative' ? ' + C' : '';
     // a command such as integrate x^2 reads  ∫ x² dx = x³/3 + C
     if (!name && st.kind === 'expr' && st.value.type === 'call' && f.expr) return `${toLatex(st.value)} = ${toLatex(f.expr)}${plusC}`;
@@ -135,10 +137,24 @@ function Row({ ws, info, math }: { ws: Workspace; info: StatementInfo; math: boo
   };
   if (node?.error) {
     const dep = node.error instanceof DependencyError;
+    // like Desmos: an unknown name in a formula can become a slider with one click (x² + y² = r²)
+    const unknown = /^Unknown name '([^']+)'$/.exec(node.error.message)?.[1];
     return (
       <div className={`out-row ${dep ? 'warn' : 'error'}`}>
         <span className="out-icon">{dep ? '⚠' : '✕'}</span>
         <span>{node.error.message}</span>
+        {unknown && (
+          <button
+            className="slider-fix"
+            title={`Insert ${unknown} = slider(0, 5, 1) above this row`}
+            onClick={(e) => {
+              e.stopPropagation();
+              ws.insertCellBefore(info.cellId, `${unknown} = slider(0, 5, 1)`);
+            }}
+          >
+            ＋ slider {unknown}
+          </button>
+        )}
       </div>
     );
   }

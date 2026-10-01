@@ -9,7 +9,7 @@ import { withAlpha, colormap } from '../../visualization/colormap';
 import { isosurfaceCached } from '../../visualization/marching';
 import { compileScalar } from '../../math-core/compile';
 import { parseExpression } from '../../parser/parser';
-import { drawLabel } from '../core-calculus/draw-util';
+import { drawLabel, drawArrow } from '../core-calculus/draw-util';
 import type { StripData } from './visuals';
 
 type G2 = (x: number, y: number) => number;
@@ -346,7 +346,7 @@ function mapBox(fn: FunctionValue, ranges: Box): Box {
   for (let i = 0; i <= 24; i++)
     for (let j = 0; j <= 24; j++) {
       const u = u0 + ((u1 - u0) * i) / 24, v = v0 + ((v1 - v0) * j) / 24;
-      for (const p of [[u, v], T(u, v)]) {
+      for (const p of [T(u, v)]) {
         if (!p.every(Number.isFinite)) continue;
         x0 = Math.min(x0, p[0]);
         x1 = Math.max(x1, p[0]);
@@ -368,11 +368,17 @@ registerDrawer2D('coordmap', {
     const { ctx, view, theme } = a;
     const s = Math.max(0, Math.min(1, a.timeline(timeline, 1)));
     const T = fn.eval as Map2;
+    const [[u0, u1], [v0, v1]] = ranges;
+    // the straight (u, v) grid starts stretched over the image's box, so the frame fits the image
+    const bkey = `mapbox|${fn.key}|${ranges}`;
+    let box = a.cache.get(bkey) as Box | undefined;
+    if (!box) a.cache.set(bkey, (box = mapBox(fn, ranges)));
+    const [[bx0, bx1], [by0, by1]] = box;
     const P = (u: number, v: number): [number, number] => {
       const q = T(u, v);
-      return [(1 - s) * u + s * q[0], (1 - s) * v + s * q[1]];
+      const pu = bx0 + ((u - u0) / (u1 - u0)) * (bx1 - bx0), pv = by0 + ((v - v0) / (v1 - v0)) * (by1 - by0);
+      return [(1 - s) * pu + s * q[0], (1 - s) * pv + s * q[1]];
     };
-    const [[u0, u1], [v0, v1]] = ranges;
     const N = 12;
     const line = (pts: [number, number][], color: string, w: number) => {
       ctx.strokeStyle = color;
@@ -397,9 +403,9 @@ registerDrawer2D('coordmap', {
       const v = v0 + ((v1 - v0) * i) / N;
       line(Array.from({ length: 81 }, (_, k) => P(u0 + ((u1 - u0) * k) / 80, v)), withAlpha(c2, 0.8), i === 0 || i === N ? 1.8 : 1.1);
     }
-    // one cell and its image: area ≈ |det J| Δu Δv
-    const du = (u1 - u0) / N, dv = (v1 - v0) / N;
-    const ua = u0 + du * Math.round(N * 0.66), va = v0 + dv * Math.round(N * 0.16);
+    // one cell (2 × 2 grid steps, so it is easy to see) and its image: area ≈ |det J| Δu Δv
+    const du = (2 * (u1 - u0)) / N, dv = (2 * (v1 - v0)) / N;
+    const ua = u0 + (du / 2) * Math.round(N * 0.66), va = v0 + (dv / 2) * Math.round(N * 0.08);
     const cell: [number, number][] = [];
     for (let k = 0; k <= 8; k++) cell.push(P(ua + (du * k) / 8, va));
     for (let k = 0; k <= 8; k++) cell.push(P(ua + du, va + (dv * k) / 8));
@@ -417,7 +423,33 @@ registerDrawer2D('coordmap', {
     const det = Math.abs(Tu[0] * Tv[1] - Tu[1] * Tv[0]);
     const scale = (1 - s) + s * det;
     const [lx, ly] = P(ua + du, va + dv);
-    drawLabel(ctx, `area ≈ ${+scale.toFixed(3)} · Δ${fn.params[0]} Δ${fn.params[1]}`, view.sx(lx) + 8, view.sy(ly) - 8, '#ffd166', theme, 13);
+    const [pu, pv] = fn.params;
+    const detText = (a.item.visual.props.detText as string | undefined) ?? '';
+    // the linear picture: J's columns ∂T/∂u Δu and ∂T/∂v Δv span a parallelogram of area |det J| Δu Δv
+    if (s > 0.98) {
+      const [bx, by] = P(ua, va);
+      const A = [bx + Tu[0] * du, by + Tu[1] * du];
+      const B = [bx + Tv[0] * dv, by + Tv[1] * dv];
+      ctx.save();
+      ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = withAlpha(theme.text, 0.85);
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(view.sx(A[0]), view.sy(A[1]));
+      ctx.lineTo(view.sx(A[0] + B[0] - bx), view.sy(A[1] + B[1] - by));
+      ctx.lineTo(view.sx(B[0]), view.sy(B[1]));
+      ctx.stroke();
+      ctx.restore();
+      drawArrow(ctx, view.sx(bx), view.sy(by), view.sx(A[0]), view.sy(A[1]), c1, 2.4, 9);
+      drawArrow(ctx, view.sx(bx), view.sy(by), view.sx(B[0]), view.sy(B[1]), c2, 2.4, 9);
+      drawLabel(ctx, `∂T/∂${pu}·Δ${pu}`, view.sx(A[0]) + 6, view.sy(A[1]) + 12, c1, theme, 12);
+      drawLabel(ctx, `∂T/∂${pv}·Δ${pv}`, view.sx(B[0]) + 6, view.sy(B[1]) - 10, c2, theme, 12);
+    }
+    const exact = s > 0.98 && detText ? ` = ${detText.replace(/\^2/g, '²').replace(/\*/g, '·')} Δ${pu} Δ${pv}` : '';
+    void lx;
+    void ly;
+    drawLabel(ctx, `yellow cell: area ≈ |det J| Δ${pu} Δ${pv}${exact}`, 14, 22, '#ffd166', theme, 13);
+    drawLabel(ctx, `here |det J| = ${+scale.toFixed(3)}; the dashed parallelogram of J's columns has this area`, 14, 41, theme.textDim, theme, 12);
   },
 });
 

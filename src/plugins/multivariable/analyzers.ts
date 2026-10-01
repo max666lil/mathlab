@@ -86,8 +86,12 @@ registerAnalyzer({
   id: 'coordinate-map',
   focusOnEdit: true,
   // linear maps are recognised first by the linear-algebra plugin; curves and surfaces have other shapes
-  recognizes: (v) => isCoordMap(v),
-  plan(T, value, ws): AnalysisPlan {
+  // J = jacobian T is analysed as the map it comes from (its grid and its det)
+  recognizes: (v) => isCoordMap(v) || (v.role === 'jacobian' && isCoordMap((v as unknown as import('../../math-core/values').FunctionValue).base)),
+  plan(name, value0, ws): AnalysisPlan {
+    const isJ = value0.role === 'jacobian';
+    const value = isJ ? ((value0 as unknown as import('../../math-core/values').FunctionValue).base as import('../../math-core/values').MathValue) : value0;
+    const T = isJ ? (ws.statements().find((s) => s.name && (ws.value(s.id) as { key?: string } | undefined)?.key === (value as { key: string }).key)?.name ?? name) : name;
     const f = value as import('../../math-core/values').FunctionValue;
     const n = f.params.length;
     const P = ws
@@ -95,12 +99,12 @@ registerAnalyzer({
       .find((s) => s.name && ws.value(s.id)?.kind === 'point' && (ws.value(s.id) as PointValue).coords.length === n)?.name;
     const sections: SectionSpec[] = [
       { id: 'overview', title: 'Summary', summary: true, why: 'polar' },
-      ...(n === 2 ? [{ id: 'grid', title: 'Grid picture', defaultOpen: true }] : []),
+      { id: 'grid', title: n === 2 ? 'Grid picture: cells × |det J|' : 'Grid picture: cells × |det J| (cut away)', defaultOpen: true },
     ];
     const facts: FactSpec[] = [
       { id: 'jacobian', title: 'Jacobian', expr: `jacobian ${T}`, tier: 0, section: 'overview', pinName: 'J' },
       { id: 'det', title: n === 2 ? 'Area scale det J' : 'Volume scale det J', expr: `det(jacobian ${T})`, tier: 0, section: 'overview', pinName: 'detJ' },
-      ...(n === 2 ? [{ id: 'grid', title: 'Grid', expr: `coordgrid ${T}`, tier: 1 as const, section: 'grid', visual: 'auto' as const }] : []),
+      { id: 'grid', title: 'Grid', expr: `coordgrid ${T}`, tier: 1 as const, section: 'grid', visual: 'auto' as const },
     ];
     if (P) {
       sections.push({ id: 'at', title: `At ${P}` });

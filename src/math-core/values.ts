@@ -67,6 +67,8 @@ export interface FunctionValue extends Base {
   base?: FunctionValue;
   /** parameter ranges of curves / surfaces: `for t in [0, 2π]` */
   ranges?: Record<string, [number, number]>;
+  /** a ready display when the formula alone would mislead (∇f = f_r e_r + (1/r) f_θ e_θ) */
+  display?: string;
 }
 export interface PlaneValue extends Base {
   kind: 'plane';
@@ -240,6 +242,7 @@ registerValueKind({
   kind: 'function',
   latex: (v) => {
     const f = v as FunctionValue;
+    if (f.display) return f.display;
     return f.expr ? `${functionSignatureLatex(f)} = ${toLatex(f.expr)}` : functionSignatureLatex(f);
   },
   typeLabel: (v) => {

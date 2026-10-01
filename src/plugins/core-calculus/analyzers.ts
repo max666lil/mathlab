@@ -25,6 +25,7 @@ import { valueLatex } from '../../math-core/values';
 import { symbolLatex } from '../../math-core/symbolic/print';
 import { registerRelation } from '../../visualization/presentation';
 import { specialPoints } from './piecewise';
+import { isPolarField } from './polar';
 
 // emphasising one object brings out the objects that explain it
 registerRelation('role:gradient', ['role:level']);
@@ -135,9 +136,37 @@ registerAnalyzer({
 
 // ------------------------------------------------------------------ f(x, y)
 
+// ------------------------------------------------------------------ f(r, θ): a field on the plane in polar coordinates
+
+registerAnalyzer({
+  id: 'function-polar',
+  recognizes: (v) => isFn(v, 2) && isPolarField(v),
+  plan(f, value, ws): AnalysisPlan {
+    const fv = value as FunctionValue;
+    const P = firstPoint(ws, 2);
+    const pName = freshName(ws, 'P');
+    const sections: SectionSpec[] = [
+      { id: 'overview', title: 'Summary', summary: true },
+      { id: 'polar', title: P ? `Polar basis at ${P}` : 'Polar basis at a point', defaultOpen: true, why: 'polar-gradient', actions: P ? [] : [{ label: `＋ Add a draggable point ${pName}`, rows: [`${pName} = point(1, 1) draggable`] }] },
+    ];
+    const facts: FactSpec[] = [
+      { id: 'surface', title: 'Surface', expr: `surface(cartesian ${f})`, tier: 0, section: 'overview', visual: 'always', hidden: true },
+      { id: 'contours', title: 'Contours', expr: `contours(cartesian ${f})`, tier: 0, section: 'overview', visual: 'always', hidden: true },
+      { id: 'cart', title: 'In x, y', expr: `cartesian ${f}`, tier: 0, section: 'overview' },
+      { id: 'gradient', title: 'Gradient', expr: `grad ${f}`, tier: 0, section: 'overview', pinName: 'g', visual: 'toggle' },
+      { id: 'basis', title: 'e_r, e_θ and ∇f', expr: P ? `polarview ${f} at ${P}` : `polarview ${f}`, tier: 0, section: 'polar', visual: 'auto' },
+    ];
+    return {
+      object: f, typeLabel: 'function of (r, θ) — a field on the plane', layout: { ...SURFACE_LAYOUT, canvasTitle: 'Polar field', defaultView: 'contour' }, title: valueLatex(fv), sections, facts,
+      relations: [{ kind: 'perpendicular', between: ['role:gradient', 'role:level'], text: '∇f is perpendicular to the level curve' }],
+      diagnostics: [],
+    };
+  },
+});
+
 registerAnalyzer({
   id: 'function-2d',
-  recognizes: (v) => isFn(v, 2),
+  recognizes: (v) => isFn(v, 2) && !isPolarField(v),
   plan(f, value, ws): AnalysisPlan {
     const fv = value as FunctionValue;
     const P = firstPoint(ws, 2);
@@ -197,6 +226,21 @@ registerAnalyzer({
         { id: `hess${P}`, title: `Second partials at ${P}`, expr: `hessian ${f} at ${P}`, tier: 1, section: sid, pinName: 'Hs' },
       );
     }
+    // f(x, y) = c as a curve whose size a slider controls (x² + y² = c: a circle of radius √c)
+    const cName = ws.statements().find((s) => s.name && s.input?.kind === 'slider' && /^(c|k|C)$/.test(s.name))?.name;
+    const c = freshName(ws, 'c');
+    sections.splice(1, 0, {
+      id: 'levelc', title: cName ? `Level curve ${f} = ${cName}` : 'Level curve f = c', defaultOpen: !!cName,
+      actions: cName ? [] : [{ label: `＋ Add a slider ${c} and draw ${f} = ${c}`, rows: [`${c} = slider(0, 10, 4)`] }],
+    });
+    if (cName) facts.push({ id: 'levelc', title: `${f} = ${cName}`, expr: `level ${f} = ${cName}`, tier: 1, section: 'levelc', visual: 'auto' });
+    // the same field and the same gradient written in polar coordinates (not a second formula set)
+    sections.push({ id: 'polar', title: 'In polar coordinates', why: 'polar-gradient' });
+    facts.push(
+      { id: 'polarform', title: `${f}(r, θ)`, expr: `polarform ${f}`, tier: 1, section: 'polar' },
+      { id: 'gradpolar', title: '∇f in polar', expr: `grad ${f} in polar`, tier: 1, section: 'polar' },
+      { id: 'polarview', title: 'e_r, e_θ and ∇f', expr: P ? `polarview ${f} at ${P}` : `polarview ${f}`, tier: 1, section: 'polar', visual: 'auto' },
+    );
     // a plane region in the worksheet: the double integral over it (volume under the surface)
     const R = firstRegion(ws);
     if (R) {

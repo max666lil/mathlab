@@ -255,10 +255,28 @@ export const examples: Example[] = [
     cells: ['C = r <= 1 + cos(θ)', 'S = 1 <= r <= 2 and 0 <= θ <= π/4', 'integrate (x^2 + y^2)^(-3/2) over S'],
   },
   {
+    id: 'polar-gradient-radial',
+    title: 'Polar gradient — x² + y² = r²: circles of radius √c, ∇f = 2r e_r = (2x, 2y)',
+    course: 'Multivariable Calculus',
+    cells: ['f(x, y) = x^2 + y^2', 'c = slider(0, 9, 4)', 'P = point(1, 1) draggable', 'grad f in polar'],
+  },
+  {
+    id: 'polar-gradient-angle',
+    title: 'Polar gradient — f = r² sin θ: ∇f = 2r sin θ e_r + r cos θ e_θ (the 1/r from ds = r dθ)',
+    course: 'Multivariable Calculus',
+    cells: ['f(r, θ) = r^2 sin(θ)', 'P = point(1, 1) draggable', 'grad f'],
+  },
+  {
+    id: 'circle-slider',
+    title: 'A circle you resize — x² + y² = r² with a slider r, and the same circle as the level curve f = r²',
+    course: 'Multivariable Calculus',
+    cells: ['r = slider(0, 3, 1.5)', 'x^2 + y^2 = r^2', 'f(x, y) = x^2 + y^2', 'f(x, y) = r^2'],
+  },
+  {
     id: 'polar-map',
     title: 'Polar coordinates as a map — the grid bends, det J = r',
     course: 'Multivariable Calculus',
-    cells: ['T(r, θ) = (r cos(θ), r sin(θ))', 'S(ρ, φ, θ) = (ρ sin(φ) cos(θ), ρ sin(φ) sin(θ), ρ cos(φ))', 'det(jacobian S)'],
+    cells: ['T(r, θ) = (r cos(θ), r sin(θ))', 'J = jacobian T', 'S(ρ, φ, θ) = (ρ sin(φ) cos(θ), ρ sin(φ) sin(θ), ρ cos(φ))', 'det(jacobian S)'],
   },
   {
     id: 'solid-ball',
