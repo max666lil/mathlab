@@ -11,7 +11,7 @@ import { symbolLatex, formatNumber, toText } from '../math-core/symbolic/print';
 import { MathValue, FunctionValue, PointValue, VectorValue, MatrixValue, ScalarValue, ShowValue, point, vector } from '../math-core/values';
 import { NodeDef } from './graph';
 import { Evaluator, Scope } from './evaluator';
-import { runScript, functionOf, ScriptValue } from './script/bridge';
+import { runScript, functionOf, runRBlock, ScriptValue } from './script/bridge';
 
 export interface Cell {
   id: string;
@@ -123,7 +123,7 @@ export class MathDocument {
         } else if (name) name = undefined; // duplicate — reported at evaluation
         infos.push({ id, cellId: cell.id, index, stmt, name, deps: [], hidden: stmt.modifiers.includes('hidden') });
         // a script leaves its variables in the worksheet: one node each, computed from the script
-        if (stmt.kind === 'block' && stmt.block.blockKind === 'script') {
+        if (stmt.kind === 'block' && (stmt.block.blockKind === 'script' || stmt.block.blockKind === 'r')) {
           const ex: string[] = [];
           for (const w of stmt.block.writes) {
             if (taken.has(w)) continue;
@@ -326,6 +326,7 @@ export function evaluateStatement(info: StatementInfo, ev: Evaluator, firstByNam
         const { script, var: v } = st.data as { script: string; var: string };
         const s = ev.lookup(script) as ScriptValue | undefined;
         if (!s || s.kind !== 'script') throw new EvalError(`the script defining ${v} failed`, st.span);
+        if (s.pending) throw new EvalError('waiting for R…', st.span);
         const value = s.vars[v];
         if (!value) throw new EvalError(`${v} is not assigned when the script finishes`, st.span);
         return value;
@@ -338,6 +339,7 @@ export function evaluateStatement(info: StatementInfo, ev: Evaluator, firstByNam
         return functionOf(st.block, ev);
       }
       if (st.name && !info.name) throw new EvalError(`'${st.name}' is already defined`, st.span);
+      if (st.block.blockKind === 'r') return runRBlock(st.block, ev) as unknown as MathValue;
       return runScript(st.block, ev) as unknown as MathValue;
   }
 }

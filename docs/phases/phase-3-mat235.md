@@ -22,6 +22,16 @@ The rest of this document first specifies **3a** in detail (Flagships A and B), 
 
 ---
 
+## 3a shipped
+
+`src/plugins/multivariable/field3d.ts`, `lagrange.ts` (tests `tests/field3d.test.ts`): f(x, y, z) with
+critical points (Hessian eigenvalues), domain, nested level surfaces (marching tetrahedra), slice planes,
+gradient at P and the tangent plane to the level surface; implicit surfaces G(x, y, z) = 0;
+`maximize / minimize / lagrange f subject to g = c [and h <= d …]` for 2 or 3 variables with λ,
+inequality constraints, singular constraint points, global labels on bounded feasible sets, the level
+curve sweeping to the optimum (∇f ∥ ∇g) and the level surface touching the constraint surface. Not yet:
+3-D point dragging on slice planes, symmetry detection.
+
 ## Flagship A — the Earth temperature field (acceptance case)
 
 ```

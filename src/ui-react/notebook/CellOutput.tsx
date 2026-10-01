@@ -162,7 +162,7 @@ function Row({ ws, info, math }: { ws: Workspace; info: StatementInfo; math: boo
   }
   // a script: what it printed, and the variables / figures it produced
   if (v.kind === 'script') {
-    const s = v as unknown as { output: string[]; vars: Record<string, MathValue> };
+    const s = v as unknown as { output: string[]; vars: Record<string, MathValue>; images?: string[]; pending?: boolean };
     const out = s.output.length > 40 ? [...s.output.slice(0, 18), `… ${s.output.length - 36} more lines …`, ...s.output.slice(-18)] : s.output;
     return (
       <div className={`out-row script ${selected ? 'selected' : ''}`} onClick={select} {...hover}>
@@ -170,7 +170,10 @@ function Row({ ws, info, math }: { ws: Workspace; info: StatementInfo; math: boo
           <Tex tex={valueLatex(v)} />
           {Object.keys(s.vars).length > 0 && <span className="dim small"> → {Object.keys(s.vars).join(', ')}</span>}
         </div>
-        {out.length > 0 && <pre className="script-out">{out.join('\n')}</pre>}
+        {out.length > 0 && <pre className={`script-out ${s.pending ? 'pending' : ''}`}>{out.join('\n')}</pre>}
+        {(s.images ?? []).map((src, i) => (
+          <img key={i} className="r-plot" src={src} alt={`R plot ${i + 1}`} />
+        ))}
       </div>
     );
   }

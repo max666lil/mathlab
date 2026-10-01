@@ -318,6 +318,16 @@ export const examples: Example[] = [
     ],
   },
   {
+    id: 'r-devore',
+    title: 'Real R (webR) — Devore Fig 3.15 and Table 4.3, run as written in the book',
+    course: 'Probability & Statistics',
+    cells: [
+      'n = 10000',
+      'R devore\nset.seed(1)\nX <- rpois(n, 20); Y <- rpois(n, 20)\nD <- abs(X - Y)\nphat <- mean(D > 5)\ncat("P(D > 5) =", phat, "  mean =", mean(D), "  sd =", sd(D), "\\n")\nhist(D, main = "|X - Y| (Devore Fig 3.15)", col = "steelblue")\nend',
+      'R gamma\np1 <- pgamma(5, 2) - pgamma(3, 2)\np2 <- 1 - pgamma(15, 2, 1/2.5)\nprint(c(p1, p2))\nend',
+    ],
+  },
+  {
     id: 'script-birthday',
     title: 'Script — Monte Carlo: the birthday problem',
     course: 'Probability & Statistics',

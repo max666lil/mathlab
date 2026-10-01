@@ -92,3 +92,28 @@ registerDrawer2D('figure', {
     if (fig.ylabel) drawLabel(ctx, fig.ylabel, 14, view.height / 2, theme.textDim, theme, 13);
   },
 });
+
+// R plots (webR): PNG images fitted into the canvas
+const images = new Map<string, HTMLImageElement>();
+registerDrawer2D('rplot', {
+  layer: 9,
+  draw(a) {
+    const src = a.item.visual.props.src as string;
+    let img = images.get(src);
+    if (!img) {
+      img = new Image();
+      img.onload = () => a.ws.emit('view');
+      img.src = src;
+      images.set(src, img);
+      if (images.size > 40) images.delete(images.keys().next().value!);
+    }
+    if (!img.complete || !img.width) return;
+    const { ctx, view } = a;
+    const k = Math.min((view.width * 0.96) / img.width, (view.height * 0.96) / img.height);
+    const w = img.width * k;
+    const h = img.height * k;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect((view.width - w) / 2, (view.height - h) / 2, w, h);
+    ctx.drawImage(img, (view.width - w) / 2, (view.height - h) / 2, w, h);
+  },
+});

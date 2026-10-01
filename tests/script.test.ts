@@ -181,3 +181,18 @@ describe('script functions across cells', () => {
     expect((ws.node('last')?.value as any).value).toBeCloseTo(1.1 ** 10, 12);
   });
 });
+
+describe('R blocks (webR)', () => {
+  it('an R block is a line `R [name]` … `end`; `R = …` is still a region', async () => {
+    const { parseBlock } = await import('../src/parser/blocks');
+    expect(findBlocks('R sim\nx <- rnorm(10)\nfor (i in 1:3) { print(i) }\nend\ny = 2')).toEqual([{ from: 0, to: 52 }]);
+    expect(findBlocks('R = x^2 + y^2 <= 1')).toEqual([]);
+    expect(openBlocks('R sim\nx <- 1\n')).toBe(1);
+    const b = parseBlock('R sim\nn <- 10\nx <- rnorm(n)\nf <- function(t) {\n  y <- t^2\n  y\n}\nm = mean(x)\nend');
+    expect(b.blockKind).toBe('r');
+    expect(b.name).toBe('sim');
+    expect(b.writes).toEqual(['n', 'x', 'f', 'm']);
+    expect(parseBlock('R\nX <- rpois(5, 2); Y <- rpois(5, 2)\nend').writes).toEqual(['X', 'Y']);
+    expect(b.reads).toEqual(expect.arrayContaining(['rnorm', 'n', 'mean']));
+  });
+});

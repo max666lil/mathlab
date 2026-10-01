@@ -34,6 +34,7 @@ const SYNTAX: [string, string][] = [
   ['script name … end · function y = f(x) … end · for / while / if … end', 'MATLAB-style scripts (Shift+Enter or Enter inside a block adds lines); script variables become worksheet objects'],
   ['[1 2; 3 4] · 1:0.1:2 · v(end) · A(:, 2) · .* ./ .^ · @(x) x.^2 · rng(1) · rand · randn · randi', 'arrays, ranges, indexing, element-wise ops, anonymous functions, seeded random numbers'],
   ['plot · scatter · bar · hist · histogram(v, 30, \'Normalization\', \'pdf\') · fprintf · disp · integral · fzero · trapz · polyfit', 'script output, figures and numerical tools'],
+  ['R name … end', 'real R (webR, loaded on first use): worksheet numbers / lists go in, R variables, output and plots come back'],
   ['X ~ Normal(μ, σ) · Binomial(n, p) · Poisson(μ) · Exponential(λ) · Gamma(α, β) · pmf([x…], [p…]) …', 'random variables (Devore’s parameterizations)'],
   ['P(X > a) · P(a < X <= b) · E(X) · Var(X) · SD(X) · quantile(X, p) · pdf X · cdf X · sample(X, n) · clt(X)', 'probabilities, moments, percentiles, simulation, the CLT'],
   ['D = [ … ] · summary D · histogram D · boxplot D · normplot D', 'data: Devore’s summaries and plots'],

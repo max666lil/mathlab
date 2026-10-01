@@ -4,6 +4,7 @@
  * Views subscribe to topics and read state; they never compute mathematics themselves.
  */
 import { Graph, NodeState, DependencyError } from './graph';
+import { onRResult } from './rbridge';
 import { MathDocument, StatementInfo, newCellId } from './document';
 import { MathValue, PointValue, VectorValue, MatrixValue, ScalarValue, ShowValue, AnimationValue, VisualValue, point, scalar } from '../math-core/values';
 import { freeSymbols } from '../math-core/ast';
@@ -79,6 +80,10 @@ export class Workspace {
     installCoreBuiltins();
     this.doc = new MathDocument(sources);
     this.rebuild();
+    // an R block's result arrives later (webR runs asynchronously): evaluate again with it
+    onRResult(() => {
+      if (this.doc.statements.some((s) => s.stmt.kind === 'block' && s.stmt.block.blockKind === 'r')) this.rebuild();
+    });
   }
 
   // ---------------------------------------------------------------- events

@@ -13,6 +13,7 @@ import { SExpr, SFunction } from './parser';
 import { Arr, Fn, SV, ScriptError, isArr, isFn, isObj, toArr, num, simplifyValue } from './values';
 import { Interpreter, Figure, Host } from './interp';
 import { LIBRARY } from './library';
+import { rResult, rStatus } from '../rbridge';
 
 export interface TextValue {
   kind: 'text';
@@ -28,6 +29,10 @@ export interface ScriptValue {
   vars: Record<string, MathValue>;
   exports: string[];
   usedRandom: boolean;
+  /** an R block whose result has not arrived yet */
+  pending?: boolean;
+  engine?: 'R';
+  images?: string[];
   [k: string]: unknown;
 }
 
@@ -252,3 +257,30 @@ export function functionOf(block: ParsedBlock, ctx: EvalContext): FunctionValue 
 }
 
 export { LIBRARY, isObj };
+
+/** Run an R block through webR: worksheet numbers / lists it mentions go in, its variables come out. */
+export function runRBlock(block: ParsedBlock, ctx: EvalContext): ScriptValue {
+  const inputs: Record<string, number | number[] | string> = {};
+  for (const n of block.reads) {
+    const v = ctx.lookup(n);
+    if (!v) continue;
+    if (v.kind === 'scalar') inputs[n] = (v as { value: number }).value;
+    else if (v.kind === 'list' && (v as { items: MathValue[] }).items.every((i) => i.kind === 'scalar')) inputs[n] = (v as { items: { value: number }[] }).items.map((i) => i.value);
+    else if (v.kind === 'text') inputs[n] = (v as unknown as TextValue).text;
+  }
+  const res = rResult(block.body, inputs, block.writes);
+  const base = { kind: 'script' as const, name: block.name, engine: 'R' as const, figures: [], exports: block.writes, usedRandom: false };
+  if (!res)
+    return { ...base, pending: true, vars: {}, images: [], output: [rStatus === 'ready' ? 'Running R…' : 'Loading R (webR) — the first run downloads R once, then it is cached…'] };
+  if (res.error) throw new EvalError(`R: ${res.error}`);
+  const meta = { certainty: 'numeric' as Certainty, evidence: `computed by R (webR)${block.name ? `, block ${block.name}` : ''}` };
+  const vars: Record<string, MathValue> = {};
+  for (const [k, r] of Object.entries(res.vars)) {
+    if (r.type === 'character') vars[k] = { kind: 'text', text: r.values.join(' ') } as unknown as MathValue;
+    else {
+      const nums = r.values.map((x) => (typeof x === 'boolean' ? (x ? 1 : 0) : x === null ? NaN : Number(x)));
+      vars[k] = nums.length === 1 ? scalar(nums[0], meta) : ({ kind: 'list', items: nums.map((x) => scalar(x)), ...meta } as unknown as MathValue);
+    }
+  }
+  return { ...base, vars, output: res.output, images: res.images, visuals: res.images.map((src, i) => visual('rplot', { src }, `R plot ${i + 1}`, 'figure')) };
+}

@@ -13,7 +13,9 @@ export const scriptingMath = definePlugin({
         const s = v as unknown as ScriptValue;
         const vars = Object.keys(s.vars);
         const parts = [vars.length ? `${vars.length} variable${vars.length === 1 ? '' : 's'}` : '', s.figures.filter((f) => f.series.length).length ? `${s.figures.length} figure${s.figures.length === 1 ? '' : 's'}` : ''].filter(Boolean);
-        return `\\text{script${s.name ? ` ${esc(s.name)}` : ''}${parts.length ? ': ' + parts.join(', ') : ''}}`;
+        const word = s.engine === 'R' ? 'R' : 'script';
+        if (s.pending) return `\\text{${word}${s.name ? ` ${esc(s.name)}` : ''}: running…}`;
+        return `\\text{${word}${s.name ? ` ${esc(s.name)}` : ''}${parts.length ? ': ' + parts.join(', ') : ''}}`;
       },
       typeLabel: () => 'script',
     });

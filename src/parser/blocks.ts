@@ -4,6 +4,11 @@
  * cell stays ordinary worksheet language.
  */
 import { lexScript, parseScript, ScriptSyntaxError, SProgram, SStmt, SExpr, Tok } from '../runtime/script/parser';
+import { rUsage } from '../runtime/rbridge';
+
+/** An R block opens with a line that is just `R` or `R name` (so `R = x^2 + y^2 <= 1` is not one). */
+const R_OPEN = /^\s*R(?:\s+([A-Za-z_][A-Za-z0-9_.]*))?\s*$/;
+const R_CLOSE = /^\s*end\s*$/;
 
 export const BLOCK_OPENERS = new Set(['function', 'script', 'for', 'while', 'if', 'switch']);
 
@@ -46,8 +51,25 @@ export function findBlocks(src: string): BlockSegment[] {
   let pos = 0;
   let start = -1;
   let depth = 0;
+  let rBlock = false;
   for (const line of lines) {
     const lineEnd = pos + line.length;
+    // R code has no `end` of its own: an R block closes at the first line that is just `end`
+    if (rBlock) {
+      if (R_CLOSE.test(line)) {
+        out.push({ from: start, to: lineEnd });
+        start = -1;
+        rBlock = false;
+      }
+      pos = lineEnd + 1;
+      continue;
+    }
+    if (start < 0 && R_OPEN.test(line)) {
+      start = pos;
+      rBlock = true;
+      pos = lineEnd + 1;
+      continue;
+    }
     if (start < 0) {
       if (BLOCK_OPENERS.has(firstWord(line))) {
         start = pos;
@@ -75,16 +97,25 @@ export function findBlocks(src: string): BlockSegment[] {
 /** How many blocks are still open at the end of the text (for Enter in the editor). */
 export function openBlocks(src: string): number {
   let depth = 0;
+  let rBlock = false;
   for (const line of src.split('\n')) {
+    if (rBlock) {
+      if (R_CLOSE.test(line)) rBlock = false;
+      continue;
+    }
+    if (depth === 0 && R_OPEN.test(line)) {
+      rBlock = true;
+      continue;
+    }
     if (depth === 0 && !BLOCK_OPENERS.has(firstWord(line))) continue;
     depth += depthDelta(line, depth === 0);
     if (depth < 0) depth = 0;
   }
-  return depth;
+  return rBlock ? Math.max(1, depth) : depth;
 }
 
 export interface ParsedBlock {
-  blockKind: 'function' | 'script' | 'code';
+  blockKind: 'function' | 'script' | 'code' | 'r';
   name?: string;
   program: SProgram;
   /** names read (worksheet dependencies are the ones defined there) */
@@ -98,6 +129,15 @@ export interface ParsedBlock {
 
 /** Parse a block's text. Throws ScriptSyntaxError with a position relative to the block. */
 export function parseBlock(text: string): ParsedBlock {
+  const first = text.split('\n')[0];
+  const rOpen = R_OPEN.exec(first);
+  if (rOpen) {
+    const lines = text.split('\n');
+    if (!R_CLOSE.test(lines[lines.length - 1])) throw new ScriptSyntaxError(`missing 'end' for the R block`, text.length);
+    const body = lines.slice(1, -1).join('\n');
+    const u = rUsage(body);
+    return { blockKind: 'r', name: rOpen[1], program: { body: [], functions: [] }, reads: u.reads, writes: u.writes, offset: first.length + 1, body };
+  }
   const word = firstWord(text);
   if (word === 'script') {
     const m = /^\s*script\b[ \t]*([A-Za-z_]\w*)?[^\n]*\n?/.exec(text)!;

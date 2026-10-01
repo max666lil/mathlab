@@ -197,6 +197,19 @@ h(2; 10, 5, 25) = .385; NB(4, .2) P(X = 15) = .050; Apgar E = 7.15, V = 1.5815; 
 Φ(1.25) = .8944; IQ with continuity correction .0516; deductible table ρ = .301; (6/5)(x + y²):
 P(X ≤ ¼, Y ≤ ¼) = 7/640; florist E(S²) = 244; P(3.5 ≤ X̄ ≤ 3.8) = .1645.
 
+### Shipped so far (Phase 5 part 1)
+
+`src/plugins/statistics/` (tests `tests/statistics.test.ts`): `X ~ Family(…)` objects for all the families
+above plus `pmf([x], [p])`; `P(…)` with strict / non-strict events, `E`, `Var`, `SD`, `median`,
+`quantile`, `pdf X` (symbolic where classic), `cdf X`, seeded `sample(X, n)`, `clt(X)`; distribution
+analyzer (density with the mean, shaded P(a < X ≤ b) under sliders, cdf, simulation, CLT animation);
+datasets (`summary`, `histogram`, `boxplot`, `normplot`). **Real R**: `R name … end` blocks run in webR
+(R compiled to WebAssembly, downloaded once on first use), so Devore's R code runs unchanged; worksheet
+numbers / lists it mentions are passed in, its variables, printed output and plots come back.
+Next: transformations Y = g(X) (cdf method / change of variables with the picture), joint pmf tables
+and joint densities over regions (3b), covariance / correlation, conditional distributions, the
+bivariate normal, order statistics; Devore ch. 7–8 (estimation, confidence intervals).
+
 ## 6. Linear programming and games (Phase 7, new)
 
 Kolman–Beck conventions: **standard form** = max cᵀx, Ax ≤ b, x ≥ 0; **canonical form** = equalities;

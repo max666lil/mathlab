@@ -19,9 +19,9 @@ It should feel as simple as Desmos at first glance and as deep as a mathematical
 |---|---|---|---|
 | 1 | f(x), f(x,y), derivatives, limits, integrals, Taylor, gradient, Hessian, critical points | one-variable and multivariable functions | ✅ done |
 | 2 | matrices, vectors, linear maps, rref, rank, det, inverse, subspaces, eigen, diagonalization, systems, projections, least squares, QR, SVD — with 3Blue1Brown-style animated transformations in 2-D and 3-D | linear algebra (MAT223/224) | ✅ done — [spec](phases/phase-2-linear-algebra.md) |
-| 3 | 3a 3-D fields + Lagrange · 3b multiple integrals, coordinates, Jacobian · 3c vector fields, div, curl, Laplacian · 3d line/surface integrals, Green/Stokes/Divergence | multivariable and vector calculus (MAT235) | in progress: 3b ✅ 3c ✅ 3d ✅, 3a next — [spec](phases/phase-3-mat235.md) |
+| 3 | 3a 3-D fields + Lagrange · 3b multiple integrals, coordinates, Jacobian · 3c vector fields, div, curl, Laplacian · 3d line/surface integrals, Green/Stokes/Divergence | multivariable and vector calculus (MAT235) | ✅ 3a 3b 3c 3d — [spec](phases/phase-3-mat235.md) |
 | 4 | ODE: Laplace / inverse Laplace transform, linear ODEs and IVPs, slope fields, systems x′ = Ax and phase portraits · PDE: heat, wave and Laplace equations, boundary conditions, separation of variables, Fourier series | differential equations (ODE + PDE) and transforms (MAT244, APM346) | planned |
-| 5 | distributions, random-variable transformations, joint/conditional, expectation, sampling, CLT, estimation | probability and statistics | planned |
+| 5 | distributions, random-variable transformations, joint/conditional, expectation, sampling, CLT, estimation | probability and statistics | in progress: random variables, probabilities, moments, datasets, CLT ✅; real R via webR ✅; next transformations Y = g(X), joint distributions, estimation |
 | 6 | sequences, series, power series, Taylor series, convergence | infinite processes | planned |
 | S | MATLAB-like scripts: `function` / `for` / `while` / `if` blocks, arrays and ranges, indexing, element-wise ops, seeded random numbers, `plot` / `hist`; script variables become worksheet objects | programming and simulation (all courses; STA237 simulation) | ✅ first release (see CURRICULUM §2) |
 | 7 | linear programs (graphical, exact simplex tableaux, two-phase, duality, sensitivity, branch and bound, transportation, assignment), strategic games (Nash equilibria, zero-sum games by LP) | optimisation and game theory | planned |
@@ -286,8 +286,8 @@ Full specification: **[phases/phase-3-mat235.md](phases/phase-3-mat235.md)**.
 ## 7. Order and milestones
 
 ```
-done: Phase 1 → Phase 2 → 3c → 3d → 3b → S (scripts, first release)
-next: 3a (3-D fields, Lagrange) → 5 (probability, statistics) → 4 (ODE + PDE) → 6 (series, Fourier)
+done: Phase 1 → Phase 2 → 3c → 3d → 3b → S (scripts) → 3a → 5 part 1 (random variables, data, CLT, webR)
+next: 5 part 2 (Y = g(X), joint distributions, estimation) → 4 (ODE + PDE) → 6 (series, Fourier)
       → 7 (linear programming, games)
 ```
 
