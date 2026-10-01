@@ -457,9 +457,17 @@ export class Workspace {
       const fnv = v as { kind: string; params?: string[]; out?: string; role?: string };
       const nComp = ((v as { expr?: { items?: unknown[] } }).expr?.items ?? []).length;
       const curve = v.kind === 'function' && ((fnv.params?.length === 1 && (fnv.out === 'vector' || fnv.role === 'polar')) || (fnv.params?.length === 2 && fnv.out === 'vector' && nComp === 3));
-      const geometric = SHOWN_KINDS.has(v.kind) || curve || (v.kind === 'vector' && !!(v as { anchor?: number[] }).anchor) || !!v.visuals?.length;
+      // like Desmos: every graph of a function (y = f(x), z = f(x, y)) is drawn, each with its own toggle
+      const graph = v.kind === 'function' && fnv.out === 'scalar' && (fnv.params?.length === 1 || fnv.params?.length === 2) && !fnv.role;
+      const geometric = SHOWN_KINDS.has(v.kind) || curve || graph || (v.kind === 'vector' && !!(v as { anchor?: number[] }).anchor) || !!v.visuals?.length;
       if (info.name && (geometric || this.visibility.get(`${info.id}#auto`))) {
         if (v.kind === 'function' && info.name === this.focus && !v.visuals?.length) continue; // drawn by the analysis
+        // another surface in the scene: its surface only (contours belong to the analysed function)
+        if (graph && fnv.params?.length === 2) {
+          const sv = toVisuals(v, { nodeId: info.id, name: info.name }).filter((x) => x.vtype === 'surface');
+          sv.forEach((visual, i) => add(`${info.id}#${i}`, info.id, visual, keysFor(visual, [info.id], info.id), info.id, this.visibility.get(`${info.id}#auto`) ?? !info.hidden));
+          continue;
+        }
         push(info.id, v, !info.hidden, info.name);
       } else if (!info.name && info.stmt.kind === 'expr' && geometric) {
         // a command such as `tangent f at P` shows its result
@@ -493,6 +501,22 @@ export class Workspace {
   isVisualizable(id: string): boolean {
     const v = this.value(id);
     return !!v && toVisuals(v, { nodeId: id }).length > 0;
+  }
+
+  /** Desmos-style toggle: hide everything a row draws, or bring it back with its default visuals. */
+  toggleShown(id: string) {
+    const on = this.isShown(id);
+    const mine = this.sceneItems().filter((it) => it.nodeId === id);
+    if (on) for (const it of mine) this.visibility.set(it.id, false);
+    else for (const it of mine) this.visibility.delete(it.id);
+    this.visibility.set(`${id}#auto`, !on);
+    this.sceneCache = null;
+    this.emit('view');
+  }
+
+  /** The colour a row's toggle shows (the colour of its first visual). */
+  shownColor(id: string): string | undefined {
+    return this.sceneItems().find((it) => it.nodeId === id)?.color;
   }
 
   /** Is anything from this node currently visible? */

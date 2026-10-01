@@ -172,8 +172,10 @@ export class ExprParser {
         case '^':
           return BP.pow;
         case '.':
-        case '!':
           return BP.postfix;
+        case '!':
+          // a != b is a comparison (inside piecewise conditions), not a factorial
+          return this.isOp('=', 1) && !this.peek(1).spaced ? 0 : BP.postfix;
         case '(':
           return isCallable(left) ? BP.postfix : BP.mul;
         case '∇':
@@ -316,6 +318,8 @@ export class ExprParser {
             span: { from: t.from, to: spanOf(operand).to },
           };
         }
+        case '{':
+          return this.piecewise(t);
         case '(': {
           const items = this.parseList(')');
           const close = this.expectOp(')');
@@ -402,6 +406,73 @@ export class ExprParser {
       }
     });
     return { type: 'call', callee: name, args: [arg], ...(kwargs.length ? { kwargs } : {}), span: { from: spanOf(name).from, to: end } };
+  }
+
+  /**
+   * Desmos-style piecewise definitions: {x < 0: -x, x^2}, {(x,y) != (0,0): xy/(x^2+y^2), 0}.
+   * Becomes piecewise(cond₁, value₁, …, default); conditions are comparisons joined by `and`.
+   */
+  private piecewise(open: Token): Expr {
+    const args: Expr[] = [];
+    let hasDefault = false;
+    for (;;) {
+      if (this.isOp('}')) break;
+      if (hasDefault) throw new MathSyntaxError('the value without a condition must come last', this.peek().from, this.peek().to);
+      const first = this.withStops(['and'], () => this.parseExpr(BP.eq));
+      const cond = this.condition(first);
+      if (cond && this.isOp(':')) {
+        this.next();
+        args.push(cond, this.withStops(['and'], () => this.parseExpr(0)));
+      } else if (cond) {
+        throw new MathSyntaxError("expected ':' after the condition", this.peek().from, this.peek().to);
+      } else {
+        args.push(first);
+        hasDefault = true;
+      }
+      if (this.isOp(',')) {
+        this.next();
+        continue;
+      }
+      break;
+    }
+    const close = this.expectOp('}');
+    if (!args.length) throw new MathSyntaxError('empty piecewise definition', open.from, close.to);
+    return { type: 'call', callee: { type: 'sym', name: 'piecewise' }, args, span: { from: open.from, to: close.to } };
+  }
+
+  /** first [= | != | ≠ | < | ≤ | > | ≥ second] [and …] — undefined when no comparison follows. */
+  private condition(first: Expr): Expr | undefined {
+    const one = (left: Expr): Expr | undefined => {
+      const t = this.peek();
+      let rel: Relation | '=' | undefined;
+      if (t.kind === 'op') {
+        if (t.text === '!' && this.isOp('=', 1)) {
+          this.next();
+          rel = '!=';
+        } else if (t.text === '≠') rel = '!=';
+        else if (t.text === '=' ) rel = '=';
+        else if (['<', '>', '<=', '>=', '≤', '≥'].includes(t.text)) rel = t.text === '≤' ? '<=' : t.text === '≥' ? '>=' : (t.text as Relation);
+      }
+      if (!rel) return undefined;
+      this.next();
+      if ((rel === '<' || rel === '>') && this.isOp('=') && !this.peek().spaced) {
+        this.next();
+        rel = rel === '<' ? '<=' : '>=';
+      }
+      const right = this.withStops(['and'], () => this.parseExpr(BP.eq));
+      return { type: 'eq', left, right, ...(rel === '=' ? {} : { rel }), span: { from: spanOf(left).from, to: spanOf(right).to } };
+    };
+    // `a = b` was already parsed as an equation by the expression parser
+    let c: Expr | undefined = first.type === 'eq' && !first.rel ? first : one(first);
+    if (!c) return undefined;
+    while (this.isIdent('and')) {
+      this.next();
+      const l = this.withStops(['and'], () => this.parseExpr(BP.eq));
+      const more = l.type === 'eq' && !l.rel ? l : one(l);
+      if (!more) throw new MathSyntaxError("expected a comparison after 'and'", spanOf(l).from, spanOf(l).to);
+      c = { type: 'call', callee: { type: 'sym', name: 'and' }, args: [c, more] };
+    }
+    return c;
   }
 
   /** A primary without postfix operators (so ∇f(P) parses as (∇f)(P)). */  private primaryOnly(): Expr {

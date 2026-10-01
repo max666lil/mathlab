@@ -24,6 +24,7 @@ import type { FunctionValue, MathValue, PointValue, VectorValue } from '../../ma
 import { valueLatex } from '../../math-core/values';
 import { symbolLatex } from '../../math-core/symbolic/print';
 import { registerRelation } from '../../visualization/presentation';
+import { specialPoints } from './piecewise';
 
 // emphasising one object brings out the objects that explain it
 registerRelation('role:gradient', ['role:level']);
@@ -103,9 +104,16 @@ registerAnalyzer({
       { id: 'taylor', title: `T₄ at ${centre}`, expr: `taylor ${f} at ${centre} order 4`, tier: 1, section: 'taylor', pinName: 'T', visual: 'auto' },
       { id: 'integral', title: `∫ ${f} d${x}`, expr: `integrate ${f}`, tier: 1, section: 'integral', pinName: 'F' },
     ];
-    // like a graphing calculator: every other function of one variable is drawn too, with intersections on demand
+    // piecewise: continuity and one-sided derivatives at each break point
+    for (const [c] of specialPoints(fv).slice(0, 3)) {
+      const C = +c.toPrecision(6);
+      const sid = `break${C}`;
+      sections.splice(1, 0, { id: sid, title: `At the break ${x} = ${C}`, defaultOpen: true });
+      facts.push({ id: `smooth${C}`, title: 'Continuity & derivative', expr: `smoothness ${f} at ${C}`, tier: 1, section: sid });
+    }
+    // like a graphing calculator: every other function of one variable is drawn by the worksheet (with its own
+    // toggle); intersections with them on demand
     const others = ws.statements().filter((s) => s.name && s.name !== f && ws.value(s.id) && isFn(ws.value(s.id)!, 1)).map((s) => s.name!);
-    for (const g of others) facts.push({ id: `graph:${g}`, title: g, expr: g, tier: 0, section: 'overview', visual: 'always', hidden: true });
     if (others.length) {
       sections.splice(1, 0, { id: 'intersections', title: 'Intersections' });
       for (const g of others.slice(0, 4))
@@ -178,6 +186,16 @@ registerAnalyzer({
       );
     } else {
       sections.push({ id: 'at', title: 'At a point', actions: [{ label: `＋ Add a point ${pName}`, rows: [`${pName} = point(1, 1) draggable`] }] });
+    }
+    // piecewise definitions: what happens at the special point (limit, partials by definition, Clairaut)
+    for (const sp of specialPoints(fv).slice(0, 2)) {
+      const P = `(${sp.map((x) => +x.toPrecision(6)).join(', ')})`;
+      const sid = `special${P}`;
+      sections.splice(1, 0, { id: sid, title: `At the special point ${P}`, defaultOpen: true });
+      facts.push(
+        { id: `smooth${P}`, title: 'Smoothness', expr: `smoothness ${f} at ${P}`, tier: 1, section: sid },
+        { id: `hess${P}`, title: `Second partials at ${P}`, expr: `hessian ${f} at ${P}`, tier: 1, section: sid, pinName: 'Hs' },
+      );
     }
     // a plane region in the worksheet: the double integral over it (volume under the surface)
     const R = firstRegion(ws);

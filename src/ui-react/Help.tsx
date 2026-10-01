@@ -32,6 +32,8 @@ const SYNTAX: [string, string][] = [
   ['script name … end · function y = f(x) … end · for / while / if … end', 'MATLAB-style scripts (Shift+Enter or Enter inside a block adds lines); script variables become worksheet objects'],
   ['[1 2; 3 4] · 1:0.1:2 · v(end) · A(:, 2) · .* ./ .^ · @(x) x.^2 · rng(1) · rand · randn · randi', 'arrays, ranges, indexing, element-wise ops, anonymous functions, seeded random numbers'],
   ['plot · scatter · bar · hist · histogram(v, 30, \'Normalization\', \'pdf\') · fprintf · disp · integral · fzero · trapz · polyfit', 'script output, figures and numerical tools'],
+  ['f(x) = {x < 0: -x, x^2} · f(x,y) = {(x,y) != (0,0): x y/(x^2 + y^2), 0} · smoothness f at (0,0)', 'piecewise definitions; limits, partials by the definition, Clairaut at the special point'],
+  ['● circle left of a row', 'show / hide what the row draws (all visible objects share one 2-D / 3-D space)'],
   ['x^2 + y^2 = 9 · y < x^2 · r = 1 + cos(θ) · 10! · nCr(5,2) · mean([…])', 'graphing-calculator features'],
   ['show derivative f · hide contours · show level f = 3', 'representation control (basics are shown automatically)'],
   ['compare f with taylor f at 0 order 4', 'overlay two functions and their difference'],

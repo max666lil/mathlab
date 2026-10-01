@@ -1,7 +1,7 @@
 /** Drawers of the graphing layer: implicit curves, shaded regions, parametric / polar curves (2-D and 3-D). */
 import * as THREE from 'three';
 import { registerDrawer2D, Draw2DArgs } from '../../visualization/2d/registry2d';
-import { registerVisual3D, Visual3D, Ctx3D, disposeObject, FatLine } from '../../visualization/3d/registry3d';
+import { registerVisual3D, Visual3D, Ctx3D, disposeObject, FatLine, FatSegments, setOpacity } from '../../visualization/3d/registry3d';
 import type { SceneItem } from '../../visualization/scene-model';
 import { sampleGrid, cachedLevelSet } from '../../visualization/sampling';
 import { withAlpha, hexToRgb } from '../../visualization/colormap';
@@ -157,3 +157,118 @@ class Curve3D implements Visual3D {
   }
 }
 registerVisual3D('curve', () => new Curve3D());
+
+// ------------------------------------------------------------------ plane objects inside the 3-D scene
+// y = f(x), implicit curves and regions live in the plane; in a 3-D scene they are drawn on its floor,
+// so several 2-D and 3-D objects can be seen together (each with its worksheet toggle).
+
+class Graph1D3D implements Visual3D {
+  object = new THREE.Group();
+  private line: FatLine | null = null;
+  private key = '';
+  update(item: SceneItem, ctx: Ctx3D, selected: boolean) {
+    const fn = item.visual.props.fn as FunctionValue;
+    const m = ctx.map;
+    const key = `${fn.key}|${m.key()}|${item.color}|${selected}`;
+    if (key === this.key) return;
+    this.key = key;
+    if (!this.line) {
+      this.line = new FatLine(ctx.lineMaterial(item.color, 2.6));
+      this.object.add(this.line.line);
+    }
+    this.line.material.color.set(item.color);
+    this.line.material.linewidth = selected ? 3.4 : 2.6;
+    const f = fn.eval as (x: number) => number;
+    const z = m.floorZ + 3 * m.eps;
+    const pts: number[] = [];
+    for (let i = 0; i <= 600; i++) {
+      const x = m.xr[0] + ((m.xr[1] - m.xr[0]) * i) / 600;
+      const y = f(x);
+      if (!Number.isFinite(y) || y < m.yr[0] || y > m.yr[1]) {
+        if (pts.length >= 6) break; // one visible branch is enough on the floor
+        pts.length = 0;
+        continue;
+      }
+      pts.push(x, y, z);
+    }
+    this.line.set(pts);
+  }
+  dispose() {
+    disposeObject(this.object);
+  }
+}
+registerVisual3D('graph1d', () => new Graph1D3D());
+
+class Implicit3D implements Visual3D {
+  object = new THREE.Group();
+  private segs: FatSegments | null = null;
+  private key = '';
+  update(item: SceneItem, ctx: Ctx3D, selected: boolean) {
+    const fn = item.visual.props.fn as FunctionValue;
+    const m = ctx.map;
+    const key = `${fn.key}|${m.key()}|${item.color}|${selected}`;
+    if (key === this.key) return;
+    this.key = key;
+    const s = cachedLevelSet(sampleGrid(fn, m.xr, m.yr, 220), 0);
+    const z = m.floorZ + 3 * m.eps;
+    const pts: number[] = [];
+    for (let k = 0; k + 3 < s.length; k += 4) pts.push(s[k], s[k + 1], z, s[k + 2], s[k + 3], z);
+    if (this.segs) this.object.remove(this.segs.lines);
+    this.segs = new FatSegments(ctx.lineMaterial(item.color, selected ? 3.2 : 2.4));
+    this.segs.set(pts);
+    this.object.add(this.segs.lines);
+  }
+  dispose() {
+    disposeObject(this.object);
+  }
+}
+registerVisual3D('implicit', () => new Implicit3D());
+
+class Region3D implements Visual3D {
+  object = new THREE.Group();
+  private fill: THREE.Mesh;
+  private edge: FatSegments | null = null;
+  private key = '';
+  constructor() {
+    const mat = new THREE.MeshBasicMaterial({ color: '#5b8cff', transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false });
+    setOpacity(mat, 0.25);
+    this.fill = new THREE.Mesh(new THREE.BufferGeometry(), mat);
+    this.object.add(this.fill);
+  }
+  update(item: SceneItem, ctx: Ctx3D, selected: boolean) {
+    const { fn, rel } = item.visual.props as { fn: FunctionValue; rel: string };
+    const m = ctx.map;
+    const key = `${fn.key}|${rel}|${m.key()}|${item.color}|${selected}`;
+    if (key === this.key) return;
+    this.key = key;
+    const n = 120;
+    const grid = sampleGrid(fn, m.xr, m.yr, n);
+    const inside = (g: number) => (rel === '<' ? g < 0 : rel === '<=' ? g <= 0 : rel === '>' ? g > 0 : g >= 0);
+    const z = m.floorZ + 2 * m.eps;
+    const pos: number[] = [];
+    const hx = (m.xr[1] - m.xr[0]) / n, hy = (m.yr[1] - m.yr[0]) / n;
+    for (let j = 0; j < n; j++)
+      for (let i = 0; i < n; i++) {
+        const c = (jj: number, ii: number) => grid.z[jj * (n + 1) + ii];
+        if (![c(j, i), c(j, i + 1), c(j + 1, i), c(j + 1, i + 1)].every((g) => Number.isFinite(g) && inside(g))) continue;
+        const x0 = m.xr[0] + i * hx, y0 = m.yr[0] + j * hy;
+        pos.push(x0, y0, z, x0 + hx, y0, z, x0 + hx, y0 + hy, z, x0, y0, z, x0 + hx, y0 + hy, z, x0, y0 + hy, z);
+      }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    this.fill.geometry.dispose();
+    this.fill.geometry = geo;
+    (this.fill.material as THREE.MeshBasicMaterial).color.set(item.color);
+    const s = cachedLevelSet(grid, 0);
+    const e: number[] = [];
+    for (let k = 0; k + 3 < s.length; k += 4) e.push(s[k], s[k + 1], z + m.eps, s[k + 2], s[k + 3], z + m.eps);
+    if (this.edge) this.object.remove(this.edge.lines);
+    this.edge = new FatSegments(ctx.lineMaterial(item.color, selected ? 2.6 : 1.8, { dashed: rel === '<' || rel === '>' }));
+    this.edge.set(e);
+    this.object.add(this.edge.lines);
+  }
+  dispose() {
+    disposeObject(this.object);
+  }
+}
+registerVisual3D('region', () => new Region3D());

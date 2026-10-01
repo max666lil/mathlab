@@ -33,6 +33,8 @@ function surfaceGrad(ctx: Ctx3D, x: number, y: number): [number, number] | undef
 
 // ---------------------------------------------------------------- surface
 
+const WHITE = new THREE.Color(1, 1, 1);
+
 class SurfaceVisual implements Visual3D {
   object = new THREE.Group();
   private mesh: THREE.Mesh;
@@ -68,10 +70,13 @@ class SurfaceVisual implements Visual3D {
       this.mat.needsUpdate = true;
     }
     (this.wire.material as THREE.LineBasicMaterial).clippingPlanes = ctx.clip;
-    const key = `${fn.key}|${xr}|${yr}|${ctx.map.key()}|${ctx.theme.name}`;
+    // the analysed surface uses the height colormap; other surfaces in the same scene get their own colour
+    const solo = !!ctx.frame.surface && ctx.frame.surface.key !== fn.key;
+    const key = `${fn.key}|${xr}|${yr}|${ctx.map.key()}|${ctx.theme.name}|${solo ? item.color : ''}`;
     if (key === this.key) return;
     this.key = key;
     const n = 140;
+    const own = new THREE.Color(item.color);
     const g = sampleGrid(fn, xr, yr, n);
     const W = n + 1;
     const pos = new Float32Array(W * W * 3);
@@ -87,8 +92,14 @@ class SurfaceVisual implements Visual3D {
         pos[k * 3] = x;
         pos[k * 3 + 1] = y;
         pos[k * 3 + 2] = Number.isNaN(z) ? m.floorZ : m.z(z);
-        colormap((z - m.zLo) / (m.zHi - m.zLo), rgb);
-        srgb(rgb[0], rgb[1], rgb[2]);
+        if (solo) {
+          // a little lighter with height, so the shape still reads
+          const t = Math.max(0, Math.min(1, (z - m.zLo) / (m.zHi - m.zLo || 1)));
+          tmpColor.copy(own).lerp(WHITE, 0.25 * t);
+        } else {
+          colormap((z - m.zLo) / (m.zHi - m.zLo), rgb);
+          srgb(rgb[0], rgb[1], rgb[2]);
+        }
         col[k * 3] = tmpColor.r;
         col[k * 3 + 1] = tmpColor.g;
         col[k * 3 + 2] = tmpColor.b;

@@ -18,7 +18,7 @@ function loadMode(): 'math' | 'code' {
 
 export function Notebook() {
   const ws = useWs();
-  useTopics('doc', 'view');
+  useTopics('doc', 'view', 'values');
   const [mode, setMode] = useState<'math' | 'code'>(loadMode);
   const [editing, setEditing] = useState<string | null>(null);
   const [newId, setNewId] = useState<string | null>(null);
@@ -79,11 +79,33 @@ export function Notebook() {
             const names = definedNames(c.id);
             const analysable = names.find((n) => ws.isAnalyzable(n));
             const focused = !!analysable && ws.focus === analysable;
+            // Desmos-style: a coloured circle shows / hides what the row draws
+            const drawable = ws
+              .statements()
+              .filter((s) => s.cellId === c.id)
+              .map((s) => s.id)
+              .filter((id) => ws.sceneItems().some((it) => it.nodeId === id));
+            const shown = drawable.some((nm) => ws.isShown(nm));
+            const color = drawable.map((nm) => ws.shownColor(nm)).find(Boolean) ?? 'var(--accent)';
             return (
               <div key={c.id} className={`cell ${focused ? 'focus-row' : ''} ${last ? 'input-row' : ''}`}>
-                <div className="cell-index" title={analysable ? `Analyse ${analysable}` : undefined} onClick={() => analysable && ws.setFocus(analysable)}>
-                  {analysable ? <span className={`focus-dot ${focused ? 'on' : ''}`}>◉</span> : last ? '›' : ''}
-                </div>
+                {drawable.length ? (
+                  <div className="cell-index" title={shown ? 'Hide in the views' : 'Show in the views'}>
+                    <button
+                      className={`vis-toggle ${shown ? 'on' : ''}`}
+                      style={{ borderColor: color, background: shown ? color : 'transparent' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const target = !shown;
+                        for (const nm of drawable) if (ws.isShown(nm) !== target) ws.toggleShown(nm);
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="cell-index" title={analysable ? `Analyse ${analysable}` : undefined} onClick={() => analysable && ws.setFocus(analysable)}>
+                    {analysable ? <span className={`focus-dot ${focused ? 'on' : ''}`}>◉</span> : last ? '›' : ''}
+                  </div>
+                )}
                 <div
                   className="cell-main"
                   onClick={(e) => {

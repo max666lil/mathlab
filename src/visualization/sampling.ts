@@ -286,6 +286,16 @@ export function frameFromItems(items: { visible: boolean; visual: { vtype: strin
     const pad = (r: Range): Range => [r[0] - (r[1] - r[0]) * 0.12, r[1] + (r[1] - r[0]) * 0.12];
     const seeThrough = items.some((i) => i.visible && i.visual.props.seeThrough);
     const f = sceneFrame(fv, window?.xr ?? (box ? pad(box[0]) : own?.xRange) ?? DEFAULT_RANGE, window?.yr ?? (box ? pad(box[1]) : own?.yRange) ?? DEFAULT_RANGE);
+    // other visible surfaces share the box: the height range covers all of them
+    for (const it of items) {
+      const g = it.visible && it.visual.vtype === 'surface' ? (it.visual.props.fn as FunctionValue | undefined) : undefined;
+      if (!g || g.key === fv.key) continue;
+      const gr = sampleGrid(g, f.xr, f.yr, 60);
+      if (Number.isFinite(gr.lo) && Number.isFinite(gr.hi)) {
+        f.zLo = Math.min(f.zLo, gr.lo);
+        f.zHi = Math.max(f.zHi, gr.hi);
+      }
+    }
     return seeThrough ? { ...f, seeThrough } : f;
   }
   // visuals with their own extent (linear maps, subspaces): a symmetric Euclidean frame

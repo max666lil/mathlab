@@ -31,7 +31,7 @@ export type Expr =
   /** x = a (arguments such as slice(f, x = 1)); as a statement: an implicit curve or, with `rel`, an inequality */
   | { type: 'eq'; left: Expr; right: Expr; rel?: Relation; span?: Span };
 
-export type Relation = '<' | '>' | '<=' | '>=';
+export type Relation = '<' | '>' | '<=' | '>=' | '!=';
 
 export const num = (value: number): Expr => ({ type: 'num', value });
 export const sym = (name: string): Expr => ({ type: 'sym', name });

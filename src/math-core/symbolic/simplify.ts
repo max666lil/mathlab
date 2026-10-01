@@ -61,7 +61,7 @@ export function simplify(e: Expr): Expr {
     case 'matrix':
       return { type: 'matrix', rows: e.rows.map((r) => r.map(simplify)) };
     case 'eq':
-      return { type: 'eq', left: simplify(e.left), right: simplify(e.right) };
+      return { type: 'eq', left: simplify(e.left), right: simplify(e.right), ...(e.rel ? { rel: e.rel } : {}) };
   }
 }
 

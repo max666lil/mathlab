@@ -69,6 +69,12 @@ function gen(e: Expr, params: string[], env: NumericEnv, fns: Map<string, (...a:
       }
     case 'call': {
       const name = e.callee.type === 'sym' ? e.callee.name : undefined;
+      // {c₁: v₁, c₂: v₂, default}: nested conditionals (undefined where no branch applies)
+      if (name === 'piecewise') {
+        let out = e.args.length % 2 ? g(e.args[e.args.length - 1]) : 'NaN';
+        for (let i = e.args.length - (e.args.length % 2) - 2; i >= 0; i -= 2) out = `(${cond(e.args[i], params, env, fns)}?${g(e.args[i + 1])}:${out})`;
+        return out;
+      }
       const sf = name ? getScalarFunction(name) : undefined;
       if (!name || !sf) throw new CompileError(`Unknown function '${name ?? '?'}'`);
       const [lo, hi] = typeof sf.arity === 'number' ? [sf.arity, sf.arity] : sf.arity;
@@ -83,6 +89,27 @@ function gen(e: Expr, params: string[], env: NumericEnv, fns: Map<string, (...a:
       return `[${e.rows.map((r) => `[${r.map(g).join(',')}]`).join(',')}]`;
     default:
       throw new CompileError(`Cannot compile ${e.type}`);
+  }
+}
+
+/** A piecewise condition: comparisons (componentwise for points) joined by `and`. */
+function cond(e: Expr, params: string[], env: NumericEnv, fns: Map<string, (...a: number[]) => number>): string {
+  const g = (x: Expr) => gen(x, params, env, fns);
+  if (e.type === 'call' && e.callee.type === 'sym' && e.callee.name === 'and') return `(${e.args.map((a) => cond(a, params, env, fns)).join('&&')})`;
+  if (e.type !== 'eq') throw new CompileError('a piecewise condition must be a comparison, e.g. x < 0 or (x, y) != (0, 0)');
+  const items = (x: Expr) => (x.type === 'tuple' || x.type === 'vec' ? x.items : [x]);
+  const L = items(e.left);
+  const R = items(e.right);
+  if (L.length !== R.length) throw new CompileError('compare points of the same dimension');
+  const same = L.map((l, i) => `(Math.abs((${g(l)})-(${g(R[i])}))<=1e-13*(1+Math.abs(${g(R[i])})))`).join('&&');
+  switch (e.rel) {
+    case undefined:
+      return `(${same})`;
+    case '!=':
+      return `!(${same})`;
+    default:
+      if (L.length !== 1) throw new CompileError(`'${e.rel}' compares numbers, not points`);
+      return `(${g(L[0])}${e.rel}${g(R[0])})`;
   }
 }
 

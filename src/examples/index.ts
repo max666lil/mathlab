@@ -195,6 +195,18 @@ export const examples: Example[] = [
     cells: ['F(x,y,z) = <-y, x, z>', 'H(u,v) = (cos u sin v, sin u sin v, cos v) for u in [0, 2π], v in [0, π/2]'],
   },
   {
+    id: 'piecewise-clairaut',
+    title: 'Piecewise — mixed partials that differ: f_xy(0,0) ≠ f_yx(0,0)',
+    course: 'Multivariable Calculus',
+    cells: ['f(x,y) = {(x,y) != (0,0): x y (x^2 - y^2)/(x^2 + y^2), 0}', 'g(x,y) = {(x,y) != (0,0): x y/(x^2 + y^2), 0}'],
+  },
+  {
+    id: 'piecewise-1d',
+    title: 'Piecewise f(x) — corners, jumps and removable holes',
+    course: 'Calculus I',
+    cells: ['f(x) = {x < 0: -x, x <= 2: x^2, 4}', 'k(x) = {x != 0: sin(x)/x, 1}'],
+  },
+  {
     id: 'disk-integral',
     title: 'Double integral over the unit disk — 7π/2 in polar coordinates',
     course: 'Multivariable Calculus',

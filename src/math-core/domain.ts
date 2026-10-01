@@ -15,6 +15,26 @@ export interface DomainCondition {
 }
 
 export function domainConditions(e: Expr, vars: string[]): DomainCondition[] {
+  // piecewise: each branch's conditions, except those that fail only where the branch does not apply —
+  // {(x,y) != (0,0): xy/(x²+y²), 0} is defined everywhere
+  if (e.type === 'call' && e.callee.type === 'sym' && e.callee.name === 'piecewise') {
+    const out: DomainCondition[] = [];
+    const seen = new Set<string>();
+    const args = e.args;
+    for (let i = 0; i < args.length; i += 2) {
+      const isDefault = i === args.length - 1;
+      const value = isDefault ? args[i] : args[i + 1];
+      const guard = isDefault ? undefined : args[i];
+      for (const c of domainConditions(value, vars)) {
+        if (guard && onlyOutside(c, guard, vars)) continue;
+        if (!seen.has(c.latex)) {
+          seen.add(c.latex);
+          out.push(c);
+        }
+      }
+    }
+    return out;
+  }
   const out: DomainCondition[] = [];
   const seen = new Set<string>();
   const push = (expr: Expr, rel: DomainCondition['rel']) => {
@@ -165,4 +185,35 @@ export function scanDomain1D(f: (x: number) => number, conds: DomainCondition[],
     }),
     window,
   };
+}
+
+/**
+ * A condition `expr ≠ 0` (or > 0 / ≥ 0) of a branch that only fails at the point the branch excludes:
+ * guard `(x, y) != P` and expr fails at P but holds on small circles around P.
+ */
+function onlyOutside(c: DomainCondition, guard: Expr, vars: string[]): boolean {
+  if (guard.type !== 'eq' || guard.rel !== '!=') return false;
+  const items = (x: Expr) => (x.type === 'tuple' || x.type === 'vec' ? x.items : [x]);
+  const L = items(guard.left);
+  const R = items(guard.right).map((r) => simplify(r));
+  if (!L.every((l) => l.type === 'sym') || !R.every((r) => r.type === 'num')) return false;
+  const names = L.map((l) => (l as { name: string }).name);
+  if (!vars.every((v) => names.includes(v))) return false;
+  const P = R.map((r) => (r as { value: number }).value);
+  let f: (...a: number[]) => number;
+  try {
+    f = compileScalar(c.expr, names);
+  } catch {
+    return false;
+  }
+  const ok = (v: number) => (c.rel === '≠' ? Math.abs(v) > 1e-300 : c.rel === '>' ? v > 0 : c.rel === '≥' ? v >= 0 : Math.abs(v) <= 1);
+  if (ok(f(...P))) return false;
+  for (const r of [1e-3, 0.1, 1])
+    for (let k = 0; k < 12; k++) {
+      const q = P.slice();
+      q[0] += r * Math.cos((2 * Math.PI * k) / 12 + 0.3);
+      if (q.length > 1) q[1] += r * Math.sin((2 * Math.PI * k) / 12 + 0.3);
+      if (!ok(f(...q))) return false;
+    }
+  return true;
 }

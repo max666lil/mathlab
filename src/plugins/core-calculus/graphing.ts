@@ -9,6 +9,7 @@ import { registerScalarFunction } from '../../math-core/scalar-functions';
 import { visual } from '../../visualization/scene-model';
 import { registerFrameHint } from '../../visualization/sampling';
 import { curveRange } from '../../math-core/ranges';
+import { smoothnessBuiltin, SmoothnessValue } from './piecewise';
 
 export interface RelationValue {
   kind: 'relation';
@@ -128,6 +129,12 @@ export const graphingMath = definePlugin({
   name: 'graphing',
   install(api) {
     statBuiltins.forEach((b) => api.registerBuiltin(b));
+    api.registerBuiltin(smoothnessBuiltin);
+    api.registerValueKind({
+      kind: 'smoothness',
+      latex: (v) => `\\begin{array}{l} ${(v as unknown as SmoothnessValue).rows.join(' \\\\ ')} \\end{array}`,
+      typeLabel: () => 'smoothness at a point',
+    });
     api.registerValueKind({
       kind: 'relation',
       latex: (v) => (v as unknown as RelationValue).latex,

@@ -405,3 +405,26 @@ select { max-width: 360px; }
   border-radius: 6px;
   white-space: pre;
 }
+
+/* Desmos-style visibility toggle in the worksheet margin */
+.vis-toggle {
+  width: 16px;
+  height: 16px;
+  margin-top: 4px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2.5px solid var(--accent);
+  cursor: pointer;
+  transition: background 0.12s, transform 0.12s;
+}
+.vis-toggle:hover {
+  transform: scale(1.15);
+}
+.vis-toggle:not(.on) {
+  opacity: 0.8;
+  border-width: 2px;
+}
+
+/* multi-line facts (smoothness at a point): full width below the title */
+.fact.wide { grid-template-columns: 1fr auto; }
+.fact.wide .fact-value { grid-column: 1 / -1; grid-row: 2; max-height: none; overflow-x: auto; font-size: 12.5px; padding-top: 4px; }

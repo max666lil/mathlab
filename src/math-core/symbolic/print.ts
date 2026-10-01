@@ -137,8 +137,17 @@ export function toText(e: Expr, precise = false): string {
       return `-${p(e.arg, PREC.pow)}`;
     case 'eq':
       return `${toText(e.left, precise)} ${e.rel ?? '='} ${toText(e.right, precise)}`;
-    case 'call':
+    case 'call': {
+      const nm = e.callee.type === 'sym' ? e.callee.name : '';
+      if (nm === 'piecewise') {
+        const parts: string[] = [];
+        for (let i = 0; i + 1 < e.args.length; i += 2) parts.push(`${toText(e.args[i], precise)}: ${toText(e.args[i + 1], precise)}`);
+        if (e.args.length % 2) parts.push(toText(e.args[e.args.length - 1], precise));
+        return `{${parts.join(', ')}}`;
+      }
+      if (nm === 'and') return e.args.map((a) => toText(a, precise)).join(' and ');
       return `${p(e.callee, PREC.atom)}(${list(e.args)})`;
+    }
     case 'tuple':
       return `(${list(e.items)})`;
     case 'vec':
@@ -313,9 +322,16 @@ export function toLatex(e: Expr, digits = 4): string {
     case 'neg':
       return `-${p(e.arg, PREC.pow)}`;
     case 'eq':
-      return `${L(e.left)} ${e.rel === '<=' ? '\\le' : e.rel === '>=' ? '\\ge' : (e.rel ?? '=')} ${L(e.right)}`;
+      return `${L(e.left)} ${e.rel === '<=' ? '\\le' : e.rel === '>=' ? '\\ge' : e.rel === '!=' ? '\\neq' : (e.rel ?? '=')} ${L(e.right)}`;
     case 'call': {
       const name = e.callee.type === 'sym' ? e.callee.name : undefined;
+      if (name === 'piecewise') {
+        const rows: string[] = [];
+        for (let i = 0; i + 1 < e.args.length; i += 2) rows.push(`${L(e.args[i + 1])}, & ${L(e.args[i])}`);
+        if (e.args.length % 2) rows.push(`${L(e.args[e.args.length - 1])}, & \\text{otherwise}`);
+        return `\\begin{cases} ${rows.join(' \\\\ ')} \\end{cases}`;
+      }
+      if (name === 'and') return e.args.map(L).join(',\\ ');
       const cmd = name ? commandLatex.get(name) : undefined;
       if (cmd && e.args.length === 1) {
         const kw: Record<string, string> = {};

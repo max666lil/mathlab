@@ -42,6 +42,9 @@ function appendRows(ws: Workspace, rows: string[]) {
   for (const r of rows) after = ws.addCell(after, r);
 }
 
+/** Multi-line results (a smoothness report) get the full width under their title. */
+const WIDE_KINDS = new Set(['smoothness']);
+
 function FactRow({ plan, spec, an }: { plan: AnalysisPlan; spec: FactSpec; an: AnalysisService }) {
   const ws = useWs();
   const emph = useEmphasis();
@@ -58,7 +61,7 @@ function FactRow({ plan, spec, an }: { plan: AnalysisPlan; spec: FactSpec; an: A
     ws.setFocus(name);
   };
   return (
-    <div className={`fact ${emph.active(keys) ? 'lit' : ''}`} onMouseEnter={() => emph.enter(keys)} onMouseLeave={emph.leave}>
+    <div className={`fact ${emph.active(keys) ? 'lit' : ''} ${st.value && WIDE_KINDS.has(st.value.kind) ? 'wide' : ''}`} onMouseEnter={() => emph.enter(keys)} onMouseLeave={emph.leave}>
       <span className="fact-title">{spec.title}</span>
       <span className="fact-value">
         {st.status === 'pending' && <span className="dim">…</span>}
