@@ -6,7 +6,7 @@
 import { Expr, Span, freeSymbols } from '../math-core/ast';
 import { parseProgram, Statement, spanOf } from '../parser/parser';
 import { getBuiltin, getCustomStatement, EvalError, PROBFACT } from '../math-core/builtins';
-import { getScalarFunction } from '../math-core/scalar-functions';
+import { getScalarFunction, CONSTANTS } from '../math-core/scalar-functions';
 import { symbolLatex, formatNumber, toText } from '../math-core/symbolic/print';
 import { MathValue, FunctionValue, PointValue, VectorValue, MatrixValue, ScalarValue, ShowValue, point, vector } from '../math-core/values';
 import { NodeDef } from './graph';
@@ -36,6 +36,8 @@ export interface StatementInfo {
   deps: string[];
   input?: InputSpec;
   hidden: boolean;
+  /** the name was given automatically (a bare formula became f, an equation with z became S) */
+  autoNamed?: boolean;
 }
 
 let cellCounter = 0;
@@ -79,6 +81,32 @@ function statementExprs(st: Statement): Expr[] {
 }
 
 
+
+const LIFT = ['x', 'y', 'z', 't'];
+const FUNCTION_NAMES = ['f', 'g', 'h', 'p', 'q', 'u', 'v', 'w'];
+
+/** The name a bare formula / surface equation gets (undefined: the statement stays anonymous). */
+function autoName(st: Statement, taken: Set<string>): string | undefined {
+  if (st.kind !== 'expr') return undefined;
+  const v = st.value;
+  const known = (n: string) => taken.has(n) || n in CONSTANTS || !!getBuiltin(n) || !!getScalarFunction(n);
+  const pick = (base: string[]) => base.find((n) => !taken.has(n)) ?? Array.from({ length: 50 }, (_, i) => `${base[0]}${i + 2}`).find((n) => !taken.has(n));
+  const unknown = (e: Expr) => [...freeSymbols(e)].filter((n) => !known(n));
+  // every unknown name is a variable, or letters that are variables / defined names (xy, 2ax)
+  const variablesOnly = (ns: string[]) => ns.length > 0 && ns.every((n) => LIFT.includes(n) || [...n].every((c) => (LIFT.includes(c) && !taken.has(c)) || taken.has(c)));
+  if (v.type === 'eq') {
+    if (v.rel || v.left.type === 'eq') return undefined;
+    const u = unknown(v);
+    const letters = new Set(u.flatMap((n) => [...n]));
+    return variablesOnly(u) && letters.has('z') && !taken.has('z') ? pick(['S']) : undefined;
+  }
+  // commands (grad f, integrate …) and evaluations (f at P) are results, not definitions
+  if (v.type === 'call' && v.callee.type === 'sym' && getBuiltin(v.callee.name) && !getScalarFunction(v.callee.name)) return undefined;
+  if (v.type === 'bin' && v.op === 'at') return undefined;
+  if (v.type === 'list' || v.type === 'matrix' || v.type === 'vec') return undefined;
+  const u = unknown(v);
+  return variablesOnly(u) && u.some((n) => [...n].some((c) => LIFT.includes(c) && !taken.has(c))) ? pick(FUNCTION_NAMES) : undefined;
+}
 
 /** Does the expression ask a probability, P(…) / Pr(…)? */
 function callsP(e: unknown): boolean {
@@ -148,6 +176,16 @@ export class MathDocument {
           exportsOf.set(id, ex);
         }
       });
+    }
+    // a bare formula in x, y, z, t (x - 2y + 3) is a function like f(x, y) = …, and an equation with z
+    // (2x + 3y - z = 5) a surface: they get the next free name, so they are analysed and can be used
+    for (const info of infos) {
+      const auto = info.name ? undefined : autoName(info.stmt, taken);
+      if (!auto) continue;
+      info.name = auto;
+      info.id = auto;
+      info.autoNamed = true;
+      taken.add(auto);
     }
     const names = new Set(infos.filter((i) => i.name).map((i) => i.name!));
     for (const info of infos) {
@@ -338,8 +376,11 @@ export function evaluateStatement(info: StatementInfo, ev: Evaluator, firstByNam
     }
     case 'show':
       return { kind: 'show', items: st.items.map((e) => ev.evaluateOrLift(e)), sources: st.items.map((e) => (e.type === 'sym' ? e.name : undefined)) } as ShowValue;
-    case 'expr':
-      return st.value.type === 'eq' ? ev.relation(st.value) : ev.evaluateOrLift(st.value);
+    case 'expr': {
+      const r = st.value.type === 'eq' ? ev.relation(st.value) : ev.evaluateOrLift(st.value);
+      // an automatically named formula carries its name (g(x, y) = … when f is taken)
+      return info.autoNamed && r.kind === 'function' ? ({ ...r, label: symbolLatex(info.name!) } as MathValue) : r;
+    }
     case 'animate': {
       const from = ev.num(ev.evaluate(st.from), st.from);
       const to = ev.num(ev.evaluate(st.to), st.to);

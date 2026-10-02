@@ -3,7 +3,7 @@
  * classified by the Hessian's eigenvalues, level surfaces f = c (marching tetrahedra), slice planes,
  * the tangent plane to a level surface (∇f(P)·(r − P) = 0) and implicit surfaces G(x, y, z) = 0.
  */
-import { Expr, num, sym } from '../../math-core/ast';
+import { Expr, num, sym, mapExpr } from '../../math-core/ast';
 import { Builtin, EvalContext, EvalError, expectFunction, expectCoords, expectNumber } from '../../math-core/builtins';
 import { FunctionValue, MathValue, Certainty } from '../../math-core/values';
 import { simplify, addList, mulList } from '../../math-core/symbolic/simplify';
@@ -206,7 +206,13 @@ const implicitsurface: Builtin = {
     if (e?.type !== 'eq') throw new EvalError('an equation in x, y, z');
     const g = ctx.makeFunction({ type: 'bin', op: '-', left: e.left, right: e.right }, ['x', 'y', 'z']);
     const G = g.eval as (...p: number[]) => number;
-    return { kind: 'implicitsurface', fn: g, latex: toLatex(e), box: implicitBox(G), key: `isurf|${g.key}`, certainty: 'exact' } as unknown as MathValue;
+    // ax + by + cz = d is shown as a·x + b·y + c·z = d (letters that are defined names or variables)
+    const shown = mapExpr(e, (n) => {
+      if (n.type !== 'sym' || [...n.name].length < 2 || ctx.lookup(n.name)) return n;
+      const letters = [...n.name];
+      return letters.every((c) => 'xyz'.includes(c) || ctx.lookup(c)) ? mulList(letters.map((c) => sym(c))) : n;
+    });
+    return { kind: 'implicitsurface', fn: g, latex: toLatex(shown), box: implicitBox(G), key: `isurf|${g.key}`, certainty: 'exact' } as unknown as MathValue;
   },
 };
 

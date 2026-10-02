@@ -26,6 +26,7 @@ import { symbolLatex } from '../../math-core/symbolic/print';
 import { registerRelation } from '../../visualization/presentation';
 import { specialPoints } from './piecewise';
 import { isPolarField } from './polar';
+import { linearCoeffs } from '../multivariable/linear';
 
 // emphasising one object brings out the objects that explain it
 registerRelation('role:gradient', ['role:level']);
@@ -225,6 +226,11 @@ registerAnalyzer({
         { id: `smooth${P}`, title: 'Smoothness', expr: `smoothness ${f} at ${P}`, tier: 1, section: sid },
         { id: `hess${P}`, title: `Second partials at ${P}`, expr: `hessian ${f} at ${P}`, tier: 1, section: sid, pinName: 'Hs' },
       );
+    }
+    // ax + by + k: a dot product; the graph is a plane with normal (a, b, −1)
+    if (linearCoeffs(fv)) {
+      sections.splice(1, 0, { id: 'linear', title: 'Linear function: its graph is a plane', defaultOpen: true });
+      facts.push({ id: 'linear', title: 'Linear form', expr: `linearform ${f}`, tier: 0, section: 'linear' });
     }
     // f(x, y) = c as a curve whose size a slider controls (x² + y² = c: a circle of radius √c)
     const cName = ws.statements().find((s) => s.name && s.input?.kind === 'slider' && /^(c|k|C)$/.test(s.name))?.name;

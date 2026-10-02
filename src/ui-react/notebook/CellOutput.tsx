@@ -7,6 +7,8 @@ import { MathValue, ScalarValue, FunctionValue, valueLatex, VisualValue } from '
 import type { Expr } from '../../math-core/ast';
 import { symbolLatex, formatNumber, toLatex } from '../../math-core/symbolic/print';
 import { DependencyError } from '../../runtime/graph';
+import { getBuiltin } from '../../math-core/builtins';
+import { getScalarFunction, CONSTANTS } from '../../math-core/scalar-functions';
 import { plainLabel } from '../../plugins/core-calculus/draw-util';
 import { sliceTitle } from '../../visualization/2d/slice-view';
 import { objectKeys } from '../object-keys';
@@ -32,6 +34,20 @@ function literal(e: Expr): boolean {
   }
 }
 
+/** Undefined names of a row, multi-letter ones split into letters (ax → a): candidates for sliders. */
+function missingLetters(ws: Workspace, info: StatementInfo): string[] {
+  const cell = ws.doc.cells.find((c) => c.id === info.cellId);
+  const src = cell ? cell.source.slice(info.stmt.span.from, info.stmt.span.to) : '';
+  const known = (n: string) => !!ws.value(n) || !!getBuiltin(n) || !!getScalarFunction(n) || n in CONSTANTS;
+  const out: string[] = [];
+  for (const word of src.match(/[\p{L}_][\p{L}\p{N}_]*/gu) ?? []) {
+    if (known(word)) continue;
+    const parts = [...word].every((ch) => /\p{L}/u.test(ch)) && [...word].length > 1 ? [...word] : [word];
+    for (const p of parts) if (!known(p) && !['x', 'y', 'z', 't'].includes(p) && !out.includes(p)) out.push(p);
+  }
+  return out;
+}
+
 function outputLatex(info: StatementInfo, v: MathValue, math: boolean): string {
   const name = info.name ? symbolLatex(info.name) : undefined;
   const st = info.stmt;
@@ -51,7 +67,7 @@ function outputLatex(info: StatementInfo, v: MathValue, math: boolean): string {
   if (v.kind === 'distribution') return name ? `${name} \\sim ${valueLatex(v)}` : valueLatex(v);
   // P(B | A) = 0.95: the fact is its own display (its node name is internal)
   if (v.kind === 'probfact') return valueLatex(v);
-  if (v.kind === 'relation' || v.kind === 'region') return name ? `${name}:\\ ${valueLatex(v)}` : valueLatex(v);
+  if (v.kind === 'relation' || v.kind === 'region' || v.kind === 'implicitsurface') return name ? `${name}:\\ ${valueLatex(v)}` : valueLatex(v);
   // math mode: show the definition itself (∇f(P)), code mode: how it was obtained numerically
   const middle = math && expr && !literal(expr) ? toLatex(expr) : v.derivation;
   const parts = [name, middle, valueLatex(v)].filter(Boolean) as string[];
@@ -139,20 +155,23 @@ function Row({ ws, info, math }: { ws: Workspace; info: StatementInfo; math: boo
     const dep = node.error instanceof DependencyError;
     // like Desmos: an unknown name in a formula can become a slider with one click (x² + y² = r²)
     const unknown = /^Unknown name '([^']+)'$/.exec(node.error.message)?.[1];
+    // ax + by + cz = d: every undefined letter of the row becomes a slider at once
+    const letters = unknown ? missingLetters(ws, info) : [];
     return (
       <div className={`out-row ${dep ? 'warn' : 'error'}`}>
         <span className="out-icon">{dep ? '⚠' : '✕'}</span>
-        <span>{node.error.message}</span>
-        {unknown && (
+        <span>{letters.length > 1 ? `${letters.join(', ')} are not defined yet` : node.error.message}</span>
+        {unknown && letters.length > 0 && (
           <button
             className="slider-fix"
-            title={`Insert ${unknown} = slider(0, 5, 1) above this row`}
+            title={`Insert ${letters.map((l) => `${l} = slider(…)`).join(', ')} above this row`}
             onClick={(e) => {
               e.stopPropagation();
-              ws.insertCellBefore(info.cellId, `${unknown} = slider(0, 5, 1)`);
+              const one = letters.length === 1;
+              for (const l of letters) ws.insertCellBefore(info.cellId, one ? `${l} = slider(0, 5, 1)` : `${l} = slider(-5, 5, 1)`);
             }}
           >
-            ＋ slider {unknown}
+            ＋ slider{letters.length > 1 ? 's' : ''} {letters.join(', ')}
           </button>
         )}
       </div>

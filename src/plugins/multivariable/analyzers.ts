@@ -8,6 +8,7 @@ import { symbolLatex } from '../../math-core/symbolic/print';
 import { asRegion, roundness } from './region';
 import { isCoordMap } from './coordmaps';
 import { isField3 } from './field3d';
+import { linearCoeffs } from './linear';
 import { freshName } from '../core-calculus/analyzers';
 import { valueLatex } from '../../math-core/values';
 import type { PointValue } from '../../math-core/values';
@@ -155,6 +156,10 @@ registerAnalyzer({
       { id: 'laplacian', title: 'Laplacian ∇²', expr: `laplacian(${T})`, tier: 0, section: 'overview', pinName: 'L' },
       { id: 'critical', title: 'Critical points', expr: `critical ${T}`, tier: 1, section: 'critical', pinName: 'C', visual: 'auto' },
     ];
+    if (linearCoeffs(f)) {
+      sections.splice(1, 0, { id: 'linear', title: 'Linear function: a dot product', defaultOpen: true });
+      facts.push({ id: 'linear', title: 'Linear form', expr: `linearform ${T}`, tier: 0, section: 'linear', visual: 'auto' });
+    }
     if (slider) {
       sections.push({ id: 'slice', title: `Slice ${z} = ${slider}` });
       facts.push({ id: 'slice', title: `${T} on ${z} = ${slider}`, expr: `sliceplane(${T}, ${z}, ${slider})`, tier: 1, section: 'slice', visual: 'auto' });
@@ -182,10 +187,12 @@ registerAnalyzer({
   focusOnEdit: true,
   recognizes: (v) => v.kind === 'implicitsurface',
   plan(S, value): AnalysisPlan {
+    // a linear equation is a plane: its coefficients are the normal vector
+    const plane = !!linearCoeffs((value as unknown as { fn: import('../../math-core/values').FunctionValue }).fn);
     return {
-      object: S, typeLabel: 'surface G(x, y, z) = 0', layout: SPACE_LAYOUT(`Surface ${S}`), title: `${symbolLatex(S)}:\\; ${(value as unknown as { latex: string }).latex}`,
-      sections: [{ id: 'overview', title: 'Summary', summary: true }],
-      facts: [],
+      object: S, typeLabel: plane ? 'plane ax + by + cz = d' : 'surface G(x, y, z) = 0', layout: SPACE_LAYOUT(`${plane ? 'Plane' : 'Surface'} ${S}`), title: `${symbolLatex(S)}:\\; ${(value as unknown as { latex: string }).latex}`,
+      sections: [{ id: 'overview', title: 'Summary', summary: true }, ...(plane ? [{ id: 'plane', title: 'Normal vector and dot-product form', defaultOpen: true }] : [])],
+      facts: plane ? [{ id: 'plane', title: 'Plane', expr: `linearform ${S}`, tier: 0, section: 'plane', visual: 'auto' }] : [],
       relations: [], diagnostics: [],
     };
   },

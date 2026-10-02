@@ -31,6 +31,7 @@ const SYNTAX: [string, string][] = [
   ['T(r, θ) = (r cos(θ), r sin(θ)) · jacobian T · det(jacobian T) · coordgrid T', 'coordinate maps (plane and space): Jacobian, area / volume scale, the bending grid'],
   ['f(r, θ) = r^2 sin(θ) · grad f · grad f in polar · polarform f · cartesian f · polarview f at P', 'polar coordinates: ∇f = f_r e_r + (1/r) f_θ e_θ, with e_r, e_θ drawn at P'],
   ['f(x, y) = c (f already defined) · level f = c · level f at 4 · x^2 + y^2 = r^2 (＋ slider r)', 'level curves whose size a slider controls'],
+  ['x - 2y + 3 · 2x + 3y - z · 2x + 3y - z = 5 · ax + by + cz = d (＋ sliders) · linearform S', 'bare formulas are named f, g … and analysed; planes with their normal n = (a, b, c)'],
   ['T(x,y,z) = … · critical T · levelsurface(T, c) · sliceplane(T, z, c) · tangent T at P · x^2 + y^2 - z^2 = 1', '3-D scalar fields and implicit surfaces'],
   ['maximize f subject to g = c [and h <= d] · minimize … · lagrange f subject to …', 'Lagrange multipliers (equality and inequality constraints, 2 or 3 variables)'],
   ['script name … end · function y = f(x) … end · for / while / if … end', 'MATLAB-style scripts (Shift+Enter or Enter inside a block adds lines); script variables become worksheet objects'],

@@ -255,6 +255,18 @@ export const examples: Example[] = [
     cells: ['C = r <= 1 + cos(θ)', 'S = 1 <= r <= 2 and 0 <= θ <= π/4', 'integrate (x^2 + y^2)^(-3/2) over S'],
   },
   {
+    id: 'plane-normal',
+    title: 'Plane ax + by + cz = d — the coefficients are the normal vector (move the sliders)',
+    course: 'Multivariable Calculus',
+    cells: ['a = slider(-5, 5, 2)', 'b = slider(-5, 5, 3)', 'c = slider(-5, 5, -1)', 'd = slider(-5, 5, 5)', 'ax + by + cz = d'],
+  },
+  {
+    id: 'linear-function',
+    title: 'Linear function 2x + 3y − z — a dot product: constant gradient, level surfaces are parallel planes',
+    course: 'Multivariable Calculus',
+    cells: ['f(x, y, z) = 2x + 3y - z', 'grad f', 'f(x, y, z) = 5'],
+  },
+  {
     id: 'polar-gradient-radial',
     title: 'Polar gradient — x² + y² = r²: circles of radius √c, ∇f = 2r e_r = (2x, 2y)',
     course: 'Multivariable Calculus',

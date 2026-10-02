@@ -6,6 +6,7 @@ import type { RegionValue } from './region';
 import { visualBuiltins } from './visuals';
 import { coordGrid, detOfFunctions } from './coordmaps';
 import { field3dBuiltins, field3dWrappers, ImplicitSurface } from './field3d';
+import { linearform, LinearFormValue } from './linear';
 import { lagrangeBuiltins, optimumLatex, OptimumValue } from './lagrange';
 import { getBuiltin } from '../../math-core/builtins';
 
@@ -18,6 +19,8 @@ export const multivariableMath = definePlugin({
     visualBuiltins.forEach((b) => api.registerBuiltin(b));
     api.registerBuiltin(coordGrid);
     field3dBuiltins.forEach((b) => api.registerBuiltin(b));
+    api.registerBuiltin(linearform);
+    api.registerValueKind({ kind: 'linearform', latex: (v) => (v as unknown as LinearFormValue).latex, typeLabel: () => 'linear form' });
     lagrangeBuiltins.forEach((b) => api.registerBuiltin(b));
     api.registerValueKind({ kind: 'optimum', latex: (v) => optimumLatex(v as unknown as OptimumValue), typeLabel: () => 'constrained optimum' });
     field3dWrappers(getBuiltin).forEach((b) => api.registerBuiltin(b));
