@@ -549,11 +549,81 @@ export function momentOf(expr: Expr, what: 'mean' | 'variance' | 'sd', ctx0: Eva
     const sim = simulate(h, B.rvs, `E|${toText(B.expr)}`);
     return { value: sim.reduce((a, v) => a + v, 0) / sim.length, certainty: 'heuristic', how: `${MC.toLocaleString()} simulated values` };
   };
+  // a product of factors about different (independent) variables: E(XY) = E(X)·E(Y)
+  if (what === 'mean') {
+    const factors: Expr[] = [];
+    const flat = (e: Expr): void => {
+      if (e.type === 'bin' && e.op === '*') {
+        flat(e.left);
+        flat(e.right);
+      } else factors.push(e);
+    };
+    flat(B.expr);
+    const sets = factors.map((f) => [...freeSymbols(f)].filter((n) => B.names.includes(n)));
+    const random = sets.filter((s) => s.length > 0);
+    const disjoint = random.length > 1 && new Set(random.flat()).size === random.flat().length;
+    if (disjoint) {
+      let value = 1;
+      const certs: Certainty[] = [];
+      factors.forEach((f, i) => {
+        if (sets[i].length) {
+          const m = momentOf(f, 'mean', B.ctx);
+          value *= m.value;
+          certs.push(m.certainty);
+        } else value *= expectNumber(B.ctx.evaluate(f));
+      });
+      return { value, certainty: worst(...certs), evidence: 'independent factors: E(XY) = E(X)·E(Y)', derivation: `E\\left(${tex}\\right) = ${factors.filter((_, i) => sets[i].length).map((f) => `E\\left(${toLatex(f)}\\right)`).join('\\,')}` };
+    }
+  }
   const m1 = E(g);
   if (what === 'mean') return { value: m1.value, certainty: m1.certainty, evidence: m1.how };
   const m2 = E((...x) => g(...x) ** 2);
   return sd({ value: Math.max(0, m2.value - m1.value ** 2), certainty: worst(m1.certainty, m2.certainty), evidence: `V = E[h²] − (E[h])², ${m1.how}`, derivation: `V\\left(${tex}\\right) = E\\left[(${tex})^2\\right] - \\left(E\\left[${tex}\\right]\\right)^2` });
 }
+/** Cov(U, V) for expressions in independent random variables. */
+export function covarianceOf(a: Expr, b: Expr, ctx0: EvalContext): Moment {
+  const B = bind({ type: 'vec', items: [a, b] }, ctx0);
+  if (!B.names.length) throw new EvalError('no random variable in these expressions');
+  const [ea, eb] = (B.expr as Extract<Expr, { type: 'vec' }>).items;
+  const dep = (e: Expr) => [...freeSymbols(e)].filter((n) => B.names.includes(n));
+  const cert = worst(...B.rvs.map((X) => X.certainty));
+  const tex = `\\operatorname{Cov}\\left(${toLatex(a)}, ${toLatex(b)}\\right)`;
+  // no variable in common: independent, covariance 0
+  if (!dep(ea).some((n) => dep(eb).includes(n))) return { value: 0, certainty: cert, evidence: 'the two expressions involve different independent variables, so their covariance is 0', derivation: `${tex} = 0` };
+  const ga = B.ctx.makeFunction(ea, B.names).eval as (...x: number[]) => number;
+  const gb = B.ctx.makeFunction(eb, B.names).eval as (...x: number[]) => number;
+  const la = affine(ga, B.rvs), lb = affine(gb, B.rvs);
+  if (la && lb) {
+    const value = la.c.reduce((s, c, i) => s + c * lb.c[i] * B.rvs[i].dist.variance, 0);
+    const terms = la.c.map((c, i) => (c * lb.c[i] ? `${numberLatex(c * lb.c[i], 6)}V(${B.names[i]})` : '')).filter(Boolean).join(' + ');
+    return { value, certainty: cert, evidence: 'Cov(ΣaᵢXᵢ, ΣbᵢXᵢ) = Σ aᵢbᵢ V(Xᵢ) for independent Xᵢ', derivation: `${tex} = ${terms || '0'}` };
+  }
+  const prod: Expr = { type: 'bin', op: '*', left: ea, right: eb };
+  const m = [momentOf(prod, 'mean', B.ctx), momentOf(ea, 'mean', B.ctx), momentOf(eb, 'mean', B.ctx)];
+  return { value: m[0].value - m[1].value * m[2].value, certainty: worst(...m.map((x) => x.certainty)), evidence: 'Cov(U, V) = E(UV) − E(U)E(V)', derivation: `${tex} = E(UV) - E(U)E(V)` };
+}
+
+export const covBuiltins: Builtin[] = [
+  {
+    name: 'Cov', minArgs: 2, maxArgs: 2, argModes: ['raw', 'raw'], category: 'statistics', signature: 'Cov(X + Y, X - Y)',
+    doc: 'Covariance of two expressions in independent random variables.',
+    apply: (_a, ctx, raw) => {
+      const m = covarianceOf(raw[0], raw[1], ctx);
+      return scalar(m.value, { certainty: m.certainty, evidence: m.evidence, derivation: m.derivation });
+    },
+  },
+  {
+    name: 'Corr', minArgs: 2, maxArgs: 2, argModes: ['raw', 'raw'], category: 'statistics', signature: 'Corr(X, X + Y)',
+    doc: 'Correlation ρ = Cov(U, V) / (σ_U σ_V).',
+    apply: (_a, ctx, raw) => {
+      const c = covarianceOf(raw[0], raw[1], ctx);
+      const sa = momentOf(raw[0], 'variance', ctx), sb = momentOf(raw[1], 'variance', ctx);
+      if (!(sa.value > 0 && sb.value > 0)) throw new EvalError('correlation needs two variables with positive variance');
+      return scalar(c.value / Math.sqrt(sa.value * sb.value), { certainty: worst(c.certainty, sa.certainty, sb.certainty), evidence: 'ρ = Cov(U, V) / (σ_U σ_V)', derivation: `\\rho = \\frac{${numberLatex(c.value, 6)}}{\\sqrt{${numberLatex(sa.value, 6)} \\cdot ${numberLatex(sb.value, 6)}}}` });
+    },
+  },
+];
+
 // ------------------------------------------------------------------ events about random variables
 
 type Rel = '<' | '<=' | '>' | '>=' | '=' | '!=';

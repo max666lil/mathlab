@@ -178,6 +178,7 @@ registerAnalyzer({
         { id: 'value', title: `${T}(${P})`, expr: `${T}(${P})`, tier: 1, section: 'at' },
         { id: 'gradP', title: `∇${T}(${P})`, expr: `grad ${T} at ${P}`, tier: 1, section: 'at', pinName: 'gP', visual: 'auto' },
         { id: 'steepest', title: 'Fastest change', expr: `steepest ${T} at ${P}`, tier: 1, section: 'at' },
+        { id: 'differential', title: 'Total differential', expr: `differential ${T} at ${P}`, tier: 1, section: 'at' },
         ...(u ? [{ id: 'dirP', title: `D_${u}${T}(${P})`, expr: `dirderiv(${T}, ${P}, ${u})`, tier: 1 as const, section: 'at' }] : []),
         { id: 'levelP', title: 'Level surface through P', expr: `levelsurface(${T}, ${P})`, tier: 1, section: 'at', visual: 'auto' },
         { id: 'tangentP', title: 'Tangent plane', expr: `tangent ${T} at ${P}`, tier: 1, section: 'at', visual: 'auto' },

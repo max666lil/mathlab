@@ -171,13 +171,13 @@ export function cdfStrict(d: D.Dist, b: number, strict: boolean): number {
   return F - d.pdf(b);
 }
 
-interface Bound {
+export interface Bound {
   value: number;
   strict: boolean;
 }
 
 /** Read P(…) conditions: X > a, a < X ≤ b, X = c (nested eq chains). */
-function readCondition(e: Expr, ctx: EvalContext): { X: string; lo?: Bound; hi?: Bound; eq?: number; ne?: number } {
+export function readCondition(e: Expr, ctx: EvalContext): { X: string; lo?: Bound; hi?: Bound; eq?: number; ne?: number } {
   const isX = (x: Expr) => x.type === 'sym' && asDistribution(ctx.lookup(x.name));
   const val = (x: Expr) => expectNumber(ctx.evaluate(x));
   if (e.type === 'eq' && e.left.type === 'eq') {
@@ -265,7 +265,8 @@ function momentBuiltin(name: string, what: 'mean' | 'variance' | 'sd' | 'median'
       const v = what === 'mean' ? X.dist.mean : what === 'variance' ? X.dist.variance : what === 'sd' ? Math.sqrt(X.dist.variance) : D.quantileOf(X.dist, 0.5);
       const nm = raw[0]?.type === 'sym' ? raw[0].name : 'X';
       const tex = what === 'mean' ? `E(${nm})` : what === 'variance' ? `V(${nm})` : what === 'sd' ? `\\sigma_{${nm}}` : `\\tilde{\\mu}_{${nm}}`;
-      return scalar(v, { certainty: X.family === 'pmf' || what !== 'median' ? 'exact' : 'numeric', evidence: what === 'median' ? 'cdf inverted numerically' : `formula for the ${X.family} distribution`, derivation: tex });
+      const own = X.family === 'density' || X.family === 'derived';
+      return scalar(v, { certainty: what === 'median' && X.family !== 'pmf' ? 'numeric' : own ? X.certainty : 'exact', evidence: what === 'median' ? 'cdf inverted numerically' : own ? (X.evidence ?? 'from the distribution') : `formula for the ${X.family} distribution`, derivation: tex });
     },
   };
 }

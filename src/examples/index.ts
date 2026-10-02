@@ -255,6 +255,24 @@ export const examples: Example[] = [
     cells: ['C = r <= 1 + cos(θ)', 'S = 1 <= r <= 2 and 0 <= θ <= π/4', 'integrate (x^2 + y^2)^(-3/2) over S'],
   },
   {
+    id: 'implicit-diff',
+    title: 'Implicit differentiation — the folium x³ + y³ = 6xy: dy/dx = −F_x/F_y and the tangent at (3, 3)',
+    course: 'Multivariable Calculus',
+    cells: ['implicit x^3 + y^3 = 6 x y at (3, 3)'],
+  },
+  {
+    id: 'chain-rule',
+    title: 'Chain rule written out — dz/dt = f_x x′ + f_y y′, two inner variables, and the total differential',
+    course: 'Multivariable Calculus',
+    cells: ['f(x, y) = x^2 y', 'chain(f, cos(t), sin(t))', 'chain(f, s + t, s t)', 'differential(f, (1, 2), (0.1, -0.05))'],
+  },
+  {
+    id: 'plane-tools',
+    title: 'Planes — through three points, distance from a point (drag P), angle between vectors',
+    course: 'Multivariable Calculus',
+    cells: ['S = plane((1, 0, 0), (0, 2, 0), (0, 0, 3))', 'P = point(2, 2, 2) draggable', 'distance(P, S)', 'angle(<1, 0, 0>, <1, 1, 0>)'],
+  },
+  {
     id: 'plane-normal',
     title: 'Plane ax + by + cz = d — the coefficients are the normal vector (move the sliders)',
     course: 'Multivariable Calculus',
@@ -307,6 +325,18 @@ export const examples: Example[] = [
     title: 'Independent vs mutually exclusive events: P(A ∪ B) both ways',
     course: 'Probability & Statistics',
     cells: ['p = slider(0, 1, 0.3)', 'P(A) = p', 'P(B) = 0.4', 'independent A, B', 'P(A or B)', 'P(A and not B)'],
+  },
+  {
+    id: 'custom-density',
+    title: 'Your own density — f(x) = 3x² on [0, 1]: E, V, probabilities, median (try x² to see the missing constant)',
+    course: 'Probability & Statistics',
+    cells: ['X ~ density(3x^2, 0, 1)', 'E(X)', 'Var(X)', 'P(X <= 0.5)', 'median X'],
+  },
+  {
+    id: 'normal-approx',
+    title: 'Normal approximation to Bin(100, 0.5) with the continuity correction, beside the exact value',
+    course: 'Probability & Statistics',
+    cells: ['X ~ Binomial(100, 0.5)', 'P(X <= 55)', 'normalapprox(X <= 55)', 'normalapprox(45 <= X <= 55)'],
   },
   {
     id: 'dice-sum',

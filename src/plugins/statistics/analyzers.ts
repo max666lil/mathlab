@@ -35,6 +35,11 @@ registerAnalyzer({
       { id: 'sample', title: 'Simulated sample', expr: `sample(${X}, 2000)`, tier: 1, section: 'sim', visual: 'auto' },
       { id: 'clt', title: 'X̄ for n = 1 … 30', expr: `clt(${X})`, tier: 1, section: 'clt', visual: 'auto' },
     ];
+    // a discrete variable with many values: the normal curve with the same mean and sd over the bars
+    if (d.discrete && Number.isFinite(d.dist.variance) && d.dist.variance >= 2) {
+      sections.push({ id: 'napprox', title: 'Normal approximation' });
+      facts.push({ id: 'napprox', title: `N(μ, σ) of ${X}`, expr: `normalapprox(${X})`, tier: 1, section: 'napprox', visual: 'auto' });
+    }
     if (a && b) facts.push({ id: 'pab', title: `P(${a} < ${X} ≤ ${b})`, expr: `P(${a} < ${X} <= ${b})`, tier: 0, section: 'prob', visual: 'auto' });
     else {
       const lo = quantileOf(d.dist, 0.25);

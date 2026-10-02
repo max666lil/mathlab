@@ -43,7 +43,7 @@ function appendRows(ws: Workspace, rows: string[]) {
 }
 
 /** Multi-line results (a smoothness report) get the full width under their title. */
-const WIDE_KINDS = new Set(['smoothness', 'linearform', 'steepest']);
+const WIDE_KINDS = new Set(['smoothness', 'linearform', 'steepest', 'report']);
 
 function FactRow({ plan, spec, an }: { plan: AnalysisPlan; spec: FactSpec; an: AnalysisService }) {
   const ws = useWs();

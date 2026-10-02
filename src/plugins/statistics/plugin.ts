@@ -5,7 +5,8 @@ import { visual } from '../../visualization/scene-model';
 import { statisticsBuiltins, distAware, DistributionValue } from './random';
 import { datasetBuiltins, summaryLatex, SummaryValue } from './data';
 import { evaluateFact, ProbFactValue } from './events';
-import { rvBuiltin, llnBuiltin } from './derived';
+import { rvBuiltin, llnBuiltin, covBuiltins } from './derived';
+import { densityBuiltin, fromCdfBuiltin, normalApproxBuiltin } from './custom';
 import type { Expr } from '../../math-core/ast';
 import { MathSyntaxError } from '../../parser/lexer';
 
@@ -15,6 +16,7 @@ export const statisticsMath = definePlugin({
     statisticsBuiltins.forEach((b) => api.registerBuiltin(b));
     api.registerBuiltin(rvBuiltin);
     api.registerBuiltin(llnBuiltin);
+    [densityBuiltin, fromCdfBuiltin, normalApproxBuiltin, ...covBuiltins].forEach((b) => api.registerBuiltin(b));
     datasetBuiltins.forEach((b) => api.registerBuiltin(b));
     // mean X, median X, var X, stdev X also work for random variables
     for (const [n, w] of [['mean', 'mean'], ['median', 'median'], ['var', 'variance'], ['stdev', 'sd']] as const) {

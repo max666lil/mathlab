@@ -67,6 +67,8 @@ function outputLatex(info: StatementInfo, v: MathValue, math: boolean): string {
   if (v.kind === 'distribution') return name ? `${name} \\sim ${valueLatex(v)}` : valueLatex(v);
   // P(B | A) = 0.95: the fact is its own display (its node name is internal)
   if (v.kind === 'probfact') return valueLatex(v);
+  // worked steps are their own display (the command is already in the editor row)
+  if (v.kind === 'report' || v.kind === 'linearform' || v.kind === 'steepest') return valueLatex(v);
   if (v.kind === 'relation' || v.kind === 'region' || v.kind === 'implicitsurface') return name ? `${name}:\\ ${valueLatex(v)}` : valueLatex(v);
   // math mode: show the definition itself (∇f(P)), code mode: how it was obtained numerically
   const middle = math && expr && !literal(expr) ? toLatex(expr) : v.derivation;

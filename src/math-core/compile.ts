@@ -97,6 +97,8 @@ function cond(e: Expr, params: string[], env: NumericEnv, fns: Map<string, (...a
   const g = (x: Expr) => gen(x, params, env, fns);
   if (e.type === 'call' && e.callee.type === 'sym' && e.callee.name === 'and') return `(${e.args.map((a) => cond(a, params, env, fns)).join('&&')})`;
   if (e.type !== 'eq') throw new CompileError('a piecewise condition must be a comparison, e.g. x < 0 or (x, y) != (0, 0)');
+  // a chain 0 <= x <= 1 is nested ((0 <= x) <= 1): both comparisons share the middle term
+  if (e.left.type === 'eq') return `(${cond(e.left, params, env, fns)}&&${cond({ type: 'eq', left: e.left.right, right: e.right, rel: e.rel }, params, env, fns)})`;
   const items = (x: Expr) => (x.type === 'tuple' || x.type === 'vec' ? x.items : [x]);
   const L = items(e.left);
   const R = items(e.right);

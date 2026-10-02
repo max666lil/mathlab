@@ -65,7 +65,7 @@ describe('random variables (Phase 5, Devore ch. 3–4)', () => {
     expect(m).toBeLessThan(110);
     const ws = new Workspace(['X ~ Poisson(3)']);
     const plan = new AnalysisService(ws).plan()!;
-    expect(plan.sections.map((s) => s.id)).toEqual(['overview', 'prob', 'cdf', 'sim', 'clt']);
+    expect(plan.sections.map((s) => s.id)).toEqual(['overview', 'prob', 'cdf', 'sim', 'clt', 'napprox']);
     expect(ws.sceneItems().some((i) => i.visual.vtype === 'distplot' && i.visible)).toBe(true);
   });
 });
@@ -183,3 +183,63 @@ describe('functions of random variables (STA237: E[g(X)], sums, sampling distrib
   });
 });
 
+
+describe('random variables from their own formula; normal approximation', () => {
+  it('a density on an interval: exact moments, probabilities, percentiles', () => {
+    const X = last('X ~ density(3x^2, 0, 1)').value;
+    expect(X.kind).toBe('distribution');
+    expect(X.certainty).toBe('exact');
+    expect(p('X ~ density(3x^2, 0, 1)', 'E(X)')).toBeCloseTo(0.75, 12);
+    expect(p('X ~ density(3x^2, 0, 1)', 'Var(X)')).toBeCloseTo(3 / 80, 12);
+    expect(p('X ~ density(3x^2, 0, 1)', 'P(X <= 0.5)')).toBeCloseTo(1 / 8, 12);
+    expect(p('X ~ density(3x^2, 0, 1)', 'median X')).toBeCloseTo(0.5 ** (1 / 3), 9);
+    expect(p('X ~ density(3x^2, 0, 1)', 'E(1/X)')).toBeCloseTo(1.5, 8);
+    expect(p('X ~ density(3x^2, 0, 1)', 'P(X > 0.5 | X > 0.2)')).toBeCloseTo((1 - 0.125) / (1 - 0.008), 10);
+  });
+  it('the missing constant is reported; negative densities are refused', () => {
+    expect(last('X ~ density(x^2, 0, 1)').error).toMatch(/integrates to 0\.333333.*multiply the formula by 3/);
+    expect(last('X ~ density(x - 0.5, 0, 2)').error).toMatch(/cannot be negative/);
+    expect(p('k = 3', 'X ~ density(k x^2, 0, 1)', 'E(X)')).toBeCloseTo(0.75, 12);
+  });
+  it('piecewise and unbounded densities; a variable given by its cdf', () => {
+    const tri = 'X ~ density({0 <= x <= 1: x, 1 < x <= 2: 2 - x, 0})';
+    expect(p(tri, 'E(X)')).toBeCloseTo(1, 6);
+    expect(p(tri, 'P(X < 0.5)')).toBeCloseTo(0.125, 6);
+    expect(p(tri, 'Var(X)')).toBeCloseTo(1 / 6, 6);
+    expect(p('X ~ density(2 exp(-2x), 0, ∞)', 'E(X)')).toBeCloseTo(0.5, 7);
+    expect(p('X ~ density(2 exp(-2x), 0, ∞)', 'P(X > 1)')).toBeCloseTo(Math.exp(-2), 7);
+    expect(p('X ~ fromcdf(1 - exp(-2x), 0, ∞)', 'P(X > 1)')).toBeCloseTo(Math.exp(-2), 7);
+    expect(p('X ~ fromcdf(x^2, 0, 1)', 'E(X)')).toBeCloseTo(2 / 3, 12);
+    expect(last('X ~ fromcdf(x^2, 0, 2)').error).toMatch(/goes from 0 to 1/);
+  });
+  it('normal approximation with the continuity correction', () => {
+    const b = 'X ~ Binomial(100, 0.5)';
+    const N = last(b, 'normalapprox(X)').value;
+    expect([N.family, ...N.params]).toEqual(['Normal', 50, 5]);
+    const r = last(b, 'normalapprox(X <= 55)').value;
+    expect(r.value).toBeCloseTo(normCdf(1.1), 10);
+    expect(r.exact).toBeCloseTo(0.8644, 4);
+    expect(r.evidence).toMatch(/continuity correction.*both ≥ 10/);
+    expect(r.derivation).toMatch(/55\.5 - 50/);
+    expect(p(b, 'normalapprox(X < 55)')).toBeCloseTo(normCdf(0.9), 10);
+    expect(p(b, 'normalapprox(45 <= X <= 55)')).toBeCloseTo(2 * normCdf(1.1) - 1, 10);
+    expect(p(b, 'normalapprox(X = 50)')).toBeCloseTo(normCdf(0.1) - normCdf(-0.1), 10);
+    expect(p(b, 'normalapprox(X > 60)')).toBeCloseTo(1 - normCdf(2.1), 10);
+    expect(last('X ~ Binomial(20, 0.1)', 'normalapprox(X <= 3)').value.evidence).toMatch(/rough/);
+  });
+});
+describe('covariance of expressions in independent variables', () => {
+  const xy = ['X ~ Normal(1, 2)', 'Y ~ Exponential(0.5)'];
+  it('E(XY) = E(X)E(Y) exactly; Cov and Corr of linear combinations', () => {
+    const e = last(...xy, 'E(X Y)').value;
+    expect(e.value).toBeCloseTo(2, 12);
+    expect(e.certainty).toBe('exact');
+    expect(p(...xy, 'Cov(X, Y)')).toBe(0);
+    expect(p(...xy, 'Cov(X, X)')).toBeCloseTo(4, 12);
+    // Cov(X + Y, X − Y) = V(X) − V(Y) = 4 − 4
+    expect(p(...xy, 'Cov(X + Y, X - Y)')).toBeCloseTo(0, 12);
+    expect(p(...xy, 'Cov(2X + Y, X)')).toBeCloseTo(8, 12);
+    expect(p(...xy, 'Corr(X, X + Y)')).toBeCloseTo(4 / Math.sqrt(4 * 8), 12);
+    expect(p(...xy, 'Corr(X, -3X + 1)')).toBeCloseTo(-1, 12);
+  });
+});
