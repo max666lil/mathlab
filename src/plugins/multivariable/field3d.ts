@@ -156,12 +156,41 @@ export function levelTangent(ctx: EvalContext, f: FunctionValue, P: number[], na
   if (g.every((c) => Math.abs(c) < 1e-14)) throw new EvalError(`∇${name} = 0 at the point: no tangent plane to the level surface`);
   const e = simplify(addList(f.params.map((p, i) => mulList([num(g[i]), addList([sym(p), num(-P[i])])]))));
   const plane = ctx.makeFunction(e, f.params);
-  const w = 0.8;
+  // a patch about a third of the picture wide, so it reads as a plane touching the level surface
+  const fb = boxOf(f);
+  const w = Math.max(0.5, 0.3 * Math.max(...fb.map(([a, b]) => b - a)) * 0.5);
   const box = P.map((c) => [c - w, c + w]) as Box3;
   return {
     kind: 'equation3', latex: `${toLatex(e)} = 0`, normal: g, point: P, certainty: 'exact', evidence: 'the gradient is normal to the level surface',
-    visuals: [visual('isosurface', { fn: plane, levels: [0], box, flat: true }, 'tangent plane', 'tangent')],
+    visuals: [visual('isosurface', { fn: plane, levels: [0], box, flat: true, seeThrough: true }, 'tangent plane', 'tangent')],
   } as unknown as MathValue;
+}
+
+/** Curves of steepest ascent and descent from P: always along ±∇f, so they cross every level surface at right angles. */
+export function steepestPath3(ctx: EvalContext, f: FunctionValue, P: number[]): MathValue {
+  if (P.length !== 3) throw new EvalError('gradient_path: a point (x, y, z)');
+  const g = gradOf(ctx, f).eval as (...p: number[]) => number[];
+  const box = boxOf(f).map(([a, b], i) => [Math.min(a, P[i] - 0.5), Math.max(b, P[i] + 0.5)]);
+  const h = Math.max(...box.map(([a, b]) => b - a)) / 300;
+  const run = (sign: number) => {
+    const pts: number[][] = [P.slice()];
+    let p = P.slice();
+    for (let k = 0; k < 600; k++) {
+      const v = g(...p);
+      const len = Math.hypot(...v);
+      if (!(len > 1e-9) || !Number.isFinite(len)) break;
+      // midpoint step of length h along the unit gradient
+      const mid = p.map((c, i) => c + (sign * h * v[i]) / (2 * len));
+      const vm = g(...mid);
+      const lm = Math.hypot(...vm);
+      if (!(lm > 1e-9) || !Number.isFinite(lm)) break;
+      p = p.map((c, i) => c + (sign * h * vm[i]) / lm);
+      if (p.some((c, i) => c < box[i][0] || c > box[i][1])) break;
+      pts.push(p);
+    }
+    return pts;
+  };
+  return visual('path3', { ascent: run(1), descent: run(-1) }, 'steepest path', 'path') as unknown as MathValue;
 }
 
 /** A Hughes-Hallett "level surface" relation G(x, y, z) = 0 as a typed object. */
@@ -234,6 +263,7 @@ export function field3dWrappers(get: (n: string) => Builtin | undefined): Builti
     threeD(get('critical'), ([f], ctx) => critical3D(ctx, f as FunctionValue) as unknown as MathValue),
     threeD(get('domain'), ([f]) => domain3D(f as FunctionValue) as unknown as MathValue),
     threeD(get('tangent'), ([f, p], ctx, raw, kw) => levelTangent(ctx, f as FunctionValue, expectCoords(kw.values.at ?? p, 'a point (x, y, z)'), fn(raw[0]))),
+    threeD(get('gradient_path'), ([f, p], ctx) => steepestPath3(ctx, f as FunctionValue, expectCoords(p, 'a point (x, y, z)'))),
   ].filter((b): b is Builtin => !!b);
 }
 

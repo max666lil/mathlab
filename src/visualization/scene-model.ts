@@ -64,6 +64,8 @@ registerDefaultVisual('function', (v, ctx) => {
   // S(u, v) = (x, y, z): a parametric surface; F(x, y) = <P, Q>: a plane vector field
   if (f.out === 'vector' && f.params.length === 2 && f.expr && (f.expr.type === 'vec' || f.expr.type === 'tuple') && f.expr.items.length === 3) return [visual('psurface', { S: f }, ctx.name, 'psurface')];
   if (f.out === 'vector' && f.params.length === 2) return [visual('field2', { fn: f }, ctx.name, v.role)];
+  // ∇f of a function of three variables: arrows in space, like the plane field of a function of two
+  if (f.out === 'vector' && f.params.length === 3 && f.role === 'gradient') return [visual('field3', { fn: f }, ctx.name, v.role)];
 
   return undefined;
 });

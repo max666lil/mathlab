@@ -464,7 +464,7 @@ class Isosurface3D implements Visual3D {
   private key = '';
   update(item: SceneItem, ctx: Ctx3D, selected: boolean) {
     const { fn, levels, box, solid, flat } = item.visual.props as { fn: FunctionValue; levels: number[]; box: Box; solid?: boolean; flat?: boolean };
-    const key = `${fn.key}|${levels}|${box}|${ctx.map.key()}|${item.color}|${selected}`;
+    const key = `${fn.key}|${levels}|${box}|${ctx.map.key()}|${item.color}|${selected}|${!!ctx.frame.seeThrough}`;
     if (key === this.key) return;
     this.key = key;
     for (const m of this.meshes) {
@@ -494,11 +494,13 @@ class Isosurface3D implements Visual3D {
       g.setAttribute('normal', new THREE.BufferAttribute(iso.normals, 3));
       const rgb: [number, number, number] = [0, 0, 0];
       const color = solid || flat || levels.length === 1 ? new THREE.Color(item.color) : new THREE.Color().setRGB(...colormap(hi > lo ? (c - lo) / (hi - lo) : 0.5, rgb), THREE.SRGBColorSpace);
-      const opacity = levels.length > 1 ? 0.38 : flat ? 0.55 : 0.62;
-      const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.05, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: levels.length === 1 && !flat });
-      setOpacity(mat, selected ? Math.min(0.85, opacity + 0.2) : opacity);
+      // with a tangent patch in the scene the surfaces around it turn to glass so it can be seen
+      const ghost = !!ctx.frame.seeThrough && !flat;
+      const opacity = flat ? 0.88 : ghost ? (levels.length > 1 ? 0.1 : 0.3) : levels.length > 1 ? 0.38 : 0.62;
+      const mat = new THREE.MeshStandardMaterial({ color: flat ? new THREE.Color('#ffd166') : color, roughness: 0.55, metalness: 0.05, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: levels.length === 1 && !flat && !ghost });
+      setOpacity(mat, selected && !flat ? Math.min(0.85, opacity + 0.2) : opacity);
       const mesh = new THREE.Mesh(g, mat);
-      mesh.renderOrder = 2;
+      mesh.renderOrder = flat ? 5 : 2;
       this.meshes.push(mesh);
       this.object.add(mesh);
     });
@@ -600,3 +602,40 @@ registerDrawer2D('levelsweep', {
     if (segs.length) drawLabel(ctx, `${fn.label ?? 'f'} = ${+c.toPrecision(4)}`, view.sx(segs[0]) + 6, view.sy(segs[1]) - 10, '#ffd166', theme, 13);
   },
 });
+// ------------------------------------------------------------------ steepest ascent / descent in space
+
+class Path3D implements Visual3D {
+  object = new THREE.Group();
+  private lines: FatSegments[] = [];
+  private key = '';
+  update(item: SceneItem, ctx: Ctx3D, selected: boolean) {
+    const { ascent, descent } = item.visual.props as { ascent: number[][]; descent: number[][] };
+    const m = ctx.map;
+    const key = `${ascent.length}|${ascent[ascent.length - 1]}|${descent.length}|${descent[descent.length - 1]}|${ascent[0]}|${m.key()}|${selected}`;
+    if (key === this.key) return;
+    this.key = key;
+    for (const l of this.lines) this.object.remove(l.lines);
+    this.lines = [];
+    const v = new THREE.Vector3();
+    [ascent, descent].forEach((pts, k) => {
+      const seg: number[] = [];
+      for (let i = 0; i + 1 < pts.length; i++) {
+        // the descent path is dashed: every other piece is left out
+        if (k === 1 && i % 4 >= 2) continue;
+        m.v(pts[i][0], pts[i][1], pts[i][2], v);
+        seg.push(v.x, v.y, v.z);
+        m.v(pts[i + 1][0], pts[i + 1][1], pts[i + 1][2], v);
+        seg.push(v.x, v.y, v.z);
+      }
+      const line = new FatSegments(ctx.lineMaterial(k === 0 ? '#ff6b6b' : '#4cc9f0', selected ? 4 : 3, { depthTest: false }));
+      line.set(seg);
+      line.lines.renderOrder = 6;
+      this.lines.push(line);
+      this.object.add(line.lines);
+    });
+  }
+  dispose() {
+    disposeObject(this.object);
+  }
+}
+registerVisual3D('path3', () => new Path3D());

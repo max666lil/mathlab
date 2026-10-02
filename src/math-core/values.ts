@@ -179,6 +179,10 @@ export function entryLatex(x: number, exact: boolean | undefined): string {
 function fracOrDecimal(x: number): string {
   const q = toFrac(x);
   if (!q || q.d > 100000n) return numberLatex(x);
+  // a fraction only when it is one: an irrational value (a norm √…) can sit near some p/q with huge p, q
+  const exactQ = Math.abs(x - Number(q.n) / Number(q.d)) <= 4e-16 * Math.abs(x);
+  const size = Math.abs(Number(q.n)) * Number(q.d);
+  if (!exactQ || size > 1e8) return numberLatex(x);
   // terminating decimals with an unfamiliar denominator stay decimal: 0.02097, not 2097/100000
   if (q.d > 12n && 1000000n % q.d === 0n) return numberLatex(x, 8);
   const n = q.n < 0n ? -q.n : q.n;

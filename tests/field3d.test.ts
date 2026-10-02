@@ -3,6 +3,7 @@ import { installMathLab } from '../src/setup';
 import { Workspace } from '../src/runtime/workspace';
 import { AnalysisService } from '../src/runtime/analysis';
 import { toText } from '../src/math-core/symbolic/print';
+import { valueLatex } from '../src/math-core/values';
 
 beforeAll(() => installMathLab());
 
@@ -91,5 +92,42 @@ describe('Lagrange multipliers (3a, Hughes-Hallett §15.3)', () => {
     expect(plan.object).toBe('L');
     expect(ws.sceneItems().some((i) => i.visual.vtype === 'levelsweep')).toBe(true);
     void toText;
+  });
+});
+describe('functions of three variables share the analysis of two', () => {
+  const cells = ['T(x,y,z) = 6000 - 5700 (x^2 + y^2 + z^2)', 'P = point(0.6, 0.3, 0.4) draggable'];
+  it('fastest change at P: rate ‖∇T(P)‖ along ∇T/‖∇T‖ (two and three variables)', () => {
+    const s = last(...cells, 'steepest T at P').value;
+    expect(s.rate).toBeCloseTo(11400 * Math.hypot(0.6, 0.3, 0.4), 6);
+    expect(s.direction.map((c: number) => +c.toFixed(6))).toEqual([0.6, 0.3, 0.4].map((c) => +(-c / Math.hypot(0.6, 0.3, 0.4)).toFixed(6)));
+    expect(s.latex).toMatch(/fastest increase/);
+    const s2 = last('f(x, y) = x^2 + y^2', 'steepest f at (3, 4)').value;
+    expect(s2.rate).toBeCloseTo(10, 12);
+    expect(s2.direction).toEqual([0.6, 0.8]);
+    expect(last('f(x, y) = x^2 + y^2', 'steepest f at (0, 0)').value.rate).toBe(0);
+  });
+  it('the gradient field, the steepest path and the sections of the 3-D analysis', () => {
+    const g = last(...cells, 'gradient T').value;
+    expect(g.role).toBe('gradient');
+    const path = last(...cells, 'gradient_path(T, P)').value;
+    expect(path.vtype).toBe('path3');
+    // ascent runs to the centre (the hottest point), descent away from it
+    const end = path.props.ascent.at(-1);
+    expect(Math.hypot(...end)).toBeLessThan(0.05);
+    expect(Math.hypot(...path.props.descent.at(-1))).toBeGreaterThan(Math.hypot(0.6, 0.3, 0.4));
+    const ws = new Workspace(cells);
+    const plan = new AnalysisService(ws).plan()!;
+    expect(plan.sections.map((x) => x.id)).toEqual(expect.arrayContaining(['at', 'curvature', 'laplace', 'path']));
+    expect(plan.sections.find((x) => x.id === 'at')!.defaultOpen).toBe(true);
+    expect(plan.facts.find((x) => x.id === 'gradient')!.visual).toBe('toggle');
+    expect(plan.facts.map((x) => x.id)).toEqual(expect.arrayContaining(['steepest', 'tangentP', 'hessianP', 'eigen', 'lapP', 'path']));
+  });
+  it('a 3-D point can be an input (dragged in space); an irrational norm is not shown as a fraction', () => {
+    const ws = new Workspace(cells);
+    ws.setPoint('P', [0.1, 0.2, 0.3]);
+    ws.flush();
+    expect((ws.value('P') as any).coords).toEqual([0.1, 0.2, 0.3]);
+    const n = last(...cells, 'norm(grad T at P)').value;
+    expect(valueLatex(n)).not.toMatch(/frac/);
   });
 });

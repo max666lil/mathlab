@@ -151,7 +151,7 @@ registerAnalyzer({
     const facts: FactSpec[] = [
       { id: 'levels', title: 'Level surfaces', expr: `levelsurfaces(${T})`, tier: 0, section: 'overview', visual: 'always', hidden: true },
       { id: 'domain', title: 'Domain', expr: `domain ${T}`, tier: 0, section: 'overview' },
-      { id: 'gradient', title: 'Gradient', expr: `gradient ${T}`, tier: 0, section: 'overview', pinName: 'g' },
+      { id: 'gradient', title: 'Gradient', expr: `gradient ${T}`, tier: 0, section: 'overview', pinName: 'g', visual: 'toggle' },
       { id: 'hessian', title: 'Hessian', expr: `hessian ${T}`, tier: 0, section: 'overview', pinName: 'H' },
       { id: 'laplacian', title: 'Laplacian ∇²', expr: `laplacian(${T})`, tier: 0, section: 'overview', pinName: 'L' },
       { id: 'critical', title: 'Critical points', expr: `critical ${T}`, tier: 1, section: 'critical', pinName: 'C', visual: 'auto' },
@@ -164,16 +164,29 @@ registerAnalyzer({
       sections.push({ id: 'slice', title: `Slice ${z} = ${slider}` });
       facts.push({ id: 'slice', title: `${T} on ${z} = ${slider}`, expr: `sliceplane(${T}, ${z}, ${slider})`, tier: 1, section: 'slice', visual: 'auto' });
     } else sections.push({ id: 'slice', title: 'Slice plane', actions: [{ label: `＋ Add a slice ${z} = c`, rows: [`c = slider(-2, 2, 0)`] }] });
+    // the same analysis at a point as for two variables: value, gradient, fastest change, level set,
+    // tangent, curvature, Laplacian, steepest path
     if (P) {
-      sections.push({ id: 'at', title: `At ${P}`, why: 'gradient' });
+      const uName = freshName(ws, 'u');
+      sections.push(
+        { id: 'at', title: `At ${P}`, why: 'gradient', defaultOpen: true, actions: u ? [] : [{ label: `＋ Add a direction ${uName}`, rows: [`${uName} = <1, 1, 1>`] }] },
+        { id: 'curvature', title: `Curvature at ${P}` },
+        { id: 'laplace', title: `Laplacian at ${P}` },
+        { id: 'path', title: `Steepest path from ${P}` },
+      );
       facts.push(
         { id: 'value', title: `${T}(${P})`, expr: `${T}(${P})`, tier: 1, section: 'at' },
         { id: 'gradP', title: `∇${T}(${P})`, expr: `grad ${T} at ${P}`, tier: 1, section: 'at', pinName: 'gP', visual: 'auto' },
+        { id: 'steepest', title: 'Fastest change', expr: `steepest ${T} at ${P}`, tier: 1, section: 'at' },
+        ...(u ? [{ id: 'dirP', title: `D_${u}${T}(${P})`, expr: `dirderiv(${T}, ${P}, ${u})`, tier: 1 as const, section: 'at' }] : []),
         { id: 'levelP', title: 'Level surface through P', expr: `levelsurface(${T}, ${P})`, tier: 1, section: 'at', visual: 'auto' },
         { id: 'tangentP', title: 'Tangent plane', expr: `tangent ${T} at ${P}`, tier: 1, section: 'at', visual: 'auto' },
-        ...(u ? [{ id: 'dirP', title: `D_${u}${T}(${P})`, expr: `dirderiv(${T}, ${P}, ${u})`, tier: 1 as const, section: 'at' }] : []),
+        { id: 'hessianP', title: `H(${P})`, expr: `hessian ${T} at ${P}`, tier: 1, section: 'curvature', pinName: 'HP' },
+        { id: 'eigen', title: 'Principal curvatures', expr: `eigenvalues(hessian ${T} at ${P})`, tier: 1, section: 'curvature' },
+        { id: 'lapP', title: `∇²${T}(${P})`, expr: `laplacian(${T}) at ${P}`, tier: 1, section: 'laplace' },
+        { id: 'path', title: 'Steepest ascent / descent', expr: `gradient_path(${T}, ${P})`, tier: 1, section: 'path', visual: 'auto' },
       );
-    } else sections.push({ id: 'at', title: 'At a point', actions: [{ label: `＋ Add a point ${freshName(ws, 'P')}`, rows: [`${freshName(ws, 'P')} = point(1, 0.5, 0.5)`] }] });
+    } else sections.push({ id: 'at', title: 'At a point', actions: [{ label: `＋ Add a point ${freshName(ws, 'P')}`, rows: [`${freshName(ws, 'P')} = point(1, 0.5, 0.5) draggable`] }] });
     return {
       object: T, typeLabel: 'function ℝ³ → ℝ', layout: SPACE_LAYOUT(`Level surfaces of ${T}`), title: valueLatex(value), sections, facts,
       relations: [{ kind: 'perpendicular', between: ['role:gradient', 'role:level'], text: '∇f is perpendicular to the level surface' }],

@@ -252,6 +252,38 @@ const visuals: Builtin[] = [
     },
   },
   {
+    name: 'steepest', command: true, keywords: { at: V }, minArgs: 1, maxArgs: 2, argModes: [F, V], category: 'calculus',
+    signature: 'steepest f at P', doc: 'Where f changes fastest at P: the rate ‖∇f(P)‖, the direction ∇f/‖∇f‖, and the directions of no change.',
+    apply: ([fv, P], ctx, _raw, kw) => {
+      const f = asScalarField(expectFunction(fv));
+      const p = pointArg(kw?.values.at ?? P, f);
+      const g = gradOf(ctx, f).eval(...p) as number[];
+      const s2 = g.reduce((s, c) => s + c * c, 0);
+      const len = Math.sqrt(s2);
+      const nm = f.label ?? 'f';
+      if (!Number.isFinite(len)) throw new EvalError(`${nm} is not differentiable at this point`);
+      const rows = (ls: string[]) => `\\begin{aligned} ${ls.map((l) => `& ${l}`).join(' \\\\ ')} \\end{aligned}`;
+      if (len < 1e-12)
+        return { kind: 'steepest', rate: 0, direction: g.map(() => 0), certainty: 'exact', latex: rows([`\\nabla ${nm}(P) = \\mathbf 0`, `\\text{a critical point: no change to first order in any direction}`]) } as unknown as MathValue;
+      const u = g.map((c) => c / len);
+      const vec = (v: number[]) => `\\left(${v.map((c) => numberLatex(c, 3)).join(', ')}\\right)`;
+      // ‖∇f‖ as √n when the sum of squares is a small whole number
+      const exact = s2 <= 10000 && Math.abs(s2 - Math.round(s2)) < 1e-9 * Math.max(1, s2) && Math.abs(len - Math.round(len)) > 1e-9 ? `\\sqrt{${Math.round(s2)}} \\approx ` : '';
+      const where = f.params.length === 2 ? 'curve' : 'surface';
+      return {
+        kind: 'steepest', rate: len, direction: u, certainty: 'exact',
+        evidence: 'D_u f = ∇f · u = ‖∇f‖ cos φ is largest when u points along ∇f (φ = 0), smallest against it, and 0 when u ⟂ ∇f',
+        latex: rows([
+          `\\text{fastest increase: rate } \\|\\nabla ${nm}(P)\\|`,
+          `\\quad = ${exact}${numberLatex(len, 5)}`,
+          `\\text{along } \\mathbf u = \\tfrac{\\nabla ${nm}}{\\|\\nabla ${nm}\\|} = ${vec(u)}`,
+          `\\text{fastest decrease: } -${numberLatex(len, 5)} \\text{ along } -\\mathbf u`,
+          `\\text{no change: } \\perp \\nabla ${nm} \\text{ (level ${where})}`,
+        ]),
+      } as unknown as MathValue;
+    },
+  },
+  {
     name: 'gradient_path', minArgs: 2, maxArgs: 3, argModes: [F, V, RAW], category: 'visual',
     signature: 'gradient_path(f, P[, ascent|descent|both])', doc: 'Path of steepest ascent/descent from P.',
     apply: ([fv, P], ctx, raw) => {
@@ -344,6 +376,7 @@ export const coreCalculusMath = definePlugin({
   name: 'core-calculus',
   install(api) {
     [...calculus, ...visuals, ...polarBuiltins].forEach((b) => api.registerBuiltin(b));
+    api.registerValueKind({ kind: 'steepest', latex: (v) => (v as unknown as { latex: string }).latex, typeLabel: () => 'rate of change' });
     api.registerLatexFunctionName('grad', '\\nabla');
     api.registerLatexFunctionName('hessian', 'H');
     api.registerLatexFunctionName('tangent_plane', '\\operatorname{T}');

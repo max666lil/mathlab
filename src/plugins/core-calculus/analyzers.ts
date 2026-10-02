@@ -200,6 +200,7 @@ registerAnalyzer({
         { id: 'value', title: `${f}(${P})`, expr: `${f}(${P})`, tier: 1, section: 'at' },
         { id: 'gradP', title: `∇${f}(${P})`, expr: `grad ${f} at ${P}`, tier: 1, section: 'at', pinName: 'gP', visual: 'auto' },
         { id: 'slope', title: `‖∇${f}(${P})‖`, expr: `norm(grad ${f} at ${P})`, tier: 1, section: 'at' },
+        { id: 'steepest', title: 'Fastest change', expr: `steepest ${f} at ${P}`, tier: 1, section: 'at' },
         ...(u ? [{ id: 'directional', title: `D_${u}${f}(${P})`, expr: `directional ${f} at ${P} toward ${u}`, tier: 1 as const, section: 'at', pinName: 'D', visual: 'auto' as const, visualTypes: ['arrow'] }] : []),
         { id: 'level', title: 'Level curve', expr: `level ${f} at ${P}`, tier: 1, section: 'at', visual: 'auto' },
         { id: 'tangent', title: 'Tangent plane', expr: `tangent ${f} at ${P}`, tier: 1, section: 'at', pinName: 'T', visual: 'auto' },

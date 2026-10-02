@@ -336,7 +336,11 @@ export function frameFromItems(items: { visible: boolean; visual: { vtype: strin
     const pad = (b: Range): Range => [b[0] - (b[1] - b[0]) * 0.15 - 0.2, b[1] + (b[1] - b[0]) * 0.15 + 0.2];
     return { xr: pad(box[0]), yr: pad(box[1]), zLo: -1, zHi: 1 };
   }
-  if (r > 0) return { xr: [-r, r], yr: [-r, r], zLo: dim === 3 ? -r : -1, zHi: dim === 3 ? r : 1, euclid: dim === 3 };
+  if (r > 0) {
+    // a visual that must be seen inside others (a tangent patch inside nested level surfaces)
+    const through = items.some((i) => i.visible && i.visual.props.seeThrough);
+    return { xr: [-r, r], yr: [-r, r], zLo: dim === 3 ? -r : -1, zHi: dim === 3 ? r : 1, euclid: dim === 3, ...(through ? { seeThrough: true } : {}) };
+  }
   const primary = items.find((i) => i.visible && i.visual.vtype === 'surface') ?? items.find((i) => i.visible && i.visual.vtype === 'contours');
   const p = primary?.visual.props as { fn?: FunctionValue; xRange?: Range; yRange?: Range } | undefined;
   return sceneFrame(p?.fn, p?.xRange ?? DEFAULT_RANGE, p?.yRange ?? DEFAULT_RANGE);

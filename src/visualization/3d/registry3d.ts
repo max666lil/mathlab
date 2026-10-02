@@ -95,6 +95,8 @@ export interface Handle3D {
   nodeId: string;
   /** called with the picked domain point while dragging */
   drag(x: number, y: number): void;
+  /** points of space: called with the cursor ray and the viewing direction instead of a domain point */
+  drag3?(ray: THREE.Ray, view: THREE.Vector3): void;
 }
 
 export interface Visual3D {

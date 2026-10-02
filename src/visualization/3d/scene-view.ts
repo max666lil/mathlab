@@ -566,6 +566,12 @@ export class SceneView {
       this.setDomain([xr[0] + dx, xr[1] + dx], [yr[0] + dy, yr[1] + dy]);
       return;
     }
+    if (this.drag?.drag3) {
+      // a point of space moves in the plane through it that faces the camera
+      this.raycaster.setFromCamera(this.ndc(e), this.camera);
+      this.drag.drag3(this.raycaster.ray, this.camera.getWorldDirection(new THREE.Vector3()));
+      return;
+    }
     const d = this.pickDomain(e);
     if (this.drag) {
       if (d) {

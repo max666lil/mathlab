@@ -243,7 +243,23 @@ class PointVisual implements Visual3D {
     this.stem.visible = top - m.floorZ > m.eps;
     this.label.set(plainLabel(item.visual.label), ctx.theme.name === 'dark' ? '#ffffff' : '#1b1e28');
     this.label.sprite.position.set(x, y, top + r * 2.6);
-    this.handles = inputId ? [{ object: this.sphere, nodeId: inputId, drag: (px, py) => ctx.ws.setPoint(inputId, [px, py]) }] : [];
+    const world = this.sphere.position.clone();
+    const clamp = (c: number, [a, b]: [number, number]) => Math.min(b, Math.max(a, c));
+    this.handles = inputId
+      ? [{
+          object: this.sphere, nodeId: inputId,
+          drag: (px, py) => ctx.ws.setPoint(inputId, coords.length > 2 ? [px, py, coords[2]] : [px, py]),
+          // (x, y, z): slide in the plane through the point that faces the viewer
+          ...(coords.length > 2
+            ? {
+                drag3: (ray: THREE.Ray, view: THREE.Vector3) => {
+                  const hit = ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(view, world), new THREE.Vector3());
+                  if (hit) ctx.ws.setPoint(inputId, [clamp(hit.x, m.xr), clamp(hit.y, m.yr), clamp(m.mathZ(hit.z), [m.zLo, m.zHi])]);
+                },
+              }
+            : {}),
+        }]
+      : [];
   }
   dispose() {
     this.label.dispose();

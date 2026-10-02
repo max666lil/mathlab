@@ -198,7 +198,7 @@ export const examples: Example[] = [
     id: 'earth-field',
     title: 'Temperature inside the Earth — level spheres, slice, gradient ⟂ level surface',
     course: 'Multivariable Calculus',
-    cells: ['T(x,y,z) = 6000 - 5700 (x^2 + y^2 + z^2)', 'P = point(0.6, 0.3, 0.4)', 'c = slider(-2, 2, 0)'],
+    cells: ['T(x,y,z) = 6000 - 5700 (x^2 + y^2 + z^2)', 'P = point(0.6, 0.3, 0.4) draggable', 'c = slider(-2, 2, 0)'],
   },
   {
     id: 'quadrics',
